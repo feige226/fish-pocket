@@ -26,6 +26,8 @@ struct PluginReportSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Group {
                 if let receipt { sent(receipt) } else { form }
@@ -36,7 +38,8 @@ struct PluginReportSheet: View {
         }
         .tint(Palette.ink)
         .interactiveDismissDisabled(sending)
-    }
+    
+        }}
 
     // MARK: Form
 
@@ -221,6 +224,8 @@ struct PluginReportsPage: View {
     private var reports: PluginReports { PluginReports.shared }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Group {
                 if reports.receipts.isEmpty {
@@ -249,7 +254,8 @@ struct PluginReportsPage: View {
             .task { await reports.refreshReceipts() }
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 
     private func tone(_ status: String) -> Color {
         switch status {
