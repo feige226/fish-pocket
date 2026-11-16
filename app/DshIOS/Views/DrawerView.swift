@@ -138,7 +138,7 @@ struct DrawerView: View {
             .background(Palette.background)
             // 操控手机's row says whether iCTRL runs; it changes while the user is in iCTRL.
             .task { await phoneControl.refresh() }
-            .onChange(of: scenePhase) { _, phase in
+            .onChangeCompat(of: scenePhase) { _, phase in
                 if phase == .active {
                     Task { await phoneControl.refresh() }
                     miniApps.refresh()
