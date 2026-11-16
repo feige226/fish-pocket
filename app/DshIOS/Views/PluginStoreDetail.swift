@@ -609,7 +609,7 @@ private struct StoreWebButton: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showWeb = true } label: { Label("网页版", systemImage: "globe") }
                 }
             }
