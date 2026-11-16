@@ -655,7 +655,7 @@ private struct EngineLogView: View {
         .navigationTitle("引擎日志")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button { load() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("刷新")
                 ShareLink(item: file)
             }
