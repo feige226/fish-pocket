@@ -94,7 +94,7 @@ struct MiniAppScreen: View {
                     if let error = page.error { errorBanner(error) }
                 }
                 .navigationTitle(app.name)
-                .toolbarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItemGroup(placement: .navigationBarTrailing) {
                         Menu {
