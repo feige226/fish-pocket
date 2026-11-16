@@ -199,7 +199,7 @@ private struct LearningCard: View {
                 Button("采纳") { answer(true) }.buttonStyle(.capsule(height: 36, fill: false))
                 Button("不用") { answer(false) }.buttonStyle(.capsule(.outline, height: 36, fill: false))
                 Spacer()
-                Button(expanded ? "收起" : "看内容") { withAnimation(.snappy) { expanded.toggle() } }.font(.footnote)
+                Button(expanded ? "收起" : "看内容") { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { expanded.toggle() } }.font(.footnote)
             }
         }
         .disabled(sending)
@@ -284,7 +284,7 @@ struct BotSideChatSheet: View {
             .closeButton(dismiss)
             .toolbar {
                 if !chats.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: .navigationBarLeading) {
                         Menu {
                             Button { fresh = true; chatId = nil } label: { Label("新的提问", systemImage: "plus") }
                             Section("之前问过的") {
