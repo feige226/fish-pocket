@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 
 /// A conversation's browser (S-87): its tabs, which one is in front, and the one the agent works in.
@@ -7,10 +8,10 @@ import SwiftUI
 /// operations act on the tab it names or, without one, the tab it last used. So a link the user
 /// opens in a new tab, or a tab the user brings to the front, does not move the agent elsewhere.
 @MainActor
-@Observable
+@Perceptible
 final class BrowserModel {
     @MainActor
-    @Observable
+    @Perceptible
     final class Tab: Identifiable {
         /// Short and stable while the app runs (`t1`, `t2`…): the agent names tabs by it.
         let id: String
@@ -41,21 +42,21 @@ final class BrowserModel {
     /// The tabs open when the app last ran, until they are restored or something else is opened.
     private(set) var restorable: [Saved] = []
     /// The tab the agent last worked in: its operations go there unless they name another.
-    @ObservationIgnored private(set) var agentTabId: String?
+    @PerceptionIgnored private(set) var agentTabId: String?
     /// The user opened a blank tab: its address bar takes the keyboard when it shows.
-    @ObservationIgnored var focusesAddress = false
+    @PerceptionIgnored var focusesAddress = false
 
-    @ObservationIgnored let origin: URL
+    @PerceptionIgnored let origin: URL
     /// The conversation: downloads go to its working directory.
-    @ObservationIgnored let sessionId: String
+    @PerceptionIgnored let sessionId: String
     /// The agent's kept scripts (`addScript`), run in every tab on every page load until the app restarts.
-    @ObservationIgnored var keptScripts: [BrowserScript] = []
-    @ObservationIgnored var scriptCount = 0
+    @PerceptionIgnored var keptScripts: [BrowserScript] = []
+    @PerceptionIgnored var scriptCount = 0
     /// Files any tab downloaded, and the ones still coming.
-    @ObservationIgnored var downloads: [BrowserDownload] = []
-    @ObservationIgnored private let storageKey: String
-    @ObservationIgnored private var restorableSelected = 0
-    @ObservationIgnored private var nextId = 1
+    @PerceptionIgnored var downloads: [BrowserDownload] = []
+    @PerceptionIgnored private let storageKey: String
+    @PerceptionIgnored private var restorableSelected = 0
+    @PerceptionIgnored private var nextId = 1
 
     var selected: Tab? { tabs.first { $0.id == selectedId } }
     /// The address of the tab in front.
@@ -70,7 +71,7 @@ final class BrowserModel {
     // MARK: One per conversation
 
     /// The conversations' browsers. Observed, so a conversation can show that its browser has a page.
-    @MainActor @Observable final class Registry {
+    @MainActor @Perceptible final class Registry {
         fileprivate(set) var models: [String: BrowserModel] = [:]
     }
     static let registry = Registry()
