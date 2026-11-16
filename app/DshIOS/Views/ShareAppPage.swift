@@ -1,6 +1,7 @@
 import Photos
 import SwiftUI
 
+import Perception
 /// 「分享 Fish Pocket」: a poster with the QR code, a poster with the link written out, or the
 /// link alone, each sent through the system share sheet; posters also save to the album.
 /// Reached from the top of 设置 and from the support card. Everything points at the website
