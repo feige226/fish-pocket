@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The tail of a Bot's own chat while it works, in place of the session's 「深度求索中」: its
 /// mark, moving for what it does, a phrase for it, and how long the turn has run. While its
 /// answer streams the mark gives way to three dots.
