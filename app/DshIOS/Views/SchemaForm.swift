@@ -197,6 +197,8 @@ struct NamespaceFormView: View {
     let ns: String
 
     var body: some View {
+        WithPerceptionTracking {
+
         let mirror = app.settings
         Form {
             if let namespace = mirror.namespace(ns), let graph = mirror.graph(ns) {
@@ -224,7 +226,8 @@ struct NamespaceFormView: View {
         .navigationBarTitleDisplayMode(.inline)
         .keyboardDoneButton()
         .followSettings()
-    }
+    
+        }}
 
     static func secretSlots(_ namespace: JSON) -> [[String]: Bool] {
         Dictionary(namespace["secrets"].array.map { ($0["path"].array.compactMap(\.string), $0["set"].bool ?? false) }, uniquingKeysWith: { $1 })
@@ -315,6 +318,8 @@ struct SchemaObjectSections: View {
     let depth: Int
 
     var body: some View {
+        WithPerceptionTracking {
+
         let fields = context.graph.fields(node).filter { !$0.node.hidden }
         let leaves = fields.filter { !isGroup($0.node) }
         let groups = fields.filter { isGroup($0.node) }
@@ -354,7 +359,8 @@ struct SchemaObjectSections: View {
                 }
             }
         }
-    }
+    
+        }}
 
     private func isGroup(_ node: SchemaNode) -> Bool { node.type == "object" || node.type == "intersect" }
 
@@ -378,6 +384,8 @@ private struct SchemaGroupLink: View {
     let inline: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         let fields = context.graph.fields(node).filter { !$0.node.hidden }
         if inline && fields.allSatisfy({ $0.node.type != "object" && $0.node.type != "intersect" }) && context.graph.extraBranches(node).isEmpty && fields.count <= 6 {
             ForEach(fields, id: \.key) { field in
@@ -394,7 +402,8 @@ private struct SchemaGroupLink: View {
                 Text(inline ? String(localized: "全部选项") : schemaLabel(key, node))
             }
         }
-    }
+    
+        }}
 }
 
 // MARK: - Field chrome
@@ -404,6 +413,8 @@ struct SchemaBadges: View {
     let node: SchemaNode
 
     var body: some View {
+        WithPerceptionTracking {
+
         ForEach(Array(node.meta["badges"].array.enumerated()), id: \.offset) { _, badge in
             let text = badge["text"].string ?? ""
             Text(text == "experimental" ? String(localized: "实验性") : text == "deprecated" ? String(localized: "已弃用") : text)
@@ -413,7 +424,8 @@ struct SchemaBadges: View {
                 .padding(.vertical, 2)
                 .background((badge["type"].string == "danger" ? Palette.removed : Palette.waiting).opacity(0.12), in: Capsule())
         }
-    }
+    
+        }}
 }
 
 /// A section header for a group field.
@@ -422,11 +434,14 @@ private struct FieldHeader: View {
     let node: SchemaNode
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 6) {
             Text(schemaLabel(key, node))
             SchemaBadges(node: node)
         }
-    }
+    
+        }}
 }
 
 /// The label of a field: its name and badges. Required fields say so in the section footer.
@@ -435,13 +450,16 @@ private struct FieldLabel: View {
     let node: SchemaNode
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 6) {
             Text(key.isEmpty ? schemaText(node.meta["description"]) ?? String(localized: "选项") : schemaLabel(key, node))
                 .foregroundStyle(Palette.ink)
                 .accessibilityHint(node.required ? Text("必填") : Text(""))
             SchemaBadges(node: node)
         }
-    }
+    
+        }}
 }
 
 /// Help, comment, link and validation text under a field.
@@ -450,6 +468,8 @@ private struct FieldNotes: View {
     var problem: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         if let problem {
             Text(problem).font(.caption).foregroundStyle(Palette.removed)
         }
@@ -462,7 +482,8 @@ private struct FieldNotes: View {
         if let link = node.meta["link"].string, let url = URL(string: link) {
             Link("了解更多", destination: url).font(.caption)
         }
-    }
+    
+        }}
 }
 
 // MARK: - Fields
@@ -485,12 +506,15 @@ struct SchemaField: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         if resettable {
             field.resettable(context.overridden(path)) { context.save(path, nil) }
         } else {
             field
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private var field: some View {
@@ -598,6 +622,8 @@ private struct CommitTextField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         TextField(placeholder, text: $text)
             .keyboardType(keyboard)
             .multilineTextAlignment(alignment)
@@ -609,7 +635,8 @@ private struct CommitTextField: View {
             .onSubmit { focused = false }
             .onChange(of: focused) { _, now in if !now { commit() } }
             .onDisappear { if focused { commit() } }
-    }
+    
+        }}
 }
 
 /// F-09 / F-10: a number. Blank unsets (the default applies), anything that is not a
@@ -632,6 +659,8 @@ private struct NumberField: View {
     private var maximum: Double? { node.meta["max"].double }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             if node.role == "slider" {
                 slider
@@ -652,7 +681,8 @@ private struct NumberField: View {
         }
         .onAppear { text = format(stored) }
         .onChange(of: stored) { _, value in text = format(value); problem = nil }
-    }
+    
+        }}
 
     private var placeholder: String {
         if let value = node.defaultValue?.double { return format(value) }
@@ -725,6 +755,8 @@ private struct StringField: View {
     private var stored: String? { context.value(at: path)?.string }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 6) {
             switch node.role {
             case "textarea", "markdown":
@@ -755,7 +787,8 @@ private struct StringField: View {
         }
         .onAppear { text = stored ?? "" }
         .onChange(of: stored) { _, value in text = value ?? ""; problem = nil }
-    }
+    
+        }}
 
     private func commit() {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -808,6 +841,8 @@ private struct SecretField: View {
     @State private var draft = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         let set = context.secrets[path] == true
         Button {
             draft = ""
@@ -828,7 +863,8 @@ private struct SecretField: View {
         } message: {
             Text("只保存在本机引擎里，任何读取接口都不会返回它。")
         }
-    }
+    
+        }}
 }
 
 /// F-04: a credential reference. The field holds a reference name (`DEEPSEEK_API_KEY`),
@@ -848,6 +884,8 @@ private struct CredentialRefField: View {
     private var ref: String { context.value(at: path)?.string ?? node.defaultValue?.string ?? "" }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button {
             draft = ""
             editingKey = true
@@ -890,7 +928,8 @@ private struct CredentialRefField: View {
         } label: {
             LabeledContent("凭据名", value: ref)
         }
-    }
+    
+        }}
 
     private var status: String {
         guard let info else { return "…" }
@@ -939,6 +978,8 @@ private struct UnionField: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let options = self.options
         let current = context.value(at: path)
         let active = chosen.flatMap { index in options.first { $0.index == index } } ?? match(current, options)
@@ -956,7 +997,8 @@ private struct UnionField: View {
         if let branch = active?.branch {
             branchEditor(branch, discriminator: active?.discriminator?.key)
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func branchEditor(_ branch: SchemaNode, discriminator: String?) -> some View {
@@ -1046,6 +1088,8 @@ private struct BitsetField: View {
     let path: [String]
 
     var body: some View {
+        WithPerceptionTracking {
+
         let mask = context.value(at: path)?.int ?? node.defaultValue?.int ?? 0
         let bits = node.json["bits"].object.compactMap { name, bit in bit.int.map { (name, $0) } }.sorted { $0.1 < $1.1 }
         DisclosureGroup {
@@ -1058,7 +1102,8 @@ private struct BitsetField: View {
         } label: {
             FieldLabel(key: key, node: node)
         }
-    }
+    
+        }}
 }
 
 // MARK: - Collections
@@ -1072,6 +1117,8 @@ private struct DictEditor: View {
     @State private var newKey = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         let inner = context.graph.inner(node)
         let keyChoices = node.json["sKey"].isNull ? nil : context.graph.choices(context.graph.node(node.json["sKey"]))
         let entries = (context.value(at: path)?.object ?? [:]).keys.sorted()
@@ -1109,7 +1156,8 @@ private struct DictEditor: View {
         .navigationTitle(schemaLabel(key, node))
         .navigationBarTitleDisplayMode(.inline)
         .keyboardDoneButton()
-    }
+    
+        }}
 
     private func add(_ entry: String, _ inner: SchemaNode) {
         guard !entry.isEmpty else { return }
@@ -1127,6 +1175,8 @@ private struct ArrayEditor: View {
     @State private var draft = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         let inner = context.graph.inner(node)
         let items = context.value(at: path)?.array ?? node.defaultValue?.array ?? []
         Form {
@@ -1190,7 +1240,8 @@ private struct ArrayEditor: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { if !items.isEmpty && context.graph.choices(inner) == nil { EditButton() } }
         .keyboardDoneButton()
-    }
+    
+        }}
 
     private func summary(_ item: JSON, _ index: Int) -> String {
         if let name = item["name"].string ?? item["id"].string, !name.isEmpty { return name }
@@ -1207,6 +1258,8 @@ private struct TupleEditor: View {
     let path: [String]
 
     var body: some View {
+        WithPerceptionTracking {
+
         let positions = context.graph.list(node)
         let current = context.value(at: path)?.array ?? node.defaultValue?.array ?? []
         let local = SchemaFormContext(
@@ -1235,7 +1288,8 @@ private struct TupleEditor: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .keyboardDoneButton()
-    }
+    
+        }}
 }
 
 /// A local value (one list item) edited with the same fields, handed back whole on every change.
@@ -1247,6 +1301,8 @@ private struct LocalValueEditor: View {
     let commit: (JSON) -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         let local = SchemaFormContext(graph: base.graph, value: value, user: nil, secrets: [:], disabled: base.disabled, save: { path, next in
             value = value.setting(path, next)
             commit(value)
@@ -1262,7 +1318,8 @@ private struct LocalValueEditor: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .keyboardDoneButton()
-    }
+    
+        }}
 }
 
 /// A fresh value for a new entry of `node`'s shape.
