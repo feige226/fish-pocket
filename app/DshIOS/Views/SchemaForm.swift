@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One node of a serialized schemastery schema, with the uid it was stored under
 /// (the key order of its fields is looked up by that uid).
 struct SchemaNode: Hashable {
