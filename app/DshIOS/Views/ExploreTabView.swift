@@ -67,7 +67,7 @@ struct ExploreTabView: View {
             // the user is in another app.
             .task { await phoneControl.refresh() }
             .onAppear { watch = WatchPairing.current }
-            .onChange(of: scenePhase) { _, phase in
+            .onChangeCompat(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
                 watch = WatchPairing.current
                 Task { await phoneControl.refresh() }
