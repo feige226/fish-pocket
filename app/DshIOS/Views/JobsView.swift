@@ -56,7 +56,7 @@ struct JobRow: Identifiable, Hashable {
 /// The session's job roster: `job/list` frames carry the whole set; the stream stays
 /// open while the conversation is up, so the top bar knows when there is anything to show.
 @MainActor
-@Observable
+@Perceptible
 final class JobsModel {
     private(set) var rows: [JobRow] = []
     /// Settled rows cleared here; 清空 is client-side, as on the web.
