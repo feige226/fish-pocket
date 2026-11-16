@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import Observation
+import Perception
 import WidgetKit
 import WebKit
 
@@ -83,7 +83,7 @@ struct MiniApp: Identifiable, Hashable {
 }
 
 /// The apps in `~/apps`, newest first: last opened or last changed, whichever is later.
-@MainActor @Observable
+@MainActor @Perceptible
 final class MiniAppStore {
     static let shared = MiniAppStore()
 
