@@ -132,7 +132,7 @@ struct SchedulesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if sessionId == nil {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { Task { await newTask() } } label: { Label("新建", systemImage: "plus") }
                         .disabled(creating)
                 }
@@ -750,10 +750,10 @@ private struct SavedPrompt: View {
                 .foregroundStyle(Palette.secondary)
                 .lineLimit(expanded ? nil : 2)
                 .textSelection(.enabled)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !expanded { clampedHeight = $0 } }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { if !expanded { clampedHeight = $0 } }
                 .background {
                     Text(text).font(.footnote).fixedSize(horizontal: false, vertical: true).hidden()
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
                 }
             if expanded || fullHeight > clampedHeight + 1 {
                 Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { expanded.toggle() } } label: {
