@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WatchConnectivity
 
 /// 「Apple Watch」 under 分享 in 设置: whether the watch app is on the wrist yet, and how to put it
