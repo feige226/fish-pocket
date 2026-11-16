@@ -190,7 +190,7 @@ private struct AgentPresetReader: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let content {
-                ToolbarItem(placement: .topBarTrailing) { ShareLink(item: content) }
+                ToolbarItem(placement: .navigationBarTrailing) { ShareLink(item: content) }
             }
         }
         .task {
