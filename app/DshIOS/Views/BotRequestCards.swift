@@ -262,7 +262,7 @@ struct BotSideChatSheet: View {
                     .padding(20)
                     .modifier(LinkOpening())
                 }
-                .onChange(of: chat?["entries"].array.count) { _, _ in withAnimation { proxy.scrollTo("end") } }
+                .onChangeCompat(of: chat?["entries"].array.count) { _, _ in withAnimation { proxy.scrollTo("end") } }
             }
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 8) {
