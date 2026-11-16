@@ -104,6 +104,8 @@ struct AgentPresetChip: View {
     private var chosen: String { current ?? app.presetId(of: sessionId) ?? catalog.fallback }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if !catalog.options.isEmpty && !chosen.isEmpty {
                 Button { choosing = true } label: {
@@ -134,7 +136,8 @@ struct AgentPresetChip: View {
                 _ = await select(standard)
             }
         }
-    }
+    
+        }}
 
     /// A blank session's preset is not in the shared projections until it is touched.
     private func readCurrent() async {
@@ -166,6 +169,8 @@ private struct AgentPresetSheet: View {
     @State private var pending: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 ForEach(catalog.visible) { option in
@@ -200,7 +205,8 @@ private struct AgentPresetSheet: View {
         .tint(Palette.ink)
         .presentationDetents([.medium, .large])
         .sheetNotices()
-    }
+    
+        }}
 
     private func pick(_ option: AgentPresetCatalog.Option) {
         guard option.id != chosen else { dismiss(); return }
