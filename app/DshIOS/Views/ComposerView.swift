@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import Perception
 import UniformTypeIdentifiers
 
 /// The model picker in a blank conversation's top bar (a started one shows its
@@ -924,7 +925,7 @@ struct CameraPicker: UIViewControllerRepresentable {
 
 /// The draft on a page of its own, for text too long for the input.
 private struct DraftEditor: View {
-    @Bindable var composer: ComposerModel
+    @Perception.Bindable var composer: ComposerModel
     let send: () -> Void
     @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
