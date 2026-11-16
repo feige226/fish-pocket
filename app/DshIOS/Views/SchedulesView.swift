@@ -351,12 +351,12 @@ struct ScheduleDetailView: View {
             Button("继续编辑", role: .cancel) {}
         }
         .onAppear(perform: sync)
-        .onChange(of: catalog.entry(taskId)) { _, _ in sync() }
+        .onChangeCompat(of: catalog.entry(taskId)) { _, _ in sync() }
         // The save button is at the top; the reason may be under the fold.
-        .onChange(of: failure) { _, failure in
+        .onChangeCompat(of: failure) { _, failure in
             if failure != nil, let failureText { app.showToast(failureText, tone: .warning) }
         }
-        .onChange(of: shown?.kind) { _, kind in
+        .onChangeCompat(of: shown?.kind) { _, kind in
             // A switch into the interval picks the unit that states it, unless one was chosen.
             guard kind == .every else { explicitUnit = false; return }
             if !explicitUnit, let seconds = shown?.draft.seconds { unit = .preferred(seconds) }
