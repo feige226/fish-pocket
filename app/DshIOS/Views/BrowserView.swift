@@ -421,7 +421,7 @@ struct WorkbenchBrowser: View {
                 Palette.background.onAppear { model.reviveSelected() }
             }
         }
-        .onChange(of: model.selectedId) { _, _ in model.reviveSelected() }
+        .onChangeCompat(of: model.selectedId) { _, _ in model.reviveSelected() }
     
         }}
 }
@@ -464,7 +464,7 @@ private struct BrowserPageView: View {
         }
         .sheet(isPresented: $showingTabs) { BrowserTabsSheet(model: model) }
         .onAppear(perform: takeFocus)
-        .onChange(of: showingTabs) { _, showing in if !showing { takeFocus() } }
+        .onChangeCompat(of: showingTabs) { _, showing in if !showing { takeFocus() } }
     
         }}
 
