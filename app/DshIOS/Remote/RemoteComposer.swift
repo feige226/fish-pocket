@@ -1,12 +1,13 @@
 import PhotosUI
 import SwiftUI
+import Perception
 import UniformTypeIdentifiers
 
 /// The input of a remote conversation: the same bar as a local one (＋, the text, send or stop),
 /// with what the agent on the computer offers behind ＋: pictures and files where it takes them,
 /// its model and permission, and its slash commands as the draft starts with `/`.
 struct RemoteComposer: View {
-    @Bindable var model: RemoteSessionModel
+    @Perception.Bindable var model: RemoteSessionModel
     let openOptions: () -> Void
     @Environment(AppModel.self) private var app
     @FocusState private var focused: Bool
