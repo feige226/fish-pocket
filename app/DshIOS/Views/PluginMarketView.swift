@@ -734,7 +734,7 @@ private struct MarketSourcesSheet: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .onChange(of: draft) { _, _ in model.clearSourceFailure() }
+                        .onChangeCompat(of: draft) { _, _ in model.clearSourceFailure() }
                     if let failure = failureText { Text(failure).font(.caption).foregroundStyle(Palette.removed) }
                     Button("添加") {
                         let url = draft.trimmingCharacters(in: .whitespaces)
