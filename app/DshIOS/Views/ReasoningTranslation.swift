@@ -1,12 +1,12 @@
 import SwiftUI
-
+import Perception
 /// The official 思考过程翻译 plugin (`@deepseek-ai/dsh-experimental-cot-translation-bundle`)
 /// in the native reasoning sheet. Its web half registers on the chat's reasoning body;
 /// here the sheet asks the same Host methods (`cotTranslation/limits`, `cotTranslation/translate`)
 /// while the plugin is enabled. The Host keeps every result in the session, so reopening
 /// reuses it; the summary row and the session stay in the original language.
 @MainActor
-@Observable
+@Perceptible
 final class ReasoningTranslation {
     /// The accepted service and language with the request limit; nil while the plugin is off.
     private(set) var setup: (provider: String, targetLanguage: String, maxTextChars: Int)?
@@ -15,14 +15,14 @@ final class ReasoningTranslation {
     private(set) var pending = false
     private(set) var failed = false
 
-    @ObservationIgnored private let sessionId: String
-    @ObservationIgnored private let client: EngineClient
-    @ObservationIgnored private var fragments: [Fragment] = []
-    @ObservationIgnored private var cache: [String: String] = [:]
-    @ObservationIgnored private var worker: Task<Void, Never>?
+    @PerceptionIgnored private let sessionId: String
+    @PerceptionIgnored private let client: EngineClient
+    @PerceptionIgnored private var fragments: [Fragment] = []
+    @PerceptionIgnored private var cache: [String: String] = [:]
+    @PerceptionIgnored private var worker: Task<Void, Never>?
     /// Bumped by `cancel()`: a run whose number is stale has been called off.
-    @ObservationIgnored private var generation = 0
-    @ObservationIgnored private var source = (text: "", running: false)
+    @PerceptionIgnored private var generation = 0
+    @PerceptionIgnored private var source = (text: "", running: false)
 
     init(sessionId: String, client: EngineClient) {
         self.sessionId = sessionId
