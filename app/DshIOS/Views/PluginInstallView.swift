@@ -51,6 +51,8 @@ struct PluginInstallSheet: View {
     private var showsForm: Bool { (task.phase == .idle || task.phase == .checking) && task.confirmed == nil }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Group {
                 switch task.phase {
@@ -86,7 +88,8 @@ struct PluginInstallSheet: View {
         .overlay(alignment: .top) { ShellNotices() }
         // A lost answer is asked about again on every reconnect.
         .task(id: app.generation) { await task.reconcile() }
-    }
+    
+        }}
 
     private var title: LocalizedStringKey {
         if task.update != nil {
@@ -133,6 +136,8 @@ private struct InstallForm: View {
     private var empty: Bool { task.spec.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
+        WithPerceptionTracking {
+
         @Perception.Bindable var task = task
         Form {
             Section {
@@ -214,7 +219,8 @@ private struct InstallForm: View {
         .onAppear {
             if task.spec.isEmpty { specFocused = true }
         }
-    }
+    
+        }}
 
     private func edit(_ text: String) {
         guard !checking else { return }
@@ -282,6 +288,8 @@ private struct InstallRegistryPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 ForEach(Array(task.offeredRegistries.enumerated()), id: \.offset) { _, registry in
@@ -317,7 +325,8 @@ private struct InstallRegistryPage: View {
         .onAppear {
             if case .custom(let url) = task.registry { customURL = url }
         }
-    }
+    
+        }}
 
     private func row(_ choice: RegistryChoice, name: (name: String, host: String)) -> some View {
         Button {
@@ -344,6 +353,8 @@ private struct InstallSubject: View {
     private var task: PluginInstallTask { app.pluginInstall }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let subject = task.subject
         let name = task.confirmed?.title ?? subject?["name"].string ?? task.spec
         let version = task.confirmed?.version ?? subject?["version"].string
@@ -366,7 +377,8 @@ private struct InstallSubject: View {
         .frame(maxWidth: .infinity)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Palette.stroke))
-    }
+    
+        }}
 
     private var kindText: LocalizedStringKey? {
         switch task.subject?["kind"].string {
@@ -385,6 +397,8 @@ private struct InstallDetails: View {
     private var task: PluginInstallTask { app.pluginInstall }
 
     var body: some View {
+        WithPerceptionTracking {
+
         @Perception.Bindable var task = task
         if !task.runs.isEmpty {
             DisclosureGroup(task.detailsOpen ? "收起安装详情" : "查看安装详情", isExpanded: $task.detailsOpen) {
@@ -398,7 +412,8 @@ private struct InstallDetails: View {
             .font(.subheadline)
             .foregroundStyle(Palette.secondary)
         }
-    }
+    
+        }}
 
     private func badge(_ index: Int) -> String? {
         guard let attempts = task.attempts, attempts.total > 1, attempts.registries.indices.contains(index) else { return nil }
@@ -416,6 +431,8 @@ private struct InstallRunBlock: View {
     private static let headLines = 6
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 6) {
             if let badge {
                 Text(badge).font(.caption2).foregroundStyle(Palette.secondary)
@@ -437,7 +454,8 @@ private struct InstallRunBlock: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.field, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
+    
+        }}
 
     private var failed: Bool { run.settled && (run.exitCode ?? 1) != 0 }
 
@@ -473,6 +491,8 @@ private struct InstallPage<Actions: View>: View {
     @ViewBuilder let actions: Actions
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -484,7 +504,8 @@ private struct InstallPage<Actions: View>: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
         }
-    }
+    
+        }}
 }
 
 /// `checking` (market entry) / `starting` / `running` / `cancelling` / `applying` / `unconfirmed`.
@@ -494,6 +515,8 @@ private struct InstallProgress: View {
     private var task: PluginInstallTask { app.pluginInstall }
 
     var body: some View {
+        WithPerceptionTracking {
+
         InstallPage(content: AnyView(content)) {
             if task.phase == .unconfirmed {
                 Button("核对安装状态") { Task { await task.reconcile() } }.buttonStyle(.capsule())
@@ -502,7 +525,8 @@ private struct InstallProgress: View {
                 Button(task.phase == .checking ? "取消" : task.update != nil ? "取消更新" : "取消安装") { Task { await task.cancel() } }.buttonStyle(.capsule(.outline))
             }
         }
-    }
+    
+        }}
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -562,6 +586,8 @@ private struct InstallDone: View {
     private var task: PluginInstallTask { app.pluginInstall }
 
     var body: some View {
+        WithPerceptionTracking {
+
         InstallPage(content: AnyView(content)) {
             Button("完成") { task.close() }.buttonStyle(.capsule(.outline))
             // An update keeps the switch the old version had: nothing to switch on.
@@ -571,7 +597,8 @@ private struct InstallDone: View {
                     .disabled(task.enabling)
             }
         }
-    }
+    
+        }}
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -613,6 +640,8 @@ private struct InstallFailed: View {
     private var task: PluginInstallTask { app.pluginInstall }
 
     var body: some View {
+        WithPerceptionTracking {
+
         InstallPage(content: AnyView(content)) {
             if let recovery = task.githubRecovery {
                 if task.asksMirror || recovery == nil && task.resolved == nil {
@@ -627,7 +656,8 @@ private struct InstallFailed: View {
                 Button("重试") { task.retry() }.buttonStyle(.capsule())
             }
         }
-    }
+    
+        }}
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -674,10 +704,13 @@ private struct InstallAsk: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         if let record = app.pluginInstall.record {
             PluginAskRow(caption: "带上这次的安装记录，新开会话排查") { PluginQuestion.ask(record) }
         }
-    }
+    
+        }}
 }
 
 /// The Host has no such request: the outcome cannot be told.
@@ -685,6 +718,8 @@ private struct InstallUnknown: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         InstallPage(content: AnyView(
             VStack(alignment: .leading, spacing: 16) {
                 InstallSubject()
@@ -695,7 +730,8 @@ private struct InstallUnknown: View {
         )) {
             Button("完成") { app.pluginInstall.close() }.buttonStyle(.capsule())
         }
-    }
+    
+        }}
 }
 
 /// A market entry refused at the check: there is no form to go back to.
@@ -705,6 +741,8 @@ private struct InstallConfirmedRefused: View {
     private var task: PluginInstallTask { app.pluginInstall }
 
     var body: some View {
+        WithPerceptionTracking {
+
         InstallPage(content: AnyView(
             VStack(alignment: .leading, spacing: 16) {
                 InstallSubject()
@@ -715,5 +753,6 @@ private struct InstallConfirmedRefused: View {
             Button("关闭") { task.close() }.buttonStyle(.capsule(.outline))
             Button("重试") { task.run() }.buttonStyle(.capsule())
         }
-    }
+    
+        }}
 }
