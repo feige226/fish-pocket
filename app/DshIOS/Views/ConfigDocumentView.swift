@@ -29,6 +29,8 @@ struct ConfigDocumentView: View {
     private var dirty: Bool { original != nil && text != original }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let failure {
                 ContentUnavailableView("无法打开配置文件", systemImage: "doc.badge.ellipsis", description: Text(failure))
@@ -81,7 +83,8 @@ struct ConfigDocumentView: View {
             }
         }
         .task { load() }
-    }
+    
+        }}
 
     private func load() {
         do {
