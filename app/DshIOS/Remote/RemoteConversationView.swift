@@ -55,7 +55,7 @@ struct RemoteConversationView: View {
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
         Task { @MainActor in
             if animated {
-                withAnimation(.snappy(duration: 0.2)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
             } else {
                 proxy.scrollTo(Self.bottomId, anchor: .bottom)
             }
@@ -98,7 +98,7 @@ struct RemoteConversationView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
                 }
-                .animation(.snappy(duration: 0.18), value: atBottom)
+                .animation(.spring(response: 0.18, dampingFraction: 0.82), value: atBottom)
             }
         }
         .background(Palette.background)
