@@ -307,7 +307,7 @@ struct BrowserTabsSheet: View {
             .navigationTitle(Text("\(model.tabs.count) 个标签页"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         Haptics.tap()
                         model.focusesAddress = true
@@ -370,7 +370,7 @@ struct BrowserTabsSheet: View {
 
     private func close(_ tab: BrowserModel.Tab) {
         Haptics.tap()
-        withAnimation(.snappy(duration: 0.2)) { model.close(tab) }
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { model.close(tab) }
     }
 
     private static func host(_ url: String?) -> String? { FullScreenBrowser.site(url.flatMap(URL.init(string:))) }
