@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A Bot's own chat: its session in the conversation view, with the Bot as the title
 /// and what waits on the user (a model to pick, a question, a form) above the composer.
 struct BotChatView: View {
