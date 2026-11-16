@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 /// The engine's settings as every settings page reads them (`settings/describe`),
@@ -11,12 +11,12 @@ import SwiftUI
 /// `llm/adapters-updated` and every reconnect; pages attach `.followSettings()`
 /// to drive that, and a burst of events coalesces into one read.
 @MainActor
-@Observable
+@Perceptible
 final class SettingsMirror {
     /// The events that invalidate the describe answer (and the credential states derived from it).
     static let events = ["settings/document-updated", "credentials/reference-updated", "llm/adapters-updated"]
 
-    @ObservationIgnored private let client: EngineClient
+    @PerceptionIgnored private let client: EngineClient
 
     /// The latest `settings/describe` value: `{writable, hasDocument, namespaces:[…]}`.
     private(set) var view: JSON?
