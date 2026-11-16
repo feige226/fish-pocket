@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 
 @main
 struct DshIOSApp: App {
@@ -45,7 +46,7 @@ struct LinkRequest: Equatable {
 
 /// A link from an App Intent, which has no window of its own: the first window to see it takes it.
 @MainActor
-@Observable
+@Perceptible
 final class LinkInbox {
     static let shared = LinkInbox()
     var request: LinkRequest?
@@ -68,7 +69,7 @@ final class EngineConnection {
 
     private(set) var app: AppModel?
     /// The generation being connected or connected; windows that arrive during it just wait.
-    @ObservationIgnored private var generation: Int?
+    @PerceptionIgnored private var generation: Int?
 
     func connect(to url: URL, generation current: Int) async {
         guard current != generation else { return }
