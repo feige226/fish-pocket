@@ -43,6 +43,8 @@ struct BotActivityLine: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let bot = team.bot(botId)
         let current = current(team)
@@ -79,7 +81,8 @@ struct BotActivityLine: View {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) { arrived = true }
         }
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 
     private func current(_ team: BotModel) -> Line {
         let stage = stage(team)
@@ -137,6 +140,8 @@ struct BotSpeakingLine: View {
     let bot: BotInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let mood = team.mood(bot.id)
         HStack(spacing: 8) {
@@ -148,7 +153,8 @@ struct BotSpeakingLine: View {
         }
         .frame(minHeight: 28)
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// A line of work in progress: a light sweeps across the words.
@@ -157,6 +163,8 @@ struct BotShimmer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        WithPerceptionTracking {
+
         Text(text).font(.footnote).foregroundStyle(Palette.secondary).lineLimit(1)
             .overlay {
                 if !reduceMotion {
@@ -170,7 +178,8 @@ struct BotShimmer: View {
                     .accessibilityHidden(true)
                 }
             }
-    }
+    
+        }}
 }
 
 /// Three dots in the Bot's colour, swelling one after another: it is writing its answer.
@@ -179,6 +188,8 @@ struct BotTypingDots: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        WithPerceptionTracking {
+
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             HStack(spacing: 3) {
@@ -192,5 +203,6 @@ struct BotTypingDots: View {
             }
         }
         .accessibilityHidden(true)
-    }
+    
+        }}
 }
