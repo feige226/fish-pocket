@@ -121,6 +121,17 @@ struct ContentUnavailableView: View {
         self.detail = nil
         self.actions = AnyView(actions())
     }
+    init<LabelContent: View, DescriptionContent: View>(
+        @ViewBuilder _ label: () -> LabelContent,
+        @ViewBuilder description: () -> DescriptionContent
+    ) {
+        self.title = nil
+        self.systemImage = nil
+        self.label = AnyView(label())
+        self.detail = AnyView(description())
+        self.actions = nil
+    }
+
 
     static func search(text: String) -> ContentUnavailableView {
         ContentUnavailableView(
