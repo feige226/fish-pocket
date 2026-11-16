@@ -14,6 +14,8 @@ struct BotChatView: View {
     @State private var selection: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         if let bot = team.bot(botId) {
             ConversationView(sessionId: bot.sessionId, selection: $selection, openDrawer: nil, bot: BotChrome(
@@ -62,7 +64,8 @@ struct BotChatView: View {
         } else {
             ContentUnavailableView("这个 Bot 已不在团队里", systemImage: "person.slash")
         }
-    }
+    
+        }}
 }
 
 /// The bar's title: the Bot's mark, name and what it is doing.
@@ -71,6 +74,8 @@ private struct BotTitle: View {
     let bot: BotInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         HStack(spacing: 8) {
             BotAvatar(bot: bot, size: 28, live: true)
@@ -83,7 +88,8 @@ private struct BotTitle: View {
                 }
             }
         }
-    }
+    
+        }}
 }
 
 /// A chat's title drawn as the button it is: glass like the bar's own buttons where those are
@@ -104,6 +110,8 @@ private struct BotPending: View {
     let bot: BotInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         VStack(spacing: 8) {
             if bot.waiting { BotModelPicker(bot: bot) }
@@ -122,7 +130,8 @@ private struct BotPending: View {
                 }
             }
         }
-    }
+    
+        }}
 }
 
 extension BotPending {
@@ -146,11 +155,14 @@ struct BotCard<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 8) { content }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Palette.grouped, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
+    
+        }}
 }
 
 /// A question the Bot asked (ds-bot's `ask_user`): its options as buttons.
@@ -163,6 +175,8 @@ private struct BotQuestionCard: View {
     @State private var sending = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let multi = question["multiSelect"].bool ?? false
         let allowsCustom = question["allowCustom"].bool == true
         let typed = custom.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -214,7 +228,8 @@ private struct BotQuestionCard: View {
                     .buttonStyle(.capsule(.outline, height: 36, fill: false))
             }
         }
-    }
+    
+        }}
 
     private func answer(_ selected: [String]) {
         sending = true
@@ -233,6 +248,8 @@ private struct BotModelPicker: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let models = app.botTeam.team["models"].array
         BotCard {
             Text("\(bot.name)还没有模型，选一个它就会开口").font(.subheadline.weight(.semibold))
@@ -266,7 +283,8 @@ private struct BotModelPicker: View {
                 .disabled(saving)
             }
         }
-    }
+    
+        }}
 }
 
 /// The chat's menu in the bar: what the chat can do beyond sending a message.
@@ -278,6 +296,8 @@ struct BotChatMenu: View {
     var tools: BotChatTools?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         Menu {
             if let tools {
@@ -317,5 +337,6 @@ struct BotChatMenu: View {
             Image(systemName: "ellipsis")
         }
         .accessibilityLabel("更多操作")
-    }
+    
+        }}
 }
