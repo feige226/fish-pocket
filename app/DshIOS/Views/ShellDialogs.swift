@@ -26,6 +26,7 @@ struct ShellDialogs: ViewModifier {
     }
 
     func body(content: Content) -> some View {
+        WithPerceptionTracking {
         content
             // The text is in place before the alert reads it.
             .onChange(of: app.renameRequest?.id) {
@@ -45,7 +46,8 @@ struct ShellDialogs: ViewModifier {
             } message: { request in
                 Text(request.summary)
             }
-    }
+    
+        }}
 
     private func saveTitle() {
         guard case .session(let id)? = app.renameRequest?.target else { return }
