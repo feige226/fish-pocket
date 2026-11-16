@@ -534,3 +534,33 @@ private struct StatusBarSoftening: View {
         return window?.safeAreaInsets.top ?? 54
     }
 }
+
+
+/// Back-port of SwiftUI's iOS 18 geometry observation for the iOS 16.4 build.
+private struct GeometryChangeCompatPreferenceKey<Value: Equatable>: PreferenceKey {
+    static var defaultValue: Value? { nil }
+
+    static func reduce(value: inout Value?, nextValue: () -> Value?) {
+        value = nextValue() ?? value
+    }
+}
+
+extension View {
+    func onGeometryChangeCompat<Value: Equatable>(
+        for valueType: Value.Type,
+        _ transform: @escaping (GeometryProxy) -> Value,
+        action: @escaping (Value) -> Void
+    ) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: GeometryChangeCompatPreferenceKey<Value>.self,
+                    value: transform(proxy)
+                )
+            }
+        }
+        .onPreferenceChange(GeometryChangeCompatPreferenceKey<Value>.self) { value in
+            if let value { action(value) }
+        }
+    }
+}
