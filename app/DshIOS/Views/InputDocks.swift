@@ -35,8 +35,8 @@ struct ComposerStatusBar: View {
                     .transition(.opacity)
             }
         }
-        .animation(.snappy, value: hasStatus)
-        .animation(.snappy, value: waiting)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: hasStatus)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: waiting)
         // Whether the goal continues on its own: re-read on goal changes, run edges and `goal/activation-changed`.
         .task(id: "\(composer.goal?.id ?? "")-\(composer.goal?.revision ?? 0)-\(model.running)-\(app.revision("goal/activation-changed"))") {
             await composer.refreshGoalActivation()
