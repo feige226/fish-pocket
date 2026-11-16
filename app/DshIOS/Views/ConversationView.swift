@@ -62,6 +62,8 @@ struct ConversationView: View {
     #endif
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let model {
                 content(model)
@@ -128,7 +130,8 @@ struct ConversationView: View {
             if let model { QuestionSheet(model: model, question: question) }
         }
         #endif
-    }
+    
+        }}
 
     private static let bottomId = "timeline-bottom"
 
@@ -908,6 +911,8 @@ private struct TimelineList: View {
     @Environment(\.botComposer) private var botChat
 
     var body: some View {
+        WithPerceptionTracking {
+
         // A Bot's chat leaves out the turns that answered another Bot (ds-bot draws none of them).
         let items = bot.map { bot in model.items.filter { !bot.hides($0) } } ?? model.items
         let lastAssistant = items.last { if case .assistant = $0 { true } else { false } }?.id
@@ -959,7 +964,8 @@ private struct TimelineList: View {
         .padding(.top, 20)
         .padding(.bottom, 12)
         .readableWidth()
-    }
+    
+        }}
 
     /// A message sent while the conversation is open rises into place; what a snapshot brought
     /// (opening it, a kept one catching up, a reconnect) is already there.
@@ -992,9 +998,12 @@ private struct ActiveTurn: View {
     @Environment(\.botComposer) private var botChat
 
     var body: some View {
+        WithPerceptionTracking {
+
         let live = shownLive(model.live, botChat: botChat)
         AssistantTurnView(blocks: blocks + live, turn: turn, inProgress: true, liveCount: live.count, startedAt: startedAt, endedAt: nil, info: model.turnInfo[turn])
-    }
+    
+        }}
 }
 
 /// What of the streamed attempt shows. A Bot's own chat reads like a message from a person: its words
@@ -1011,12 +1020,15 @@ private struct LiveSection: View {
     @Environment(\.botComposer) private var botChat
 
     var body: some View {
+        WithPerceptionTracking {
+
         let live = shownLive(model.live, botChat: botChat)
         // In a Bot's own chat the Bot's mark below is the loading line.
         if case .bot? = botChat, live.isEmpty {} else {
             AssistantTurnView(blocks: live, turn: nil, inProgress: true, liveCount: live.count, startedAt: nil, endedAt: nil)
         }
-    }
+    
+        }}
 }
 
 /// Rows compare by value: rebuilding one with an unchanged item is skipped.
@@ -1035,6 +1047,8 @@ private struct TimelineRow: View, Equatable {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch item {
         case .user(_, let text, let attachments, let requestId):
             UserBubble(text: text, attachments: attachments, model: model, via: IMPlatform.via(requestId), arrives: arrives)
@@ -1060,7 +1074,8 @@ private struct TimelineRow: View, Equatable {
         case .retry(let retry):
             RetryNotice(retry: retry)
         }
-    }
+    
+        }}
 }
 
 struct FloatingIcon: View {
@@ -1069,6 +1084,8 @@ struct FloatingIcon: View {
     let action: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button {
             Haptics.tap()
             action()
@@ -1083,7 +1100,8 @@ struct FloatingIcon: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
-    }
+    
+        }}
 }
 
 /// The turns of this session, newest last; tapping one scrolls to it (C-14).
@@ -1093,6 +1111,8 @@ private struct TurnJumpSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             // Newest first: the button shows while reading back, so the way home is on top.
             List(outline.sorted { $0.turn > $1.turn }) { entry in
@@ -1110,7 +1130,8 @@ private struct TurnJumpSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
         }
-    }
+    
+        }}
 }
 
 /// Older messages arrive by themselves when the top of the timeline comes into view (C-11),
@@ -1122,6 +1143,8 @@ private struct LoadOlderTrigger: View {
     @State private var inView = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         ProgressView()
             .controlSize(.small)
             .frame(maxWidth: .infinity, minHeight: 36)
@@ -1141,7 +1164,8 @@ private struct LoadOlderTrigger: View {
                 }
             }
             .accessibilityLabel("正在加载更早的消息")
-    }
+    
+        }}
 }
 
 /// C-46. The official hint tells the user to send 「继续」; on a phone that is one button.
@@ -1149,6 +1173,8 @@ private struct MaxTokensNotice: View {
     let model: SessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 StatusDot(state: .waiting)
@@ -1163,7 +1189,8 @@ private struct MaxTokensNotice: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    
+        }}
 }
 
 private struct UserBubble: View {
@@ -1186,6 +1213,8 @@ private struct UserBubble: View {
     private static let foldedLines = 8
 
     var body: some View {
+        WithPerceptionTracking {
+
         let masked = SecretMask.masked(SessionMention.plain(text))
         let more = fullHeight > foldedHeight + 1
         VStack(alignment: .trailing, spacing: 6) {
@@ -1253,7 +1282,8 @@ private struct UserBubble: View {
             await Task.yield()
             withAnimation(.spring(response: 0.42, dampingFraction: 0.74)) { landed = true }
         }
-    }
+    
+        }}
 }
 
 /// One assistant turn. Its work (reasoning and tool calls) sits under one grey line
@@ -1287,6 +1317,8 @@ struct AssistantTurnView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let finalStart = finalAnswerStart
         let finished = !inProgress && endedAt != nil
         let showWork = choice ?? stayOpen
@@ -1368,7 +1400,8 @@ struct AssistantTurnView: View {
             }
         }
         .modifier(TurnMenu(enabled: finished, turn: turn, info: info, fallbackText: answerText, regeneratePrompt: regeneratePrompt))
-    }
+    
+        }}
 
     private var mentions: [String: String] {
         FileMentions.make((info?.producedPaths ?? []) + (info?.deliverables.map(\.path) ?? []))
@@ -1445,6 +1478,8 @@ private struct RunningIndicator: View {
     let since: Date?
 
     var body: some View {
+        WithPerceptionTracking {
+
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Group {
                 if let since {
@@ -1458,7 +1493,8 @@ private struct RunningIndicator: View {
             .monospacedDigit()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    
+        }}
 }
 
 /// 「改动了 N 个文件 +a −b」: opens the workbench on 改动. A line like the work above it, not a button to reckon with.
@@ -1467,6 +1503,8 @@ private struct ChangeCapsule: View {
     let open: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button(action: open) {
             WorkRowLabel(
                 systemImage: "doc",
@@ -1474,7 +1512,8 @@ private struct ChangeCapsule: View {
             )
         }
         .buttonStyle(.plain)
-    }
+    
+        }}
 }
 
 private struct BlockView: View, Equatable {
@@ -1484,6 +1523,8 @@ private struct BlockView: View, Equatable {
     var closing = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch block {
         case .reasoning(let id, let text):
             ReasoningView(id: id, text: text, live: live)
@@ -1494,7 +1535,8 @@ private struct BlockView: View, Equatable {
         case .image(_, let attachment):
             ImageGroup(attachments: [attachment])
         }
-    }
+    
+        }}
 }
 
 /// The reasoning's first line as a row, the same as a tool call's (C-25); the whole of it in a sheet.
@@ -1505,6 +1547,8 @@ private struct ReasoningView: View {
     @Environment(\.conversationActions) private var actions
 
     var body: some View {
+        WithPerceptionTracking {
+
         let summary = ReasoningSummary.make(text, live: live)
         Button {
             actions.present(.reasoning(id: id, text: text))
@@ -1521,7 +1565,8 @@ private struct ReasoningView: View {
             }
         }
         .accessibilityLabel(Text("思考：\(summary)"))
-    }
+    
+        }}
 }
 
 /// A reasoning block in full; it keeps growing while the model thinks.
@@ -1540,6 +1585,8 @@ struct ReasoningSheet: View {
     private var latest: String { model?.reasoningText(id) ?? current?(id) ?? text }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let text = latest
         let translated = translation?.setup == nil ? nil : translation
         let shown = translated.map { original || $0.failed ? text : $0.text } ?? text
@@ -1573,7 +1620,8 @@ struct ReasoningSheet: View {
         .onChange(of: text) { translation?.update(text, running: model?.reasoningStreaming(id) ?? false) }
         .onChange(of: model?.reasoningStreaming(id)) { _, streaming in translation?.update(latest, running: streaming ?? false) }
         .onDisappear { translation?.cancel() }
-    }
+    
+        }}
 }
 
 /// 「允许运行这条命令？」: the command in full above the two answers, which stay under the
@@ -1587,6 +1635,8 @@ struct ApprovalSheet: View {
     let answer: (Bool) -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         PinnedActionsSheet {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1610,7 +1660,8 @@ struct ApprovalSheet: View {
             }
             .padding(EdgeInsets(top: 10, leading: 22, bottom: 22, trailing: 22))
         }
-    }
+    
+        }}
 
     private var tool: ToolCall { call ?? ToolCall(id: "", name: approval.toolName, arguments: .null, rawArguments: "") }
 
@@ -1654,6 +1705,8 @@ private struct ApprovalReasonText: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let more = fullHeight > clippedHeight + 1
         Button {
             guard open || more else { return }
@@ -1680,7 +1733,8 @@ private struct ApprovalReasonText: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
+    
+        }}
 }
 
 /// What is being approved, every character of it: lines wrap, and a long one scrolls in its
@@ -1691,6 +1745,8 @@ private struct CommandBlock: View {
     private let limit: CGFloat = 220
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 6) {
             ScrollView {
                 Text(text)
@@ -1709,7 +1765,8 @@ private struct CommandBlock: View {
                 Text("内容较长，滑动查看全部").font(.caption).foregroundStyle(Palette.secondary)
             }
         }
-    }
+    
+        }}
 }
 
 /// What a conversation in the split view's detail can do with the sidebar. Equal while the same
@@ -1770,9 +1827,12 @@ extension ConversationView {
 /// in a Bot's chat, whose title has a line of its own, in the strip under the input.
 struct AIContentLabel: View {
     var body: some View {
+        WithPerceptionTracking {
+
         Text("内容由 AI 生成")
             .font(.caption2)
             .foregroundStyle(Palette.secondary)
             .lineLimit(1)
-    }
+    
+        }}
 }
