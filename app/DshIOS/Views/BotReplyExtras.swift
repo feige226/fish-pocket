@@ -34,6 +34,8 @@ struct BotReactionMenu: View {
     let key: String
 
     var body: some View {
+        WithPerceptionTracking {
+
         // Three to a row: a compact row holds four at most, and six would wrap unevenly.
         ForEach([Array(BotReactions.choices.prefix(3)), Array(BotReactions.choices.dropFirst(3))], id: \.self) { row in
             ControlGroup {
@@ -43,7 +45,8 @@ struct BotReactionMenu: View {
             }
             .controlGroupStyle(.compactMenu)
         }
-    }
+    
+        }}
 }
 
 /// The reaction left on a reply, under it; a tap takes it away.
@@ -51,6 +54,8 @@ struct BotReactionChip: View {
     let key: String
 
     var body: some View {
+        WithPerceptionTracking {
+
         if let emoji = BotReactions.shared.all[key] {
             Button { BotReactions.shared.toggle(emoji, for: key) } label: {
                 Text(emoji).font(.callout)
@@ -60,7 +65,8 @@ struct BotReactionChip: View {
             .buttonStyle(.plain)
             .accessibilityLabel("取消回应 \(emoji)")
         }
-    }
+    
+        }}
 }
 
 // MARK: - Thinking time
@@ -73,6 +79,8 @@ struct BotThinkingTime: View {
     @State private var seconds: Int?
 
     var body: some View {
+        WithPerceptionTracking {
+
         // A stack, not a group: with nothing in it yet a group is no view at all, and the read
         // below would never start.
         VStack(spacing: 0) {
@@ -93,7 +101,8 @@ struct BotThinkingTime: View {
             // Under a second still reads as a second: the line says the reply thought, and about how long.
             if let ms = value?["ms"].double, ms > 0 { seconds = max(1, Int((ms / 1000).rounded())) }
         }
-    }
+    
+        }}
 }
 
 // MARK: - Where a message came from
