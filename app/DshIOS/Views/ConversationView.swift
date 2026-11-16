@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One conversation: its title and session menu in the top bar, the workbench on
 /// the right, the timeline, and the composer. A blank session shows the
 /// new-conversation state (model picker on top, headline, workspace chip,
