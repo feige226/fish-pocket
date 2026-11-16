@@ -84,6 +84,8 @@ struct DrawerView: View {
     private static let searchLimit = 20
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             switch style {
             case .sidebar: sidebar
@@ -105,7 +107,8 @@ struct DrawerView: View {
             Text("文件夹和会话都会保留，会话移到「未分组」。")
         }
         .sheet(isPresented: $showNewWorkspace) { NewWorkspaceView() }
-    }
+    
+        }}
 
     private var sidebar: some View {
         NavigationStack {
@@ -1327,6 +1330,8 @@ struct MachineTag: View {
     var dimmed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 3) {
             Image(systemName: symbol).font(.system(size: 9, weight: .semibold))
             Text(name).font(.caption2.weight(.semibold)).lineLimit(1)
@@ -1336,7 +1341,8 @@ struct MachineTag: View {
         .padding(.vertical, 2)
         .background(Palette.control, in: Capsule())
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// The way out of the search page on iPad from iOS 26: there the system puts the field in the
@@ -1370,6 +1376,8 @@ private struct RemoteRowLabel: View, Equatable {
     let asks: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         let live = session.deviceOnline && !session.archived
         HStack(alignment: .top, spacing: 8) {
             Group {
@@ -1413,7 +1421,8 @@ private struct RemoteRowLabel: View, Equatable {
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .opacity(live ? 1 : 0.55)
         .contentShape(Rectangle())
-    }
+    
+        }}
 }
 
 /// Where the drawer's session rows are in the window: a horizontal swipe
