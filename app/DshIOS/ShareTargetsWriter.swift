@@ -1,4 +1,4 @@
-import Observation
+import Perception
 import SwiftUI
 
 /// Keeps the share extension's Bots and group chats (`ShareTargets`) in step with the team:
@@ -28,7 +28,7 @@ final class ShareTargetsWriter {
 
     private func observe() {
         guard let app else { return }
-        let listed = withObservationTracking { Self.listed(in: app) } onChange: { [weak self] in
+        let listed = withPerceptionTracking { Self.listed(in: app) } onChange: { [weak self] in
             Task { @MainActor in self?.observe() }
         }
         guard let listed else { return }
