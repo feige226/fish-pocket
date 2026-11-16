@@ -94,7 +94,7 @@ struct WorkbenchView: View {
                 }
                 .padding(.horizontal, 16)
             }
-            .onChangeCompat(of: tab) { _, item in withAnimation(.snappy) { proxy.scrollTo(item) } }
+            .onChangeCompat(of: tab) { _, item in withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { proxy.scrollTo(item) } }
         }
         .padding(.vertical, 8)
     }
