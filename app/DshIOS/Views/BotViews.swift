@@ -594,7 +594,7 @@ struct BotSetupView: View {
             .readableWidth()
         }
         .safeAreaInset(edge: .bottom) { action.padding(.horizontal, 20).padding(.bottom, 12).background(Palette.background) }
-        .onChange(of: team.status) { _, status in if status == .ready { Haptics.success() } }
+        .onChangeCompat(of: team.status) { _, status in if status == .ready { Haptics.success() } }
     
         }}
 
