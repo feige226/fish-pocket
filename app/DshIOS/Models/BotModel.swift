@@ -118,15 +118,15 @@ final class BotModel {
     /// Show the Bot pages (the root view consumes it).
     var openRequest: BotOpenRequest?
     /// Approvals already announced, so each rings once.
-    @ObservationIgnored private var announcedApprovals: Set<String> = []
+    @PerceptionIgnored private var announcedApprovals: Set<String> = []
     /// The chat on screen (a Bot's or a group's id): what waits there needs no announcement.
     var visibleChat: String?
 
-    @ObservationIgnored private var revision: Double?
-    @ObservationIgnored private var liveKey: String?
-    @ObservationIgnored private var followTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var listeners: [UUID: (String, JSON) -> Void] = [:]
+    @PerceptionIgnored private var revision: Double?
+    @PerceptionIgnored private var liveKey: String?
+    @PerceptionIgnored private var followTask: Task<Void, Never>?
+    @PerceptionIgnored private var refreshTask: Task<Void, Never>?
+    @PerceptionIgnored private var listeners: [UUID: (String, JSON) -> Void] = [:]
 
     init(app: AppModel) {
         self.app = app
