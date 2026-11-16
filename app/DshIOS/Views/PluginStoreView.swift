@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 插件: browse a market and manage what is installed. It reads the same market and plugin models
 /// as 设置 → 插件, which stays as it is until this page replaces it.
 struct PluginStoreView: View {
