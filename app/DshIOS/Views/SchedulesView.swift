@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WebKit
 
 /// The Host's task catalog (`schedule/catalog`: every session, active and
