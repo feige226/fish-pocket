@@ -53,8 +53,8 @@ struct ConversationActivity: View {
                 )
             }
         }
-        .animation(.snappy(duration: 0.18), value: browser == nil)
-        .animation(.snappy(duration: 0.18), value: jobs.visibleCount)
+        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: browser == nil)
+        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: jobs.visibleCount)
     
         }}
 
