@@ -650,7 +650,7 @@ private struct EngineLogView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
         }
-        .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchorCompat(.bottom)
         .background(Palette.grouped)
         .navigationTitle("引擎日志")
         .navigationBarTitleDisplayMode(.inline)
