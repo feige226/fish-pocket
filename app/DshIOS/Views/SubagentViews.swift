@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The top-bar title of a child session (`SubagentHeaderLineage`): its label, and a
 /// menu of the ancestors, the siblings and its own children. The parent's catalog is
 /// the sibling list; a child with no parent left in the list shows its title alone.
