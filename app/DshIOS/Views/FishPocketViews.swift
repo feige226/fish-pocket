@@ -1,6 +1,7 @@
 import AuthenticationServices
 import SwiftUI
 
+import Perception
 /// What the Fish Pocket service sees, shown wherever signing in to it starts.
 struct FishPocketPrivacyNote: View {
     var body: some View {
