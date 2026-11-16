@@ -146,8 +146,8 @@ struct GoalInfo: Equatable {
 final class ComposerModel {
     /// Weak: sends and uploads outlive the conversation that started them (the session owns this model).
     @PerceptionIgnored private weak var session: SessionModel?
-    @ObservationIgnored let sessionId: String
-    @ObservationIgnored let app: AppModel
+    @PerceptionIgnored let sessionId: String
+    @PerceptionIgnored let app: AppModel
 
     var text: String { didSet { if text != oldValue { persistDraft() } } }
     /// Text quoted from the conversation, in the order added. Each is sent as a blockquote ahead of
@@ -169,19 +169,19 @@ final class ComposerModel {
     /// Bumped to ask the input for the keyboard (from outside it, or after a sheet).
     private(set) var focusRequest = 0
     /// Hold-to-talk: the bar's voice mode and the recording under the finger.
-    @ObservationIgnored let voice = VoiceInput()
+    @PerceptionIgnored let voice = VoiceInput()
     /// Cleared here; hidden until the projection catches up.
     private var clearedGoalId: String?
 
-    @ObservationIgnored private var failedDrafts: [(seq: Int, text: String, quotes: [String])] = []
-    @ObservationIgnored private var restoredText: String?
-    @ObservationIgnored private var restoredQuotes: [String] = []
-    @ObservationIgnored private var sendSeq = 0
-    @ObservationIgnored private var uploadTasks: [UUID: Task<Void, Never>] = [:]
-    @ObservationIgnored private var uploadQueue: [UUID] = []
-    @ObservationIgnored private var activeUploads = 0
+    @PerceptionIgnored private var failedDrafts: [(seq: Int, text: String, quotes: [String])] = []
+    @PerceptionIgnored private var restoredText: String?
+    @PerceptionIgnored private var restoredQuotes: [String] = []
+    @PerceptionIgnored private var sendSeq = 0
+    @PerceptionIgnored private var uploadTasks: [UUID: Task<Void, Never>] = [:]
+    @PerceptionIgnored private var uploadQueue: [UUID] = []
+    @PerceptionIgnored private var activeUploads = 0
     /// The library's progress for each video still being read (`readMovie`); cancel stops the read.
-    @ObservationIgnored private var reads: [UUID: Progress] = [:]
+    @PerceptionIgnored private var reads: [UUID: Progress] = [:]
     /// `ui-conversation.maxConcurrentFileUploads` (C-150): the web's default, a client config the phone does not receive.
     static let maxConcurrentFileUploads = 2
 
