@@ -139,7 +139,7 @@ struct ConversationView: View {
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
         Task { @MainActor in
             if animated {
-                withAnimation(.snappy(duration: 0.2)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
             } else {
                 proxy.scrollTo(Self.bottomId, anchor: .bottom)
             }
@@ -220,7 +220,7 @@ struct ConversationView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
                 }
-                .animation(.snappy(duration: 0.18), value: atBottom)
+                .animation(.spring(response: 0.18, dampingFraction: 0.82), value: atBottom)
             }
             // Opposite the scroll buttons: the agent's page and its background jobs, one tap from the chat.
             .overlay(alignment: .bottomLeading) {
@@ -577,7 +577,7 @@ struct ConversationView: View {
         .onGeometryChangeCompat(for: CGFloat?.self) { proxy in
             proxy.fold.flatMap { $0.width > $0.height ? $0.minY : nil }
         } action: { heroFold = $0 }
-        .animation(.snappy(duration: 0.2), value: showsHeadline)
+        .animation(.spring(response: 0.2, dampingFraction: 0.82), value: showsHeadline)
     }
 
     /// Starter prompts; a tap fills the input, to send as is or to change first.
@@ -1253,7 +1253,7 @@ private struct UserBubble: View {
                     }
                 }
                 if open || more {
-                    Button { withAnimation(.snappy) { open.toggle() } } label: {
+                    Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { open.toggle() } } label: {
                         Text(open ? "收起" : "全文").font(.footnote.weight(.semibold)).foregroundStyle(Palette.ink).padding(.trailing, 6)
                     }
                     .buttonStyle(.plain)
@@ -1384,7 +1384,7 @@ struct AssistantTurnView: View {
                     guard arrives, !landed else { return }
                     // As the user's own bubble does: after the pass that laid the row out.
                     await Task.yield()
-                    withAnimation(.smooth(duration: 0.45)) { landed = true }
+                    withAnimation(.easeInOut(duration: 0.45)) { landed = true }
                 }
             }
             if finished {
@@ -1709,7 +1709,7 @@ private struct ApprovalReasonText: View {
         let more = fullHeight > clippedHeight + 1
         Button {
             guard open || more else { return }
-            withAnimation(.snappy) { open.toggle() }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { open.toggle() }
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(text)
@@ -1807,7 +1807,7 @@ private struct WorkbenchBeside<Page: View>: ViewModifier {
                     .transition(.move(edge: .trailing))
                 }
             }
-            .animation(.snappy(duration: 0.3), value: shown && regular)
+            .animation(.spring(response: 0.3, dampingFraction: 0.82), value: shown && regular)
         }
     }
 }
