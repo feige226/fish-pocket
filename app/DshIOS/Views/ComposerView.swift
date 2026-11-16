@@ -324,7 +324,7 @@ struct ComposerView: View {
             consumeFocus()
         }
         .photosPicker(isPresented: $showPhotos, selection: $photos, maxSelectionCount: max(1, composer.remainingImageSlots), matching: .any(of: [.images, .videos]), preferredItemEncoding: .current)
-        .onChange(of: photos) { _, items in
+        .onChangeCompat(of: photos) { _, items in
             Task { await loadPhotos(items) }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -374,28 +374,28 @@ struct ComposerView: View {
         }
         .permissionConfirmation($confirmingPermission, confirm: applyPermission)
         // A popover has no `onDismiss`. A picker presented before its dismissal ends never shows.
-        .onChange(of: showTray) { _, open in
+        .onChangeCompat(of: showTray) { _, open in
             guard !open, sizeClass == .regular else { return }
             Task {
                 try? await Task.sleep(for: .milliseconds(450))
                 sheetClosed()
             }
         }
-        .onChange(of: showTray || showEditor || browsing != nil) { _, open in
+        .onChangeCompat(of: showTray || showEditor || browsing != nil) { _, open in
             if open { sheetUp.wrappedValue = true }
         }
         .onChange(of: composer.focusRequest) { focused = true }
-        .onChange(of: focused) { _, now in
+        .onChangeCompat(of: focused) { _, now in
             // Anything that brings the keyboard back (a prompt placed, a tray choice) shows the text.
             if now { voice.mode = false }
             focusChanged(now)
         }
         // A call or the app leaving the foreground ends the hold without a touch-up: throw it away.
-        .onChange(of: scenePhase) { _, phase in if phase != .active { voice.cancel() } }
+        .onChangeCompat(of: scenePhase) { _, phase in if phase != .active { voice.cancel() } }
         .onDisappear { voice.cancel() }
         // A picker closing gives the keyboard back when it was up before: typed into
         // (`/model`, `/file`) or reached from the tray while it was up.
-        .onChange(of: pickerUp) { _, open in
+        .onChangeCompat(of: pickerUp) { _, open in
             if open {
                 refocus = refocus || focused
             } else {
