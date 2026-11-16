@@ -83,6 +83,8 @@ struct SchedulesView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 if catalog.status == .error && !catalog.records.isEmpty {
@@ -145,7 +147,8 @@ struct SchedulesView: View {
             Text("「\(record["title"].string ?? "")」\n任务将停止触发，并连同其已保存的任务运行记录一并删除。原会话及其消息仍然保留；已排队的消息不会被撤回。")
         }
         .dismisses(when: leaving)
-    }
+    
+        }}
 
     @ViewBuilder
     private var overlay: some View {
@@ -215,6 +218,8 @@ struct ScheduleRow: View {
     let record: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         let armed = ScheduleRule.isArmed(record)
         let stopped = record["status"].string == "paused" ? String(localized: "已暂停") : String(localized: "已结束")
         VStack(alignment: .leading, spacing: 4) {
@@ -229,7 +234,8 @@ struct ScheduleRow: View {
             }
         }
         .padding(.vertical, 3)
-    }
+    
+        }}
 }
 
 /// Kept for callers outside this file: the rule as one line.
@@ -286,6 +292,8 @@ struct ScheduleDetailView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let page = Group {
             if let task {
                 VStack(spacing: 0) {
@@ -353,7 +361,8 @@ struct ScheduleDetailView: View {
             guard kind == .every else { explicitUnit = false; return }
             if !explicitUnit, let seconds = shown?.draft.seconds { unit = .preferred(seconds) }
         }
-    }
+    
+        }}
 
     // MARK: Rule tab
 
@@ -622,6 +631,8 @@ private struct DeliveryHistoryView: View {
     @State private var showRetention = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if let failure, !records.isEmpty {
                 HStack {
@@ -689,7 +700,8 @@ private struct DeliveryHistoryView: View {
         .refreshable { await load(nil) }
         // A new delivery re-reads the latest page.
         .task(id: task["lastDelivery"]["messageId"].string ?? "") { await load(nil) }
-    }
+    
+        }}
 
     private func load(_ before: String?) async {
         loading = true
@@ -730,6 +742,8 @@ private struct SavedPrompt: View {
     @State private var clampedHeight: CGFloat = 0
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             Text(text)
                 .font(.footnote)
@@ -750,7 +764,8 @@ private struct SavedPrompt: View {
                 .foregroundStyle(Palette.ink)
             }
         }
-    }
+    
+        }}
 }
 
 // MARK: Web fallback
@@ -761,6 +776,8 @@ struct WebFallbackView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             EngineWebView(url: app.client.launchURL)
                 .ignoresSafeArea(edges: .bottom)
@@ -768,7 +785,8 @@ struct WebFallbackView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .closeButton(dismiss)
         }
-    }
+    
+        }}
 }
 
 struct EngineWebView: UIViewRepresentable {
