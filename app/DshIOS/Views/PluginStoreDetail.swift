@@ -177,7 +177,7 @@ struct StoreEntryDetail: View {
             }
             .animation(.snappy(duration: 0.25), value: updatingThis)
             .animation(.snappy(duration: 0.25), value: update == nil)
-            .onChange(of: updated) { _, version in if let version { refreshListing(until: version) } }
+            .onChangeCompat(of: updated) { _, version in if let version { refreshListing(until: version) } }
         } else if entry.installable, !removed, let version = entry.version {
             Button("安装 \(entry.versionNumber)") { install(MarketChoice(entry: entry.json, version: version)) }
                 .buttonStyle(.capsule(height: 48))
