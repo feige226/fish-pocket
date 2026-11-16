@@ -166,7 +166,7 @@ private struct StoreDiscoverPage: View {
                 ready
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .sheet(item: $choice) { StoreInstallConfirm(choice: $0, marketTitle: localized(market.result?["title"] ?? .null)) }
         .onChange(of: searchFocused) { updateSearching() }
         .onChange(of: search) { updateSearching() }
