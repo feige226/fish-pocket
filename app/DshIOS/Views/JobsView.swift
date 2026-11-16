@@ -109,6 +109,8 @@ struct JobsSheet: View {
     @State private var settledOpen: Bool?
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 List {
@@ -152,7 +154,8 @@ struct JobsSheet: View {
         }
         // A job or two does not need the whole screen.
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 
     @ViewBuilder
     private func row(_ job: JobRow, now: Date) -> some View {
@@ -194,6 +197,8 @@ private struct JobRowLabel: View {
     let now: Date
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             mark.frame(width: 14)
             VStack(alignment: .leading, spacing: 2) {
@@ -202,7 +207,8 @@ private struct JobRowLabel: View {
                     .font(.caption).foregroundStyle(Palette.secondary).lineLimit(1)
             }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private var mark: some View {
@@ -233,6 +239,8 @@ struct JobOutputView: View {
     private var current: JobRow { jobs.rows.first { $0.id == job.id } ?? job }
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -281,7 +289,8 @@ struct JobOutputView: View {
         }
         .stopJobDialog($stopping) { job in Task { await jobs.stop(job, sessionId: sessionId, app: app) } }
         .task { await follow() }
-    }
+    
+        }}
 
     /// The command, where the title used to be cut off, and how the job is doing.
     private var header: some View {
