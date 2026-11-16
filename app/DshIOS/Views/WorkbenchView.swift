@@ -32,6 +32,8 @@ struct WorkbenchView: View {
     @State private var browser: BrowserModel?
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             // Beside the conversation, its toolbar button opens and closes this.
             if sizeClass == .regular {
@@ -54,7 +56,8 @@ struct WorkbenchView: View {
             visited.insert(selected)
             if selected == .browser, browser == nil { browser = BrowserModel.session(model.sessionId, origin: app.client.origin) }
         }
-    }
+    
+        }}
 
     private var content: some View {
         VStack(spacing: 0) {
@@ -122,6 +125,8 @@ private struct WorkbenchTerminal: View {
     private var current: String? { connection?.terminalId }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             statusLine
             Group {
@@ -175,7 +180,8 @@ private struct WorkbenchTerminal: View {
             Button("保存") { Task { await rename() } }
                 .disabled(newTitle.trimmed.isEmpty || newTitle.trimmed.count > 120)
         }
-    }
+    
+        }}
 
     /// S-95 / S-94: what the attachment is doing when it is not simply connected.
     @ViewBuilder
@@ -327,6 +333,8 @@ private struct TerminalKeyBar<Menu: View>: View {
     @State private var keyboardUp = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -374,7 +382,8 @@ private struct TerminalKeyBar<Menu: View>: View {
         .padding(.bottom, 8)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardUp = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardUp = false }
-    }
+    
+        }}
 }
 
 // MARK: Files
@@ -383,6 +392,8 @@ private struct WorkbenchFiles: View {
     let model: SessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             DirectoryView(
                 sessionId: model.sessionId,
@@ -394,7 +405,8 @@ private struct WorkbenchFiles: View {
             )
             .toolbar(.hidden, for: .navigationBar)
         }
-    }
+    
+        }}
 }
 
 // MARK: Changes
@@ -405,6 +417,8 @@ private struct WorkbenchChanges: View {
     let model: SessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         let changes = FileChange.collect(model.items.allBlocks, root: model.workingDirectory)
         NavigationStack {
             Group {
@@ -435,13 +449,16 @@ private struct WorkbenchChanges: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { path in FileDiffPage(model: model, path: path) }
         }
-    }
+    
+        }}
 }
 
 struct ChangedFileRow: View {
     let change: FileChange
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(change.name).font(.callout).foregroundStyle(Palette.ink).lineLimit(1).truncationMode(.middle)
@@ -453,7 +470,8 @@ struct ChangedFileRow: View {
             ChangeCounts(added: change.added, removed: change.removed).font(.footnote)
         }
         .frame(minHeight: 34)
-    }
+    
+        }}
 }
 
 /// `+a −b` in the diff tokens; a side with nothing to report stays out.
@@ -462,12 +480,15 @@ struct ChangeCounts: View {
     let removed: Int
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 6) {
             if added > 0 { Text("+\(added)").foregroundStyle(Palette.added) }
             if removed > 0 { Text("−\(removed)").foregroundStyle(Palette.removed) }
         }
         .monospacedDigit()
-    }
+    
+        }}
 }
 
 /// One file's diff, full width. The bottom bar walks the session's other changed
@@ -478,6 +499,8 @@ private struct FileDiffPage: View {
     @AppStorage("dsh.diff.wrap") private var wrap = true
 
     var body: some View {
+        WithPerceptionTracking {
+
         let changes = FileChange.collect(model.items.allBlocks, root: model.workingDirectory)
         let index = changes.firstIndex { $0.path == path }
         Group {
@@ -514,7 +537,8 @@ private struct FileDiffPage: View {
                 }
             }
         }
-    }
+    
+        }}
 
     private func title(_ change: FileChange, at index: Int, of count: Int) -> some View {
         VStack(spacing: 0) {
@@ -549,6 +573,8 @@ struct DiffLinesView: View {
     @State private var width: CGFloat = 0
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if wrap {
                 LazyVStack(alignment: .leading, spacing: 0) { rows }
@@ -566,7 +592,8 @@ struct DiffLinesView: View {
         .font(.caption.monospaced())
         .lineSpacing(4)
         .background(Palette.grouped, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    }
+    
+        }}
 
     private var rows: some View {
         ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
@@ -591,6 +618,8 @@ private struct WorkbenchContext: View {
     let close: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 if let window = model.contextWindow, let used = model.contextTokens {
@@ -629,7 +658,8 @@ private struct WorkbenchContext: View {
             }
             .padding(EdgeInsets(top: 32, leading: 24, bottom: 24, trailing: 24))
         }
-    }
+    
+        }}
 
     private func row(_ title: LocalizedStringKey, _ value: String) -> some View {
         HStack {
