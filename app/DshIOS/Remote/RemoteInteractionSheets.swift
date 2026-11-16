@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Perception
 /// The words of a request, in the reader's language: agents send their titles and buttons in English.
 enum RemoteNoticeText {
     static func title(of action: RemoteNotice.Action, in notice: RemoteNotice) -> String {
@@ -209,6 +209,8 @@ struct RemoteNoticeSheet: View {
     private var enabled: Bool { model.current && notice.answerable && !answered && !model.working && !approvalBlocked }
 
     var body: some View {
+        WithPerceptionTracking {
+
         PinnedActionsSheet(typing: typing) {
             VStack(alignment: .leading, spacing: 14) {
                 if let questions, !unsupported {
@@ -233,7 +235,8 @@ struct RemoteNoticeSheet: View {
         } actions: {
             actions.padding(EdgeInsets(top: 10, leading: 22, bottom: 22, trailing: 22))
         }
-    }
+    
+        }}
 
     private var detail: String? {
         guard notice.isApproval || !notice.context.object.isEmpty else { return nil }
@@ -564,6 +567,8 @@ private struct RemoteCommandBlock: View {
     private let limit: CGFloat = 220
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 6) {
             ScrollView {
                 Text(text)
@@ -581,7 +586,8 @@ private struct RemoteCommandBlock: View {
                 Text("内容较长，滑动查看全部").font(.caption).foregroundStyle(Palette.secondary)
             }
         }
-    }
+    
+        }}
 }
 
 /// A plan the agent wrote in its plan mode: run it, send it back with a note, or leave it.
@@ -593,6 +599,8 @@ struct RemotePlanSheet: View {
     @FocusState private var typing: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         PinnedActionsSheet(typing: typing) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("计划待确认").font(.footnote).foregroundStyle(Palette.secondary)
@@ -632,7 +640,8 @@ struct RemotePlanSheet: View {
             }
             .padding(EdgeInsets(top: 10, leading: 22, bottom: 22, trailing: 22))
         }
-    }
+    
+        }}
 
     private func act(_ action: String, feedback: String = "") {
         typing = false
