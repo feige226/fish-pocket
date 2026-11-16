@@ -158,6 +158,8 @@ struct ReasoningTranslationBar: View {
     @Binding var original: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 10) {
             Button(original || translation.failed ? "查看译文" : "查看原文") { original.toggle() }
                 .disabled(translation.failed)
@@ -172,5 +174,6 @@ struct ReasoningTranslationBar: View {
         }
         .font(.subheadline)
         .buttonStyle(.borderless)
-    }
+    
+        }}
 }
