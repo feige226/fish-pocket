@@ -1,6 +1,6 @@
 import AVFoundation
 import SwiftUI
-
+import Perception
 /// 设置 → 语音: which service recognizes hold-to-talk, and the voice replies are read in. DeepSeek uses the key or account the
 /// models already use; Volcengine (豆包语音) takes the user's own API Key: how to get one, where
 /// it goes, and a check that it works. Also the sheet the microphone button opens when
@@ -19,6 +19,8 @@ struct VoiceSettingsPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 Text("按住输入栏说话，松手把识别出的文字发出去。")
@@ -86,7 +88,8 @@ struct VoiceSettingsPage: View {
         .scrollDismissesKeyboard(.immediately)
         .navigationTitle("语音")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 
     @ViewBuilder
     private var statusFooter: some View {
