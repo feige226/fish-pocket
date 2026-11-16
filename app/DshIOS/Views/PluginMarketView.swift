@@ -3,7 +3,7 @@ import SwiftUI
 import Perception
 /// One read of a market index: the query, then pages appended to `entries`.
 @MainActor
-@Observable
+@Perceptible
 final class PluginMarketModel {
     struct Query: Equatable {
         var text = ""
