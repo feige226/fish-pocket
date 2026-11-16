@@ -633,7 +633,7 @@ private struct CommitTextField: View {
             .focused($focused)
             .submitLabel(.done)
             .onSubmit { focused = false }
-            .onChange(of: focused) { _, now in if !now { commit() } }
+            .onChangeCompat(of: focused) { _, now in if !now { commit() } }
             .onDisappear { if focused { commit() } }
     
         }}
@@ -680,7 +680,7 @@ private struct NumberField: View {
             FieldNotes(node: node, problem: problem)
         }
         .onAppear { text = format(stored) }
-        .onChange(of: stored) { _, value in text = format(value); problem = nil }
+        .onChangeCompat(of: stored) { _, value in text = format(value); problem = nil }
     
         }}
 
@@ -765,7 +765,7 @@ private struct StringField: View {
                     .frame(minHeight: 90)
                     .font(node.role == "markdown" ? .body.monospaced() : .body)
                     .focused($editorFocused)
-                    .onChange(of: editorFocused) { _, now in if !now { commit() } }
+                    .onChangeCompat(of: editorFocused) { _, now in if !now { commit() } }
                     .onDisappear { if editorFocused { commit() } }
             case "datetime", "date", "time":
                 DatePicker(selection: Binding(get: { Self.parseDate(stored) ?? Date() }, set: { context.save(path, .string(Self.formatDate($0, role: node.role))) }),
@@ -786,7 +786,7 @@ private struct StringField: View {
             FieldNotes(node: node, problem: problem)
         }
         .onAppear { text = stored ?? "" }
-        .onChange(of: stored) { _, value in text = value ?? ""; problem = nil }
+        .onChangeCompat(of: stored) { _, value in text = value ?? ""; problem = nil }
     
         }}
 
