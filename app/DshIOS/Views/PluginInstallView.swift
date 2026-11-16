@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import UIKit
 import UniformTypeIdentifiers
 
@@ -132,7 +133,7 @@ private struct InstallForm: View {
     private var empty: Bool { task.spec.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
-        @Bindable var task = task
+        @Perception.Bindable var task = task
         Form {
             Section {
                 if let folder, folder.path == task.spec {
@@ -384,7 +385,7 @@ private struct InstallDetails: View {
     private var task: PluginInstallTask { app.pluginInstall }
 
     var body: some View {
-        @Bindable var task = task
+        @Perception.Bindable var task = task
         if !task.runs.isEmpty {
             DisclosureGroup(task.detailsOpen ? "收起安装详情" : "查看安装详情", isExpanded: $task.detailsOpen) {
                 VStack(alignment: .leading, spacing: 12) {
