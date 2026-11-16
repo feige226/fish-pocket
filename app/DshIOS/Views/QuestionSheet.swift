@@ -61,8 +61,8 @@ struct QuestionSheet: View {
             footer(current).padding(EdgeInsets(top: 8, leading: 22, bottom: 10, trailing: 22))
         }
         .onAppear(perform: preselectRecommended)
-        .onChange(of: customFocused) { _, focused in model.setAnswerFocus(question, focused: focused) }
-        .onChange(of: question.eventId) { _, _ in failure = nil }
+        .onChangeCompat(of: customFocused) { _, focused in model.setAnswerFocus(question, focused: focused) }
+        .onChangeCompat(of: question.eventId) { _, _ in failure = nil }
     }
 
     // MARK: Pages
