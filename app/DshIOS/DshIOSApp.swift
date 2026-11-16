@@ -211,7 +211,7 @@ private struct EngineTrouble: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
             }
-            .defaultScrollAnchor(.bottom)
+            .defaultScrollAnchorCompat(.bottom)
             .background(Palette.grouped, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             if let safeMode {
