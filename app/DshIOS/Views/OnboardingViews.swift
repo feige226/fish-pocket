@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 「添加一个 API Key 开始使用」: the official credential-only editor. Only the
 /// key is written (`credentials/set`), never the settings.
 struct OnboardingKeySheet: View {
