@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The earlier parts of a Bot's chat or a group, above the current one. ds-bot moves a long
 /// conversation to a fresh session and keeps the old ones; `earlier` pages through them,
 /// newest page first, each page oldest to newest.
