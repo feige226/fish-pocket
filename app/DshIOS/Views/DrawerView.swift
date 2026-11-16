@@ -761,7 +761,7 @@ struct DrawerView: View {
         let offline = group.device?.online == false
         return Button {
             Haptics.select()
-            withAnimation(.snappy(duration: 0.2)) { setExpanded(group, !open) }
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { setExpanded(group, !open) }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: group.symbol == "folder" ? (open ? "folder" : "folder.fill") : group.symbol)
@@ -823,7 +823,7 @@ struct DrawerView: View {
     private func moreRow(_ group: SessionGroup, shown: Int) -> some View {
         let hidden = group.rows.count - shown
         return Button {
-            withAnimation(.snappy(duration: 0.2)) {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) {
                 if hidden > 0 {
                     watermark[group.id] = hidden <= Self.baseRows ? group.rows.count : shown + Self.baseRows
                 } else {
