@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// A draft that starts with `/`: the command it names and what follows.
 struct RemoteSlash {
@@ -32,7 +32,7 @@ struct RemoteSlash {
 /// event log. The live part (status, capabilities, pending requests) is re-read whenever the
 /// channel is re-established, and counts as current only while the channel is up.
 @MainActor
-@Observable
+@Perceptible
 final class RemoteSessionModel: Identifiable {
     enum Link: Equatable { case connecting, live, reconnecting, failed(String) }
 
@@ -73,7 +73,7 @@ final class RemoteSessionModel: Identifiable {
     private(set) var quoteRequest = 0
     var attachments: [RemoteUpload] = []
 
-    @ObservationIgnored private weak var store: RemoteStore?
+    @PerceptionIgnored private weak var store: RemoteStore?
     @ObservationIgnored private var items: [RemoteItem] = []
     @ObservationIgnored private var builder = RemoteTimelineBuilder()
     @ObservationIgnored private var cursor = "seq:0"
