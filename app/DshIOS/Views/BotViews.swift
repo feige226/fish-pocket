@@ -328,9 +328,9 @@ struct BotHomeView: View {
         .navigationTitle("Bot")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let openDrawer { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) } }
+            if let openDrawer { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) } }
             if team.status == .ready {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button { creating = .bot } label: { Label("新建 Bot", systemImage: "person.badge.plus") }
                         Button { creating = .room } label: { Label("新建群聊", systemImage: "person.2") }
