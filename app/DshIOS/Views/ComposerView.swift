@@ -287,8 +287,8 @@ struct ComposerView: View {
                     }
                 }
                 // The bar turns at the touch; only letting go eases back.
-                .animation(voice.holding ? nil : .snappy(duration: 0.18), value: voice.phase)
-                .animation(.snappy(duration: 0.18), value: voice.cancelArmed)
+                .animation(voice.holding ? nil : .spring(response: 0.18, dampingFraction: 0.82), value: voice.phase)
+                .animation(.spring(response: 0.18, dampingFraction: 0.82), value: voice.cancelArmed)
                 .composerSurface()
         }
         .task(id: pendingDraft) {
