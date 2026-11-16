@@ -8,12 +8,15 @@ struct RemoteControlPage: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if app.remote.signedIn { RemoteDevicesList() } else { RemoteSignInPage() }
         }
         .navigationTitle("远程控制")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 // MARK: Signing in
@@ -26,6 +29,8 @@ private struct RemoteSignInPage: View {
     @State private var typing = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
@@ -86,7 +91,8 @@ private struct RemoteSignInPage: View {
         .groupedList()
         .sheet(isPresented: $scanning) { RemoteScanSheet() }
         .sheet(isPresented: $typing) { RemotePasswordSheet() }
-    }
+    
+        }}
 
     private func step(_ number: Int, _ title: LocalizedStringKey, _ detail: LocalizedStringKey,
                       @ViewBuilder action: () -> some View = { EmptyView() }) -> some View {
@@ -125,6 +131,8 @@ private struct RemoteScanSheet: View {
     @State private var cameraDenied = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             VStack(spacing: 18) {
                 if let code {
@@ -199,7 +207,8 @@ private struct RemoteScanSheet: View {
                 self.code = nil
             }
         }
-    }
+    
+        }}
 
     private func waiting(_ code: RemoteLoginCode) -> some View {
         VStack(spacing: 14) {
@@ -288,6 +297,8 @@ private struct RemotePasswordSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -325,7 +336,8 @@ private struct RemotePasswordSheet: View {
         // Over the remote control sheet on iPad a half-height sheet hangs off its lower edge: a full one there.
         .presentationDetents(UIDevice.current.userInterfaceIdiom == .pad ? [.large] : [.medium, .large])
         .interactiveDismissDisabled(busy)
-    }
+    
+        }}
 
     private func submit() {
         guard let url = RemoteClient.serverURL(from: server) else { return }
@@ -359,6 +371,8 @@ private struct RemoteDevicesList: View {
     private var remote: RemoteStore { app.remote }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 HStack(spacing: 12) {
@@ -435,7 +449,8 @@ private struct RemoteDevicesList: View {
             }
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-    }
+    
+        }}
 
     private func deviceRow(_ device: RemoteDevice) -> some View {
         let agents = remote.agents(on: device.id)
