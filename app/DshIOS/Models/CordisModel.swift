@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// The Host half of the official Cordis panel (`dsh-client-ui-cordis`): plugins an agent
 /// defines at runtime, listed by `dynamicCordisRunner/inventory`.
@@ -9,7 +9,7 @@ import Observation
 /// any of it runs: unanswered, the agent's turn would wait for a page that does not exist.
 /// Host-only versions need no such request and run normally.
 @MainActor
-@Observable
+@Perceptible
 final class CordisModel {
     private(set) var rows: [JSON] = []
     private(set) var loaded = false
@@ -19,7 +19,7 @@ final class CordisModel {
     /// The last failed action of each plugin.
     private(set) var actionErrors: [String: String] = [:]
 
-    @ObservationIgnored private var client: EngineClient?
+    @PerceptionIgnored private var client: EngineClient?
     @ObservationIgnored private var answered: Set<String> = []
 
     /// Told to the model (not shown to the user): why the activation did not happen.
