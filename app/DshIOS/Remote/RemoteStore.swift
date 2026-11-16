@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// The login a QR code on Agents Anywhere's web or desktop app carries.
@@ -30,7 +30,7 @@ struct RemoteLoginCode: Hashable {
 /// One for the app: it does not depend on the phone's own engine, so an engine restart (which
 /// brings a new `AppModel`) leaves the account, its connection and the open sessions as they are.
 @MainActor
-@Observable
+@Perceptible
 final class RemoteStore {
     static let shared = RemoteStore()
 
@@ -77,7 +77,7 @@ final class RemoteStore {
     /// The server ended the sign-in; shown once, then cleared.
     var expired = false
 
-    @ObservationIgnored private(set) var client: RemoteClient?
+    @PerceptionIgnored private(set) var client: RemoteClient?
     @ObservationIgnored private var follow: Task<Void, Never>?
     /// The sessions that have been opened (`SessionKeeper`, as for local conversations): opened
     /// again, one shows at once what it held and only has to catch up.
