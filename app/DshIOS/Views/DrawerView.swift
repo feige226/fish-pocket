@@ -196,8 +196,8 @@ struct DrawerView: View {
         // ⌘F and the like: the field of this tab.
         .onChange(of: searchRequest) { searchActive = true }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { viewMenu(compact: true) }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) { viewMenu(compact: true) }
+            ToolbarItem(placement: .navigationBarTrailing) {
                 newConversationControl {
                     Image(systemName: "square.and.pencil")
                 }
@@ -1354,7 +1354,7 @@ private struct SearchPageClose: ViewModifier {
     func body(content: Content) -> some View {
         content.toolbar {
             if #available(iOS 26.0, *), UIDevice.current.userInterfaceIdiom == .pad, sizeClass == .regular {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: action) { Image(systemName: "xmark") }
                         .accessibilityLabel("关闭")
                 }
