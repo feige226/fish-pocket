@@ -157,7 +157,7 @@ struct SettingsView: View {
                         Label("语言", systemImage: "globe")
                     }
                     .pickerValueTint()
-                    .onChange(of: languageChoice) { _, value in
+                    .onChangeCompat(of: languageChoice) { _, value in
                         AppLanguage.chosen = value == "system" ? nil : value
                         languageChanged = true
                     }
