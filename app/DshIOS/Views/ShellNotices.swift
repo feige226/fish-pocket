@@ -15,6 +15,8 @@ struct ShellNotices: View {
     private var bottomInset: CGFloat { hosted ? 56 : app.composerHeight + 8 }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 8) {
             if showOffline {
                 Label("引擎已断开，正在重连…", systemImage: "wifi.exclamationmark")
@@ -49,7 +51,8 @@ struct ShellNotices: View {
             try? await Task.sleep(for: .seconds(1.5))
             if !Task.isCancelled { showOffline = true }
         }
-    }
+    
+        }}
 }
 
 /// The toast bar: an icon for its tone, the short text, and its button on the
@@ -59,6 +62,8 @@ private struct ToastView: View {
     let dismiss: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 8) {
             switch toast.tone {
             case .success: Image(systemName: "checkmark.circle.fill")
@@ -98,7 +103,8 @@ private struct ToastView: View {
             // raises it just as the install sheet closes.
             if !Task.isCancelled { dismiss() }
         }
-    }
+    
+        }}
 }
 
 /// While a reply is read aloud: what is happening, pause or go on, and stop.
@@ -106,6 +112,8 @@ private struct ReadAloudBar: View {
     private var reading: ReadAloud { .shared }
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 4) {
             Image(systemName: "speaker.wave.2.fill")
                 .symbolEffect(.variableColor.iterative, isActive: !reading.paused)
@@ -137,5 +145,6 @@ private struct ReadAloudBar: View {
         .background(Palette.grouped, in: Capsule())
         .overlay(Capsule().strokeBorder(Palette.stroke))
         .accessibilityElement(children: .contain)
-    }
+    
+        }}
 }
