@@ -115,10 +115,17 @@ private struct ReadAloudBar: View {
         WithPerceptionTracking {
 
         HStack(spacing: 4) {
-            Image(systemName: "speaker.wave.2.fill")
-                .symbolEffect(.variableColor.iterative, isActive: !reading.paused)
-                .foregroundStyle(Palette.secondary)
-                .padding(.leading, 14)
+            if #available(iOS 17.0, *) {
+                Image(systemName: "speaker.wave.2.fill")
+                    .symbolEffect(.variableColor.iterative, isActive: !reading.paused)
+                    .foregroundStyle(Palette.secondary)
+                    .padding(.leading, 14)
+            } else {
+                Image(systemName: "speaker.wave.2.fill")
+                    .foregroundStyle(Palette.secondary)
+                    .opacity(reading.paused ? 0.55 : 1)
+                    .padding(.leading, 14)
+            }
             (reading.paused ? Text("朗读已暂停") : Text("正在朗读"))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Palette.ink)
