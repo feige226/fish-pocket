@@ -17,12 +17,12 @@ struct PinnedActionsSheet<Content: View, Actions: View>: View {
 
     var body: some View {
         ScrollView {
-            content().onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+            content().onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             actions()
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { actionsHeight = $0 }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { actionsHeight = $0 }
                 .background(Palette.background)
         }
         // Sized to the sheet's real edge; the actions carry their own margin above the home indicator.
@@ -98,7 +98,7 @@ struct QuestionSheet: View {
     private func move(to page: Int) {
         customFocused = false
         failure = nil
-        withAnimation(.snappy(duration: 0.2)) { update { $0.index = page } }
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { update { $0.index = page } }
     }
 
     // MARK: Parts
@@ -178,7 +178,7 @@ struct QuestionSheet: View {
             answer.skipped = false
             draft.answers[q.id] = answer
         }
-        withAnimation(.snappy(duration: 0.2)) {
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) {
             if open { openOthers.remove(q.id) } else { openOthers.insert(q.id) }
         }
         if open {
