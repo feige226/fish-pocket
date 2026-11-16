@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What a Bot's chat or a group chat changes in `ConversationView`: the title in the bar
 /// and cards above the composer. Everything else (attachments, approvals, stopping,
 /// the keyboard) is the conversation view's own: a Bot's chat is an ordinary session.
