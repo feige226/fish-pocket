@@ -416,7 +416,7 @@ private struct RemoteFilePage: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let text {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     if isMarkdown {
                         Button { rendered.toggle() } label: { Image(systemName: rendered ? "chevron.left.forwardslash.chevron.right" : "doc.richtext") }
                             .accessibilityLabel(rendered ? "查看源文本" : "查看排版")
