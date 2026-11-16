@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The ＋ tray, one for the new-conversation and the conversation layouts: three
 /// large buttons for what goes into a message, then references, commands, the
 /// model and the session's modes. Everything typing `/` or `@` reaches is here,
