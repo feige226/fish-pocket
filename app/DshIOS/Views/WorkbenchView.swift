@@ -139,14 +139,14 @@ private struct WorkbenchTerminal: View {
                     .padding(.horizontal, 6)
                     .padding(.top, 6)
                 } else if connection != nil {
-                    WorkbenchEmptyState(
+                    CompatEmptyState(
                         title: "此终端已不存在，请新建终端。",
                         systemImage: "apple.terminal",
                         actionTitle: "新建终端",
                         action: { Task { await replace() } }
                     )
                 } else if let error {
-                    WorkbenchEmptyState(
+                    CompatEmptyState(
                         title: "终端不可用",
                         systemImage: "apple.terminal",
                         message: error,
@@ -424,7 +424,7 @@ private struct WorkbenchChanges: View {
         NavigationStack {
             Group {
                 if changes.isEmpty {
-                    WorkbenchEmptyState(
+                    CompatEmptyState(
                         title: "还没有改动",
                         systemImage: "doc.text.magnifyingglass",
                         message: "智能体改过的文件会显示在这里。"
@@ -516,7 +516,7 @@ private struct FileDiffPage: View {
                 // Each file starts at its top.
                 .id(path)
             } else {
-                WorkbenchEmptyState(
+                CompatEmptyState(
                     title: "这个文件不在改动里了",
                     systemImage: "doc.text.magnifyingglass"
                 )
@@ -810,35 +810,3 @@ extension Array where Element == TimelineItem {
     }
 }
 
-
-/// iOS 16 fallback for SwiftUI's iOS 17 ContentUnavailableView.
-private struct WorkbenchEmptyState: View {
-    let title: String
-    let systemImage: String
-    var message: String? = nil
-    var actionTitle: String? = nil
-    var action: (() -> Void)? = nil
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.system(size: 34, weight: .regular))
-                .foregroundStyle(.secondary)
-            Text(title)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-            if let message {
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
