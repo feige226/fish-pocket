@@ -756,7 +756,7 @@ private struct SavedPrompt: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
                 }
             if expanded || fullHeight > clampedHeight + 1 {
-                Button { withAnimation(.snappy) { expanded.toggle() } } label: {
+                Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { expanded.toggle() } } label: {
                     Label(expanded ? "收起" : "展开", systemImage: expanded ? "chevron.up" : "chevron.down")
                         .font(.caption)
                 }
