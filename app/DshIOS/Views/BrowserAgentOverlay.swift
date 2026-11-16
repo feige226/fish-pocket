@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Keeps page-agent's effects on the page (`entry.js`: its glowing mask, pointer and panel) in step
 /// with the agent: shown while it works, gone once its turn ends or the user takes over. It draws
 /// nothing itself.
