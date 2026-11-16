@@ -49,7 +49,7 @@ struct PluginStoreView: View {
             guard model.readiness == .ready else { return }
             await model.market.loadIndexes(app)
         }
-        .onChange(of: manager.marketEnabled) { _, enabled in if !enabled { model.marketTurnedOff() } }
+        .onChangeCompat(of: manager.marketEnabled) { _, enabled in if !enabled { model.marketTurnedOff() } }
         .followSettings()
     
         }}
@@ -767,7 +767,7 @@ struct StoreSourcesSheet: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .onChange(of: draft) { _, _ in market.clearSourceFailure() }
+                        .onChangeCompat(of: draft) { _, _ in market.clearSourceFailure() }
                     if let failure = failureText { Text(failure).font(.caption).foregroundStyle(Palette.removed) }
                     Button("添加") {
                         let url = draft.trimmingCharacters(in: .whitespaces)
