@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The shell's dialogs, attached to the root view. Renaming a session is the system
 /// text alert (the title only has to be non-empty) and archiving busy work the system
 /// action sheet; both close at once, so a failure shows as a toast.
