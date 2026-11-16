@@ -485,7 +485,7 @@ struct RemoteNoticeSheet: View {
 
     private func move(to next: Int) {
         typing = false
-        withAnimation(.snappy(duration: 0.2)) { page = next }
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { page = next }
     }
 
     private func pick(_ option: RemoteQuestionForm.Question.Option, in question: RemoteQuestionForm.Question, form: RemoteQuestionForm, index: Int) {
@@ -572,7 +572,7 @@ private struct RemoteCommandBlock: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+                    .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             }
             .frame(height: min(height, limit))
             .scrollBounceBehavior(.basedOnSize)
