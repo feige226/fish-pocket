@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One line above the composer for what the session has going: 「任务 2/5 · 编译中 ·
 /// 排队 2」, this client's messages on their way, a full context and a deferred
 /// approval. Everything behind it opens in a sheet. With the keyboard up the timeline
