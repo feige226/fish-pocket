@@ -175,8 +175,8 @@ struct StoreEntryDetail: View {
                     Text(runState.text).font(.footnote).foregroundStyle(runState.problem ? Palette.removed : Palette.secondary)
                 }
             }
-            .animation(.snappy(duration: 0.25), value: updatingThis)
-            .animation(.snappy(duration: 0.25), value: update == nil)
+            .animation(.spring(response: 0.25, dampingFraction: 0.82), value: updatingThis)
+            .animation(.spring(response: 0.25, dampingFraction: 0.82), value: update == nil)
             .onChangeCompat(of: updated) { _, version in if let version { refreshListing(until: version) } }
         } else if entry.installable, !removed, let version = entry.version {
             Button("安装 \(entry.versionNumber)") { install(MarketChoice(entry: entry.json, version: version)) }
