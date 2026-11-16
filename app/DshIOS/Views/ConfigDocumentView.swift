@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 设置 S-05, in the app: `settings/openSettingsDocument` opens the file with the Host's
 /// native editor, which iOS does not have, and the engine has no RPC to read or write it.
 /// It lives in this app's own container, so it is edited here directly; the engine's
