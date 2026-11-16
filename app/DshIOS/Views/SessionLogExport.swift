@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 「导出日志」: the engine zips this session, its sub-sessions and attachments
 /// (`api/session.export`); here the ZIP lands in a temporary file to share.
 struct SessionLogExportSheet: View {
