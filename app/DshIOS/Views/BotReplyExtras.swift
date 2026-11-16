@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// A mark the reader leaves on a Bot's reply. It is the reader's own note: kept on this
 /// device, never sent to the Bot (ds-bot's window keeps its reactions the same way).
 @MainActor
-@Observable
+@Perceptible
 final class BotReactions {
     static let shared = BotReactions()
     static let choices = ["👍", "❤️", "😂", "🎉", "🤔", "👀"]
@@ -168,12 +168,12 @@ extension SessionModel {
 /// A Bot's replies read aloud as they arrive, for a chat the user follows by ear: only while
 /// that chat is the one on screen.
 @MainActor
-@Observable
+@Perceptible
 final class BotAutoRead {
     static let shared = BotAutoRead()
     /// The sessions whose replies are read.
     private(set) var sessions: Set<String> = []
-    @ObservationIgnored private var listener: UUID?
+    @PerceptionIgnored private var listener: UUID?
 
     func isOn(_ sessionId: String) -> Bool { sessions.contains(sessionId) }
 
