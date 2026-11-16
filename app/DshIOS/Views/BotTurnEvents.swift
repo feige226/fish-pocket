@@ -262,7 +262,7 @@ struct BotExchangeSheet: View {
                     .padding(20)
                     .modifier(LinkOpening())
                 }
-                .onChange(of: entries.count) { _, _ in proxy.scrollTo("end") }
+                .onChangeCompat(of: entries.count) { _, _ in proxy.scrollTo("end") }
             }
             .background(Palette.background)
             .navigationTitle([a?.name, b?.name].compactMap { $0 }.joined(separator: " ⇄ "))
