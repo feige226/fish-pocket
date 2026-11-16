@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 设置 → 内置插件 (I-01…I-06): a read-only snapshot of what runs on this engine,
 /// the entry point for finding out why a plugin did not load. Session plugins are
 /// the Agent presets' rosters; global plugins are shared by the system and every
