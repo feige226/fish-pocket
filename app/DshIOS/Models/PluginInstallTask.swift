@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 /// Which npm registry an install asks: one the Host offers (nil = pnpm's own
@@ -63,14 +63,14 @@ struct InstallFailure: Equatable {
 /// `applying` (past the point of cancelling), `unconfirmed` (an answer was lost)
 /// and `unknown` (the Host has no such request).
 @MainActor
-@Observable
+@Perceptible
 final class PluginInstallTask {
     enum Phase: Equatable { case idle, checking, starting, running, cancelling, applying, unconfirmed, unknown, done, failed }
 
     static let npmmirror = "https://registry.npmmirror.com/"
     static let npmjs = "https://registry.npmjs.org/"
 
-    @ObservationIgnored unowned let app: AppModel
+    @PerceptionIgnored unowned let app: AppModel
 
     /// The sheet is on screen.
     private(set) var open = false
