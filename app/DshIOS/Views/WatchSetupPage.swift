@@ -23,6 +23,7 @@ struct WatchSetupPage: View {
     @State private var pairing = WatchPairing.current
 
     var body: some View {
+        WithPerceptionTracking {
         ScrollView {
             VStack(spacing: 20) {
                 hero
@@ -59,7 +60,8 @@ struct WatchSetupPage: View {
                 try? await Task.sleep(for: .seconds(2))
             }
         }
-    }
+    
+        }}
 
     // MARK: Hero
 
@@ -302,6 +304,7 @@ private struct StatusCard: View {
     let pairing: WatchPairing
 
     var body: some View {
+        WithPerceptionTracking {
         HStack(spacing: 14) {
             ZStack(alignment: .bottomTrailing) {
                 Image(systemName: icon)
@@ -329,7 +332,8 @@ private struct StatusCard: View {
         .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.stroke) }
         .accessibilityElement(children: .combine)
         .animation(.snappy, value: pairing)
-    }
+    
+        }}
 
     private var icon: String {
         switch pairing {
@@ -386,6 +390,7 @@ private struct WatchIllustration: View {
     private let caseHeight: CGFloat = 178
 
     var body: some View {
+        WithPerceptionTracking {
         ZStack {
             // The band, behind the case.
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -420,7 +425,8 @@ private struct WatchIllustration: View {
         .frame(width: caseWidth + 20)
         .accessibilityHidden(true)
         .onAppear { if !reduceMotion { breathing = true } }
-    }
+    
+        }}
 
     private var screen: some View {
         VStack(spacing: 6) {
@@ -469,6 +475,7 @@ struct WatchSetupRow: View {
     @State private var pairing = WatchPairing.current
 
     var body: some View {
+        WithPerceptionTracking {
         HStack(spacing: 12) {
             Image(systemName: "applewatch")
                 .font(.system(size: 20, weight: .medium))
@@ -485,7 +492,8 @@ struct WatchSetupRow: View {
         }
         .padding(.vertical, 4)
         .onAppear { pairing = WatchPairing.current }
-    }
+    
+        }}
 
     private var subtitle: LocalizedStringKey {
         pairing == .installed ? "已安装在手表上" : "在手腕上看会话、做确认"
