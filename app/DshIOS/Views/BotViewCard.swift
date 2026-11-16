@@ -43,7 +43,13 @@ struct BotViewCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear
+                            .onAppear { contentHeight = geometry.size.height }
+                            .onChange(of: geometry.size.height) { contentHeight = $0 }
+                    }
+                }
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: min(max(contentHeight, 1), 420))
