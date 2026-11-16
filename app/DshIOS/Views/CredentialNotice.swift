@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A turn that had no working credential. The engine's error names environment variables;
 /// this says what to do instead, and once it is done offers to send the message again.
 struct CredentialNotice: View {
