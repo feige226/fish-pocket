@@ -1001,7 +1001,7 @@ struct MainView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Palette.background)
-                .toolbar { if let openDrawer { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) } } }
+                .toolbar { if let openDrawer { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) } } }
         }
     }
 
