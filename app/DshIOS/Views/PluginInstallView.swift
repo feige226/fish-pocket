@@ -310,7 +310,7 @@ private struct InstallRegistryPage: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .onChange(of: customURL) { _, url in task.choose(.custom(url)) }
+                        .onChangeCompat(of: customURL) { _, url in task.choose(.custom(url)) }
                     if task.registryError {
                         Text("请输入以 http:// 或 https:// 开头的地址").font(.caption).foregroundStyle(Palette.removed)
                     }
