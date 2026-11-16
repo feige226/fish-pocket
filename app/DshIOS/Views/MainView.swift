@@ -532,7 +532,7 @@ struct MainView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.94)))
             }
         }
-        .animation(.snappy, value: supportDialog)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: supportDialog)
         // A live turn ran out of account balance: offer Platform's top-up page, then re-read balances.
         .alert("当前无可用余额", isPresented: Binding(get: { app.account.quotaPrompt }, set: { app.account.quotaPrompt = $0 })) {
             Button("取消", role: .cancel) {}
@@ -743,7 +743,7 @@ struct MainView: View {
                     drag = min(0, translation)
                 } ended: { predicted in
                     if predicted == 0, drag != 0 {
-                        withAnimation(.snappy(duration: 0.25)) { drag = 0 }
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { drag = 0 }
                     } else {
                         settleDrawer(predicted: predicted, width: width)
                     }
@@ -756,7 +756,7 @@ struct MainView: View {
         guard drag != 0 else { return }
         let open = drawerOpen ? predicted > -width / 2 : predicted > width / 2
         if open != drawerOpen { Haptics.select() }
-        withAnimation(.snappy(duration: 0.25)) {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
             drawerOpen = open
             drag = 0
         }
@@ -783,7 +783,7 @@ struct MainView: View {
 
     private func setDrawer(_ open: Bool) {
         if open { dismissKeyboard() }
-        withAnimation(.snappy(duration: 0.25)) { drawerOpen = open }
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { drawerOpen = open }
     }
 
     private var drawer: some View { drawer(.sidebar) }
