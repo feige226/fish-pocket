@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 import WebKit
 
@@ -142,7 +143,7 @@ struct MiniAppScreen: View {
 }
 
 /// What the page reported, and a way to reload it.
-@MainActor @Observable
+@MainActor @Perceptible
 final class MiniAppPage {
     /// The latest error, shown until dismissed; nil once the user closes the banner.
     var error: String?
@@ -150,7 +151,7 @@ final class MiniAppPage {
     var loaded = false
     /// Every error since the page loaded, for the agent.
     private(set) var errors: [String] = []
-    @ObservationIgnored weak var webView: WKWebView?
+    @PerceptionIgnored weak var webView: WKWebView?
 
     func report(_ message: String) {
         guard !errors.contains(message) else { return }
