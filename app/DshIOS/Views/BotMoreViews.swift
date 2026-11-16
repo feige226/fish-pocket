@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 // MARK: - Working folder
 
 /// Where a Bot or a group works: the team workspace, or another workspace of this app.
