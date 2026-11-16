@@ -18,6 +18,9 @@ packages:
   SwiftMath:
     url: https://github.com/mgriebling/SwiftMath
     exactVersion: 1.7.3
+  Perception:
+    url: https://github.com/pointfreeco/swift-perception
+    exactVersion: 2.0.12
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -131,6 +134,7 @@ targets:
       - sdk: libiconv.tbd
       - package: SwiftTerm
       - package: SwiftMath
+      - package: Perception
       - target: DshLiveActivity
       # 系统分享面板里的 Fish Pocket：别的 App 分享的内容进新对话或某个 Bot 的输入框。
       - target: DshShare
