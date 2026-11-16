@@ -67,7 +67,7 @@ struct FishPocketPage: View {
         .actionTray(shown: !account.signedIn || (account.canPurchase && chosen != nil)) {
             if account.signedIn { buyBar } else { signInBar }
         }
-        .animation(.snappy, value: account.signedIn)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: account.signedIn)
         // Signed out, the page's own heading is the title.
         .navigationTitle(account.signedIn ? Text(topUp && account.canPurchase ? "购买额度" : "Fish Pocket 账号") : Text(verbatim: ""))
         .navigationBarTitleDisplayMode(.inline)
@@ -119,7 +119,7 @@ struct FishPocketPage: View {
                             selected: account.signedIn ? chosen?.id == pack.id : nil
                         ) {
                             Haptics.tap()
-                            withAnimation(.snappy) { selected = pack.id }
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { selected = pack.id }
                         }
                     }
                 }
@@ -487,7 +487,7 @@ struct FishPocketBalance: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
-        .animation(.snappy, value: balance)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: balance)
         .accessibilityElement(children: .combine)
     
         }}
@@ -660,7 +660,7 @@ struct FishPocketNotices: View {
                     }
             }
         }
-        .animation(.snappy, value: app.fishPocket.toast)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.fishPocket.toast)
     
         }}
 }
