@@ -16,6 +16,8 @@ struct PluginStoreView: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             if !searching { tabs }
             if tab == "discover" {
@@ -49,7 +51,8 @@ struct PluginStoreView: View {
         }
         .onChange(of: manager.marketEnabled) { _, enabled in if !enabled { model.marketTurnedOff() } }
         .followSettings()
-    }
+    
+        }}
 
     private var tabs: some View {
         HStack(spacing: 2) {
@@ -139,6 +142,8 @@ private struct StoreDiscoverPage: View {
     private var unfiltered: Bool { !hasText && market.query.category == nil && market.query.labels.isEmpty }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             switch model.readiness {
             case .checking where model.hasList:
@@ -173,7 +178,8 @@ private struct StoreDiscoverPage: View {
             market.setText(search)
             await market.reload(app)
         }
-    }
+    
+        }}
 
     private func updateSearching() {
         searching = searchFocused || !search.isEmpty
@@ -447,6 +453,8 @@ struct StoreArt: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         if let icon {
             PluginIcon(source: icon, size: size - 12)
         } else {
@@ -457,7 +465,8 @@ struct StoreArt: View {
                 .background(Palette.bubble, in: RoundedRectangle(cornerRadius: size * 0.23, style: .continuous))
                 .accessibilityHidden(true)
         }
-    }
+    
+        }}
 }
 
 private struct StoreRow: View {
@@ -470,6 +479,8 @@ private struct StoreRow: View {
     private var metadata: JSON { model.market.result?["metadata"] ?? .null }
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 10) {
             NavigationLink {
                 StoreEntryDetail(listing: entry, model: model, install: install)
@@ -498,7 +509,8 @@ private struct StoreRow: View {
         .padding(.leading, 14)
         .padding(.trailing, 12)
         .frame(minHeight: wide ? 86 : 74)
-    }
+    
+        }}
 
     private var meta: String {
         [entry.versionNumber, entry.author, entry.date].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
@@ -558,6 +570,8 @@ private struct StoreInstalledPage: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if manager.status == .unavailable {
                 Text("当前无法安装或启停插件。").font(.footnote).foregroundStyle(Palette.secondary).groupedRow()
@@ -576,7 +590,8 @@ private struct StoreInstalledPage: View {
         }
         .groupedList()
         .refreshable { await manager.manualRefresh() }
-    }
+    
+        }}
 
     private var installed: some View {
         Section("已安装插件") {
@@ -638,13 +653,16 @@ private struct StoreAllExtensions: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section { ForEach(app.plugins.allExtensions) { StorePackageRow(package: $0) } }.groupedRow()
         }
         .groupedList()
         .navigationTitle("实验性插件")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 /// An installed or official package; its switch and removal are on the detail page it opens.
@@ -653,6 +671,8 @@ private struct StorePackageRow: View {
     let package: PluginPackage
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationLink {
             PluginDetailView(name: package.name).storeWebButton()
         } label: {
@@ -685,7 +705,8 @@ private struct StorePackageRow: View {
             }
             .padding(.vertical, 3)
         }
-    }
+    
+        }}
 
     private var state: String? {
         guard package.availability != "missing" else { return nil }
@@ -708,6 +729,8 @@ struct StoreSourcesSheet: View {
     private var urls: [String] { (market.indexes ?? []).compactMap { $0["url"].string } }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -766,7 +789,8 @@ struct StoreSourcesSheet: View {
             .closeButton(dismiss)
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 
     /// A source lists its host until it is read; the market on screen has been.
     private func title(_ index: JSON) -> String {
