@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One read of a market index: the query, then pages appended to `entries`.
 @MainActor
 @Observable
