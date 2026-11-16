@@ -115,8 +115,10 @@ jobs:
       - name: Compile (iOS simulator)
         working-directory: app
         run: |
+          # CI runners may not have Xcode's local trust record for SwiftPM macro plugins.
+          # Skip macro fingerprint validation; keep package plugin validation skipped as above.
           xcodebuild -project DshIOS.xcodeproj -scheme DshIOS \
             -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/DerivedData -skipPackagePluginValidation \
+            -derivedDataPath build/DerivedData -skipPackagePluginValidation -skipMacroValidation \
             ARCHS=arm64 CODE_SIGNING_ALLOWED=NO \
             build -quiet
