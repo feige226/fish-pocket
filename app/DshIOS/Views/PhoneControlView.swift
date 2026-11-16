@@ -13,6 +13,8 @@ struct PhoneControlView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 LabeledContent {
@@ -105,7 +107,8 @@ struct PhoneControlView: View {
         .onChangeCompat(of: scenePhase) { _, phase in
             if phase == .active { Task { await service.refresh() } }
         }
-    }
+    
+        }}
 }
 
 @MainActor @Perceptible
