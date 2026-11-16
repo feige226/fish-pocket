@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// Version numbers as `MARKETING_VERSION` and the release tags write them: `1.2.0`, `v1.2.0`.
 enum AppVersion {
@@ -32,7 +32,7 @@ struct AppUpdate: Equatable {
 /// Store comes first: once the app is listed there, it answers for everyone. Until
 /// then GitHub Releases does, except for builds Apple delivered (TestFlight, review),
 /// which never point at a download outside the store.
-@MainActor @Observable
+@MainActor @Perceptible
 final class UpdateChecker {
     enum Status: Equatable { case idle, checking, upToDate, failed, available(AppUpdate) }
 
