@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 // MARK: - Provider rows
 
 /// One provider as the 模型 page shows it: the configurable directory entry joined
