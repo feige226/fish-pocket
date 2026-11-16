@@ -41,7 +41,7 @@ func presetHeldBack(_ presetId: String?) -> Bool { CreatorMode.isHidden(presetId
 /// The Agent preset roster (`agentPresets/list`) with the display copy the web keeps
 /// for shipped presets: a preset that publishes no name is one of these.
 @MainActor
-@Observable
+@Perceptible
 final class AgentPresetCatalog {
     struct Option: Identifiable, Hashable {
         let id: String
