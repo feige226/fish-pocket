@@ -11,6 +11,8 @@ struct RemoteOptionsSheet: View {
     private var permissionSelection: String? { model.state?.selections["permission"] ?? nil }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 if let catalog = model.catalog {
@@ -68,7 +70,8 @@ struct RemoteOptionsSheet: View {
         .tint(Palette.ink)
         .presentationDetents([.medium, .large])
         .task { await model.loadCatalog(force: true) }
-    }
+    
+        }}
 
     private func groups(_ models: [RemoteModelOption]) -> [(name: String?, models: [RemoteModelOption])] {
         var order: [String?] = []
@@ -111,6 +114,8 @@ struct RemoteInfoSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 if let meta = model.meta {
@@ -156,7 +161,8 @@ struct RemoteInfoSheet: View {
         .tint(Palette.ink)
         .presentationDetents([.medium, .large])
         .task { await model.loadCatalog() }
-    }
+    
+        }}
 }
 
 /// The files the loaded turns changed, each with its diff: the workbench's 改动 for a remote session.
@@ -165,6 +171,8 @@ struct RemoteChangesSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         let changes = FileChange.collect(model.blocks, root: model.cwd)
         NavigationStack {
             Group {
@@ -206,7 +214,8 @@ struct RemoteChangesSheet: View {
             }
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 }
 
 /// The session's folder on the computer, read through the account's server: folders to walk
@@ -218,6 +227,8 @@ struct RemoteFilesSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             RemoteDirectoryPage(deviceId: deviceId, root: root, path: root, title: (root as NSString).lastPathComponent)
                 .closeButton(dismiss)
@@ -232,7 +243,8 @@ struct RemoteFilesSheet: View {
                 }
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 }
 
 private struct RemoteDirectoryPage: View {
@@ -259,6 +271,8 @@ private struct RemoteDirectoryPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if entries != nil {
                 Section {
@@ -302,7 +316,8 @@ private struct RemoteDirectoryPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { if entries == nil { await load() } }
         .refreshable { await load() }
-    }
+    
+        }}
 
     private func row(_ entry: RemoteFileEntry) -> some View {
         HStack(spacing: 14) {
@@ -359,6 +374,8 @@ private struct RemoteFilePage: View {
     private var isMarkdown: Bool { ["md", "markdown"].contains((entry.name as NSString).pathExtension.lowercased()) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let text {
                 ScrollView {
@@ -398,7 +415,8 @@ private struct RemoteFilePage: View {
             }
         }
         .task { if text == nil { await load() } }
-    }
+    
+        }}
 
     private func load() async {
         guard let client = app.remote.client else { return }
