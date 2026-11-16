@@ -96,7 +96,7 @@ struct MiniAppScreen: View {
                 .navigationTitle(app.name)
                 .toolbarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
                         Menu {
                             Button("重新载入", systemImage: "arrow.clockwise") { page.reload() }
                             Button("让 Agent 修改", systemImage: "wand.and.stars") { MiniAppPresenter.askAgent(MiniAppPresenter.editDraft(app)) }
