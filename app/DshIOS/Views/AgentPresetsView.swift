@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 设置 → Agent 预设 (AP-01 / AP-02 / AP-04 / AP-05): tapping a row makes it the default for
 /// new tasks (`agent-preset-registry.selectedDefault`), the ⓘ opens a read-only view of it.
 struct AgentPresetsPage: View {
