@@ -146,7 +146,7 @@ struct PluginReportSheet: View {
                 log: log
             )
             Haptics.success()
-            withAnimation(.snappy(duration: 0.25)) { receipt = sent }
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { receipt = sent }
         } catch {
             failure = (error as? LocalizedError)?.errorDescription ?? String(localized: "提交失败，请稍后再试。")
         }
