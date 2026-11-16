@@ -1,6 +1,6 @@
 import ActivityKit
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// The sessions on a computer that the phone answers for, outside their conversations. The
@@ -24,7 +24,7 @@ final class RemotePresence {
 
     private func observe() {
         guard let app else { return }
-        let (attention, requests) = withObservationTracking { (app.remote.attention, app.remote.requests) } onChange: { [weak self] in
+        let (attention, requests) = withPerceptionTracking { (app.remote.attention, app.remote.requests) } onChange: { [weak self] in
             Task { @MainActor in self?.observe() }
         }
         app.remoteWorkChanged()
