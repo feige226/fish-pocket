@@ -1,6 +1,7 @@
 import SafariServices
 import SwiftUI
 
+import Perception
 /// What the app can and cannot see of a DeepSeek sign-in, shown wherever sign-in starts.
 struct SignInPrivacyNote: View {
     var body: some View {
