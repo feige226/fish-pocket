@@ -21,6 +21,8 @@ struct PluginInventoryPage: View {
     private var needle: String { query.trimmingCharacters(in: .whitespaces).lowercased() }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let snapshot {
                 list(snapshot)
@@ -39,7 +41,8 @@ struct PluginInventoryPage: View {
         .navigationTitle("内置插件")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-    }
+    
+        }}
 
     private func load() async {
         failed = false
@@ -151,6 +154,8 @@ private struct InventoryCard: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 dot
@@ -166,7 +171,8 @@ private struct InventoryCard: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(.snappy) { expanded.toggle() } }
-    }
+    
+        }}
 
     @ViewBuilder
     private var dot: some View {
