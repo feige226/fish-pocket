@@ -60,3 +60,16 @@ private struct OnChangeCompatNoArgumentsModifier<Value: Equatable>: ViewModifier
             .onChange(of: value) { _ in action() }
     }
 }
+
+
+extension View {
+    /// Uses the system scroll anchor where available; leaves iOS 16 at its native layout.
+    @ViewBuilder
+    func defaultScrollAnchorCompat(_ anchor: UnitPoint) -> some View {
+        if #available(iOS 17.0, *) {
+            self.defaultScrollAnchor(anchor)
+        } else {
+            self
+        }
+    }
+}
