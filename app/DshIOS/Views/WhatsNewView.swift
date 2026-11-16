@@ -110,10 +110,15 @@ private struct FeatureCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: feature.symbol)
+            Group {
+                if #available(iOS 17.0, *) {
+                    Image(systemName: feature.symbol).symbolEffect(.bounce, value: nod)
+                } else {
+                    Image(systemName: feature.symbol)
+                }
+            }
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(Palette.onInk)
-                .symbolEffect(.bounce, value: nod)
                 .frame(width: 46, height: 46)
                 .background(Palette.ink, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .accessibilityHidden(true)
