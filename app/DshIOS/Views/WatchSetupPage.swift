@@ -107,7 +107,7 @@ struct WatchSetupPage: View {
             ForEach(Channel.allCases) { item in
                 Button {
                     if channel != item { Haptics.select() }
-                    withAnimation(.snappy(duration: 0.25)) { channel = item }
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { channel = item }
                 } label: {
                     Text(item.title)
                         .font(.subheadline.weight(channel == item ? .semibold : .medium))
@@ -331,7 +331,7 @@ private struct StatusCard: View {
         .background(Palette.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.stroke) }
         .accessibilityElement(children: .combine)
-        .animation(.snappy, value: pairing)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: pairing)
     
         }}
 
