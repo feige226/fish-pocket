@@ -153,13 +153,9 @@ private struct StoreDiscoverPage: View {
                     .font(.footnote)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .unavailable:
-                ContentUnavailableView("无法管理插件", systemImage: "puzzlepiece.extension", description: Text("当前无法安装或启停插件。"))
+                placeholder("无法管理插件", systemImage: "puzzlepiece.extension", description: "当前无法安装或启停插件。") { EmptyView() }
             case .off:
-                ContentUnavailableView {
-                    Label("插件市场已关闭", systemImage: "storefront")
-                } description: {
-                    Text("它的开关在「设置 → 插件 → 实验性插件」")
-                } actions: {
+                placeholder("插件市场已关闭", systemImage: "storefront", description: "它的开关在「设置 → 插件 → 实验性插件」") {
                     Button("开启") { Task { await model.enable(app) } }.buttonStyle(.capsule(height: 44, fill: false))
                 }
             case .ready:
@@ -197,23 +193,45 @@ private struct StoreDiscoverPage: View {
     }
 
     private var noMarket: some View {
-        ContentUnavailableView {
-            Label("还没有插件市场", systemImage: "storefront")
-        } description: {
-            Text("恢复预置市场，或添加其他索引。")
-        } actions: {
+        placeholder("还没有插件市场", systemImage: "storefront", description: "恢复预置市场，或添加其他索引。") {
             Button("恢复预置市场") { Task { await model.restorePreset(app) } }.buttonStyle(.capsule(height: 44, fill: false))
             Button("添加索引源", action: manage).font(.subheadline.weight(.medium)).foregroundStyle(Palette.secondary).hitTarget()
         }
     }
 
     private func failure(_ retry: @escaping () async -> Void) -> some View {
-        ContentUnavailableView {
-            Text("无法读取插件市场").font(.title3.weight(.semibold))
-        } description: {
-            Text("检查网络后再试一次。已经安装的插件不受影响。")
-        } actions: {
+        placeholder("无法读取插件市场", systemImage: "wifi.exclamationmark", description: "检查网络后再试一次。已经安装的插件不受影响。") {
             Button("重试") { Task { await retry() } }.buttonStyle(.capsule(.outline, height: 44, fill: false))
+        }
+    }
+
+    @ViewBuilder
+    private func placeholder<Actions: View>(
+        _ title: String,
+        systemImage: String,
+        description: String,
+        @ViewBuilder actions: () -> Actions
+    ) -> some View {
+        if #available(iOS 17.0, *) {
+            ContentUnavailableView {
+                Label(title, systemImage: systemImage)
+            } description: {
+                Text(description)
+            } actions: {
+                actions()
+            }
+        } else {
+            VStack(spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.title3.weight(.semibold))
+                Text(description)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.secondary)
+                    .multilineTextAlignment(.center)
+                actions()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
         }
     }
 
