@@ -102,7 +102,7 @@ struct PhoneControlView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await service.refresh() }
         // 从 iCTRL 回来（启动、停止都会跳过去）时重新查一次。
-        .onChange(of: scenePhase) { _, phase in
+        .onChangeCompat(of: scenePhase) { _, phase in
             if phase == .active { Task { await service.refresh() } }
         }
     }
