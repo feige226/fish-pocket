@@ -1,6 +1,7 @@
 import AVFoundation
 import SwiftUI
 
+import Perception
 /// 远程控制: before signing in, what it is and how to connect; after, the account and its computers.
 /// It is a page of 设置 and the sheet the sidebar opens.
 struct RemoteControlPage: View {
