@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What the agent has going on beside the conversation, floating over its foot: the web page it
 /// works in and its background jobs. One tap opens either, without a trip to the top bar. Each shows
 /// only while there is something to see; a running one carries the green dot.
