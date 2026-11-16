@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Where the Bot pages go: the list, a Bot's own chat, a group chat.
 enum BotRoute: Hashable {
     case bot(String)
