@@ -282,7 +282,7 @@ struct MainView: View {
     private var shell: some View {
         layout
         .tint(Palette.ink)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
+        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
         .focusedSceneValue(\.windowCommands, windowCommands)
         .task(id: app.workspaces.map(\.id)) { launched() }
         .onChangeCompat(of: place) { _, place in
@@ -1127,7 +1127,7 @@ private struct PastTheFold: ViewModifier {
         content
             .padding(.leading, inset)
             .background(Palette.background)
-            .onGeometryChange(for: CGFloat.self) { proxy in
+            .onGeometryChangeCompat(for: CGFloat.self) { proxy in
                 guard let fold = proxy.fold, fold.height > fold.width, fold.midX < proxy.size.width / 2 else { return 0 }
                 return max(0, fold.maxX)
             } action: { inset = $0 }
