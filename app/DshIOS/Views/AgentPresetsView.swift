@@ -24,6 +24,8 @@ struct AgentPresetsPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if presets == nil {
                 Section {
@@ -71,7 +73,8 @@ struct AgentPresetsPage: View {
         .task(id: app.settingsRevision) { await load() }
         .followSettings()
         .refreshable { await load() }
-    }
+    
+        }}
 
     private func description(_ preset: JSON) -> String? {
         if let text = localized(preset["description"]), !text.isEmpty { return text }
@@ -166,6 +169,8 @@ private struct AgentPresetReader: View {
     @State private var failure: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             if let content {
                 Text(content)
@@ -195,5 +200,6 @@ private struct AgentPresetReader: View {
                 failure = describeFailure(error)
             }
         }
-    }
+    
+        }}
 }
