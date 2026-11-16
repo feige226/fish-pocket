@@ -49,6 +49,8 @@ struct RemoteNewSessionSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -137,7 +139,8 @@ struct RemoteNewSessionSheet: View {
         .onChange(of: deviceId) { deviceChanged() }
         .task(id: deviceId) { if !deviceId.isEmpty { await remote.loadAgents(on: deviceId); pickAgent() } }
         .task(id: "\(deviceId)/\(agentId)") { await prepare() }
-    }
+    
+        }}
 
     /// One row per model, or per level of a model that has several.
     private var modelChoices: [(name: String, selection: String)] {
