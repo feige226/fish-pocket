@@ -32,6 +32,8 @@ struct RemoteComposer: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let suggestions = focused ? model.suggestions(for: model.draft) : []
         VStack(alignment: .leading, spacing: 8) {
             if !suggestions.isEmpty { commandPanel(suggestions) }
@@ -71,7 +73,8 @@ struct RemoteComposer: View {
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { add(files: urls) }
         }
-    }
+    
+        }}
 
     /// Why sending waits, where it does; the draft is taken either way.
     private var placeholder: LocalizedStringKey {
