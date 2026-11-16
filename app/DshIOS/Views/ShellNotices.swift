@@ -43,9 +43,9 @@ struct ShellNotices: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, bottomInset)
-        .animation(.snappy, value: app.toast)
-        .animation(.snappy, value: ReadAloud.shared.speaking)
-        .animation(.snappy, value: showOffline)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.toast)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: ReadAloud.shared.speaking)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: showOffline)
         .task(id: app.connected) {
             guard !app.connected, app.generation > 0 else { showOffline = false; return }
             try? await Task.sleep(for: .seconds(1.5))
