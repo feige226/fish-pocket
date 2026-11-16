@@ -38,18 +38,18 @@ struct BotChatView: View {
             .sheet(isPresented: $sideChatOpen) {
                 BotSideChatSheet(botId: botId).environment(\.browserLinks, BrowserLinks(sessionId: bot.sessionId, origin: app.client.origin))
             }
-            .onChange(of: team.memoryRequest) { _, request in
+            .onChangeCompat(of: team.memoryRequest) { _, request in
                 guard request == botId else { return }
                 team.memoryRequest = nil
                 detailTab = .memory
                 detailOpen = true
             }
-            .onChange(of: team.sideChatRequest) { _, request in
+            .onChangeCompat(of: team.sideChatRequest) { _, request in
                 guard request == botId else { return }
                 team.sideChatRequest = nil
                 Task { try? await Task.sleep(for: .milliseconds(350)); sideChatOpen = true }
             }
-            .onChange(of: team.scheduleRequest) { _, request in
+            .onChangeCompat(of: team.scheduleRequest) { _, request in
                 guard request == .bot(botId) else { return }
                 team.scheduleRequest = nil
                 detailTab = .schedules
