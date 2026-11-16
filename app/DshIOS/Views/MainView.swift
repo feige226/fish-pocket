@@ -503,6 +503,8 @@ struct MainView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         shell
         .sheet(item: $sheet) { page(of: $0).sheetNotices() }
         .sheet(item: $onboarding, onDismiss: onboardingDismissed) { step in
@@ -558,7 +560,8 @@ struct MainView: View {
             Text(app.lastError ?? "")
         }
         .environment(\.openSession) { open(session: $0) }
-    }
+    
+        }}
 
     // MARK: Credentials
 
@@ -1137,8 +1140,11 @@ struct SheetStack<Content: View>: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack { content.closeButton(dismiss) }
-    }
+    
+        }}
 }
 
 /// A leftward swipe over the open drawer, reported as it follows the finger. It begins only for
