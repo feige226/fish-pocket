@@ -83,6 +83,8 @@ struct BotScheduleSection: View {
     let schedules: BotSchedules
 
     var body: some View {
+        WithPerceptionTracking {
+
         Section {
             if !schedules.loaded {
                 ProgressView().frame(maxWidth: .infinity)
@@ -111,7 +113,8 @@ struct BotScheduleSection: View {
             }
         }
         .groupedRow()
-    }
+    
+        }}
 
     private var footerEmpty: LocalizedStringKey {
         switch schedules.target {
@@ -165,6 +168,8 @@ struct BotScheduleCreateSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Form {
                 Section {
@@ -203,7 +208,8 @@ struct BotScheduleCreateSheet: View {
             .saveToolbar(canSave: canSave, saving: saving, cancel: { dismiss() }) { save() }
             .onChange(of: unit) { _, _ in amount = min(amount, maxAmount) }
         }
-    }
+    
+        }}
 
     private var weekdayPicker: some View {
         let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
