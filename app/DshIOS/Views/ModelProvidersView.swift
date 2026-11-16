@@ -372,7 +372,7 @@ private struct APIKeyField: View {
                 .accessibilityLabel(revealed ? "隐藏密钥" : "显示密钥")
             }
         }
-        .onChange(of: text) { _, _ in revealed = false }
+        .onChangeCompat(of: text) { _, _ in revealed = false }
     
         }}
 }
@@ -508,7 +508,7 @@ private struct ProviderEditor: View {
                     Section { NavigationLink("高级") { advancedPage } }.groupedRow()
                 }
             }
-            .onChange(of: attempts) { _, _ in
+            .onChangeCompat(of: attempts) { _, _ in
                 withAnimation { proxy.scrollTo(failedAt == .key ? Self.keyAnchor : Self.failureAnchor, anchor: .center) }
             }
         }
