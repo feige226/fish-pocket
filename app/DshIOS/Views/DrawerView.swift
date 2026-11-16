@@ -1496,7 +1496,7 @@ private extension View {
     }
 
     func reportsFrame(_ id: String, to frames: DrawerRowFrames) -> some View {
-        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.set($0, of: id) }
+        onGeometryChangeCompat(for: CGRect.self) { $0.frame(in: .global) } action: { frames.set($0, of: id) }
             .onAppear { frames.setShown(id, true) }
             .onDisappear { frames.setShown(id, false) }
     }
