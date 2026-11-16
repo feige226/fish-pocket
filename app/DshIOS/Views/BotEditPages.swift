@@ -20,6 +20,8 @@ struct BotTextPage: View {
     @FocusState private var focused: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let over = limit.map { trimmed.count > $0 } ?? false
         Form {
@@ -45,7 +47,8 @@ struct BotTextPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .saveToolbar(canSave: canSave(trimmed, over: over), saving: saving) { commit(trimmed) }
         .onAppear { text = value; focused = true }
-    }
+    
+        }}
 
     private func canSave(_ trimmed: String, over: Bool) -> Bool {
         !over && trimmed != value && (optional || !trimmed.isEmpty)
@@ -68,6 +71,8 @@ struct BotModelPage: View {
     @State private var saving: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let bot = team.bot(botId)
         List {
@@ -118,7 +123,8 @@ struct BotModelPage: View {
             _ = try? await team.call("models")
             await team.refreshState()
         }
-    }
+    
+        }}
 }
 
 /// How hard the Bot's model thinks: the levels that model offers.
@@ -131,6 +137,8 @@ struct BotEffortPage: View {
     @State private var saving: String??
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let bot = team.bot(botId)
         List {
@@ -153,7 +161,8 @@ struct BotEffortPage: View {
             fallback = value["defaultEffort"].string
             loaded = true
         }
-    }
+    
+        }}
 
     private func row(id: String?, name: String, detail: String?, bot: BotInfo?) -> some View {
         Button {
@@ -185,6 +194,8 @@ struct BotPermissionPage: View {
     @State private var confirmingFullAccess = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let bot = team.bot(botId)
         let current = bot?.permission ?? team.defaultPermission
@@ -221,7 +232,8 @@ struct BotPermissionPage: View {
         } message: {
             Text("它改文件、跑命令都不再先问你，包括定时任务到点时。只在信任它要做的事时使用。")
         }
-    }
+    
+        }}
 
     private func choose(_ value: String) {
         guard let bot = app.botTeam.bot(botId) else { return }
@@ -242,6 +254,8 @@ struct BotAppearanceSheet: View {
     @State private var library: [JSON] = []
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack {
             if let bot = team.bot(botId) {
@@ -317,7 +331,8 @@ struct BotAppearanceSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 
     private func loadLibrary() async {
         if let value = try? await app.botTeam.call("avatar-library", ["limit": 48]) { library = value["items"].array }
