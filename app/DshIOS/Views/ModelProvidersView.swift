@@ -58,7 +58,7 @@ func deriveKeyRef(_ provider: String) -> String {
 
 /// The joined provider rows, re-read whenever settings, credentials or adapters change.
 @MainActor
-@Observable
+@Perceptible
 final class ModelProvidersModel {
     private(set) var rows: [ProviderRow] = []
     private(set) var loading = false
