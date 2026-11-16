@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What a Bot did in a reply beyond its words, drawn where the reply is: who it messaged or
 /// stopped, a Bot or group it made, what it remembered, a chart it showed, a question that
 /// closed unanswered. The calls themselves stay in the folded steps like any tool call.
