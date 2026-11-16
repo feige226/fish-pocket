@@ -76,7 +76,7 @@ struct PluginInstallSheet: View {
                 if showsForm {
                     ToolbarItem(placement: .cancellationAction) { Button("取消") { task.close() } }
                 } else {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .navigationBarTrailing) {
                         Button { task.close() } label: { Image(systemName: "xmark") }
                             .accessibilityLabel(task.pending ? "在后台继续" : "关闭")
                     }
