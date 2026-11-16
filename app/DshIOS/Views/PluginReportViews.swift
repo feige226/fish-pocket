@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 举报插件: what is wrong with a market plugin, sent to Fish Pocket for review; then its number, and
 /// the offer to switch the plugin off while it is reviewed.
 struct PluginReportSheet: View {
