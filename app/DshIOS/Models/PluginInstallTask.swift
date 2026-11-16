@@ -104,24 +104,24 @@ final class PluginInstallTask {
     /// still ask about it (询问 AI).
     private(set) var records: [String: InstallRecord] = [:]
 
-    @ObservationIgnored private(set) var requestId: String?
-    @ObservationIgnored private var acknowledged = false
-    @ObservationIgnored private var replyLost = false
-    @ObservationIgnored private var recovering = false
-    @ObservationIgnored private var cancellation: (waitingForStart: Bool, active: Bool)?
-    @ObservationIgnored private var inspectTask: Task<Void, Never>?
-    @ObservationIgnored private var registryRead: Task<Void, Never>?
+    @PerceptionIgnored private(set) var requestId: String?
+    @PerceptionIgnored private var acknowledged = false
+    @PerceptionIgnored private var replyLost = false
+    @PerceptionIgnored private var recovering = false
+    @PerceptionIgnored private var cancellation: (waitingForStart: Bool, active: Bool)?
+    @PerceptionIgnored private var inspectTask: Task<Void, Never>?
+    @PerceptionIgnored private var registryRead: Task<Void, Never>?
     /// A market entry chose the registry: this dialog only, never remembered.
-    @ObservationIgnored private var transientRegistry = false
+    @PerceptionIgnored private var transientRegistry = false
     /// A market update installs over a package it just removed: the new version keeps the old
     /// one's switch instead of asking for 立即启用.
-    @ObservationIgnored private var keptSelection: Bool?
+    @PerceptionIgnored private var keptSelection: Bool?
     /// An update this sheet runs (`pluginManager/updateBundle`), from one installed version to a newer one.
     private(set) var update: (name: String, from: String, to: String)?
     /// The Host's step of that update: `checking`, `removing`, `installing` or `restoring`.
     private(set) var updateStep: String?
-    @ObservationIgnored private var updateRegistry: String?
-    @ObservationIgnored private var listener: UUID?
+    @PerceptionIgnored private var updateRegistry: String?
+    @PerceptionIgnored private var listener: UUID?
 
     init(app: AppModel) {
         self.app = app
