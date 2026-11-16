@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 enum WorkbenchTab: String, CaseIterable, Identifiable {
     case terminal, files, browser, changes, context
     var id: String { rawValue }
