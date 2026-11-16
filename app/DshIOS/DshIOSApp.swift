@@ -63,7 +63,7 @@ struct SessionWindow: Codable, Hashable {
 /// the same sessions, and the Live Activity and background work follow one model.
 /// Each engine generation (a new listening URL after a restart) gets a fresh one.
 @MainActor
-@Observable
+@Perceptible
 final class EngineConnection {
     static let shared = EngineConnection()
 
