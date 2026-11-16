@@ -5,6 +5,8 @@ import Perception
 /// What the Fish Pocket service sees, shown wherever signing in to it starts.
 struct FishPocketPrivacyNote: View {
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "lock.fill").font(.caption)
             Text("登录信息只发给 Fish Pocket 服务器，用来识别账号和记录额度。用额度对话时，消息经 Fish Pocket 服务器转发给 DeepSeek 模型的服务商，服务器只记录用量，不保存对话内容。")
@@ -14,7 +16,8 @@ struct FishPocketPrivacyNote: View {
         .foregroundStyle(Palette.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// 设置 → Fish Pocket 账号, and the sheet a conversation opens. One page on both sides of
@@ -38,6 +41,8 @@ struct FishPocketPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             VStack(spacing: 24) {
                 if account.signedIn {
@@ -82,7 +87,8 @@ struct FishPocketPage: View {
         } message: {
             Text("注销后账号无法恢复，剩余积分将作废。")
         }
-    }
+    
+        }}
 
     // MARK: Packs
 
@@ -277,6 +283,8 @@ struct AppleSignInButton: View {
     @State private var busy = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         SignInWithAppleButton(.signIn) { request in
             nonce = FishPocketAccount.appleNonce()
             request.requestedScopes = [.fullName, .email]
@@ -309,7 +317,8 @@ struct AppleSignInButton: View {
         .clipShape(Capsule())
         .disabled(busy)
         .overlay { if busy { ProgressView() } }
-    }
+    
+        }}
 }
 
 /// Phone number and SMS code (mainland China numbers).
@@ -336,6 +345,8 @@ struct PhoneSignInSheet: View {
     private var canSignIn: Bool { e164 != nil && code.count >= 4 }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -382,7 +393,8 @@ struct PhoneSignInSheet: View {
             .onAppear { focus = .phone }
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 
     private func send() async {
         guard let e164 else { return }
@@ -419,6 +431,8 @@ struct PhoneSignInSheet: View {
 /// Before signing in: what this is, under the app's own icon.
 struct FishPocketIntro: View {
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             AppIconMark(size: 72)
                 .shadow(color: .black.opacity(0.14), radius: 20, y: 10)
@@ -436,7 +450,8 @@ struct FishPocketIntro: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 8)
-    }
+    
+        }}
 }
 
 /// The balance, as the page's heading: the number is what the account holds.
@@ -448,6 +463,8 @@ struct FishPocketBalance: View {
     var sells = true
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 2) {
             Text(depleted ? "额度已用完" : "剩余积分")
                 .font(.subheadline.weight(.medium))
@@ -472,7 +489,8 @@ struct FishPocketBalance: View {
         .padding(.top, 12)
         .animation(.snappy, value: balance)
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// What credits buy, and how they are spent.
@@ -481,6 +499,8 @@ struct FishPocketPerks: View {
     var rate: (input: Int, output: Int)?
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 16) {
             perk("brain", Text(verbatim: "DeepSeek-V4.1-Flash"), Text("支持深度思考和工具调用。"))
             perk("gauge.with.dots.needle.33percent", Text("用多少扣多少"), rate.map {
@@ -491,7 +511,8 @@ struct FishPocketPerks: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
-    }
+    
+        }}
 
     private func perk(_ icon: String, _ title: Text, _ detail: Text) -> some View {
         HStack(spacing: 14) {
@@ -515,6 +536,8 @@ struct FishPocketPerks: View {
 /// Where the packs would be in a TestFlight build, which does not sell them (`FishPocketAccount.canPurchase`).
 private struct FishPocketNoPurchaseNote: View {
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 14) {
             Image(systemName: "info.circle")
                 .font(.system(size: 20, weight: .medium))
@@ -533,7 +556,8 @@ private struct FishPocketNoPurchaseNote: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// One pack: the credits, large, over the App Store's price.
@@ -546,6 +570,8 @@ struct FishPocketPackTile: View {
     let action: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -592,7 +618,8 @@ struct FishPocketPackTile: View {
         .disabled(selected == nil)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected == true ? .isSelected : [])
-    }
+    
+        }}
 }
 
 /// A conversation on Fish Pocket credits ran out: the same page, about buying more.
@@ -600,11 +627,14 @@ struct FishPocketTopUpSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             FishPocketPage(topUp: true).closeButton(dismiss)
         }
         .presentationDetents([.large])
-    }
+    
+        }}
 }
 
 /// The Fish Pocket toast line (purchases credited, sign-in lost).
@@ -612,6 +642,8 @@ struct FishPocketNotices: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack {
             if let toast = app.fishPocket.toast {
                 Text(toast)
@@ -629,5 +661,6 @@ struct FishPocketNotices: View {
             }
         }
         .animation(.snappy, value: app.fishPocket.toast)
-    }
+    
+        }}
 }
