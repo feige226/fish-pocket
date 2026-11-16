@@ -57,7 +57,7 @@ struct ConfigDocumentView: View {
                     Button("保存") { Task { await save() } }.fontWeight(.semibold).disabled(saving)
                 }
             } else {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     ShareLink(item: file)
                 }
             }
