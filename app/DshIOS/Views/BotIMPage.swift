@@ -1,6 +1,7 @@
 import CoreImage.CIFilterBuiltins
 import SwiftUI
 
+import Perception
 /// Chat apps a Bot can be reached from (ds-bot's IM bridge). The bridge runs inside the
 /// engine, so messages arrive only while the app is running.
 struct BotIMPage: View {
