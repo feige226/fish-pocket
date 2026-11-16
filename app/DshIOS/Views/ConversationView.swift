@@ -703,9 +703,9 @@ struct TimelineAnchor: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
             content
-                .defaultScrollAnchorCompat(.bottom, for: .initialOffset)
-                .defaultScrollAnchorCompat(.bottom, for: .sizeChanges)
-                .defaultScrollAnchorCompat(.top, for: .alignment)
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
+                .defaultScrollAnchor(.bottom, for: .sizeChanges)
+                .defaultScrollAnchor(.top, for: .alignment)
         } else {
             content.defaultScrollAnchorCompat(.bottom)
         }
