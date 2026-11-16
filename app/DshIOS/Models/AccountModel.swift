@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 /// A bonus the Platform has credited but the user has not been shown yet.
@@ -23,12 +23,12 @@ struct BonusNotice: Identifiable, Hashable {
 /// Platform password or web cookies: sign-in happens on Platform's own page
 /// in a browser this app cannot read.
 @MainActor
-@Observable
+@Perceptible
 final class AccountModel {
     /// The engine build this client speaks for; account methods require it in `client`.
     static let clientVersion = "0.2.2-rc.1"
 
-    @ObservationIgnored private let client: EngineClient
+    @PerceptionIgnored private let client: EngineClient
     @ObservationIgnored private let mux: StreamMux
 
     /// The latest `AccountView`: `status`, `links`, `attempt`.
