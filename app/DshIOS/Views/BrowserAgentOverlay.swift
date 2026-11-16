@@ -23,6 +23,8 @@ struct BrowserAgentOverlay: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Color.clear
             .allowsHitTesting(false)
             .accessibilityHidden(true)
@@ -31,5 +33,6 @@ struct BrowserAgentOverlay: View {
                 // The turn is over: nothing is left at the page.
                 if !now, presence.action == nil { presence.finish() }
             }
-    }
+    
+        }}
 }
