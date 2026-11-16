@@ -47,7 +47,7 @@ struct MiniAppsPage: View {
         .refreshable { store.refresh() }
         .background(Palette.background)
         .navigationTitle(Self.tabTitle)
-        .toolbarTitleDisplayMode(asTab ? .large : .inline)
+        .navigationBarTitleDisplayMode(asTab ? .large : .inline)
         .onAppear { store.refresh() }
         .onChangeCompat(of: scenePhase) { _, phase in if phase == .active { store.refresh() } }
         .confirmationDialog("删除「\(deleting?.name ?? "")」？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
