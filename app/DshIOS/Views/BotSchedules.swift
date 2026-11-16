@@ -25,7 +25,7 @@ enum BotScheduleTarget: Equatable {
 /// The scheduled tasks of a Bot or a group, read from ds-bot. Owned by the page that shows
 /// them, which also presents the new-task sheet: a section's modifiers would go to every row.
 @MainActor
-@Observable
+@Perceptible
 final class BotSchedules {
     let target: BotScheduleTarget
     private(set) var tasks: [JSON] = []
