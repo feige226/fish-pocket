@@ -15,6 +15,8 @@ struct BotViewCard: View {
     @State private var contentHeight: CGFloat = 0
 
     var body: some View {
+        WithPerceptionTracking {
+
         BotCard {
             HStack(alignment: .firstTextBaseline) {
                 if let title = pending["title"].string, !title.isEmpty {
@@ -47,7 +49,8 @@ struct BotViewCard: View {
             .frame(height: min(max(contentHeight, 1), 420))
         }
         .disabled(sending)
-    }
+    
+        }}
 }
 
 /// A view a Bot showed without waiting for an answer (a chart, a table, a calculator): it
@@ -57,11 +60,14 @@ struct BotShownView: View {
     let root: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         BotCard {
             if !title.isEmpty { Text(title).font(.subheadline.weight(.semibold)) }
             BotViewBody(root: root, send: nil).frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
+    
+        }}
 }
 
 /// A view drawn natively. The schema is deep-view's: `{type, …}` nodes; a value written as
@@ -77,11 +83,14 @@ struct BotViewBody: View {
     @State private var chartTables: Set<String> = []
 
     var body: some View {
+        WithPerceptionTracking {
+
         // One scope per pass: every formula of the view reads the same inputs.
         let scope = ViewFormula.Scope(inputs: inputs, lets: root["let"])
         node(root, scope, path: "0")
             .onAppear { seed(root) }
-    }
+    
+        }}
 
     // MARK: Nodes
 
@@ -189,6 +198,8 @@ struct BotViewBody: View {
         let points: [Point]
 
         var body: some View {
+            WithPerceptionTracking {
+
             Chart(points) { point in
                 switch kind {
                 case "line": LineMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
@@ -198,7 +209,8 @@ struct BotViewBody: View {
                 default: BarMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
                 }
             }
-        }
+        
+            }}
     }
 
     private func points(_ node: JSON, _ scope: ViewFormula.Scope) -> (categories: [String], series: [String], points: [Point]) {
