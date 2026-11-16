@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftUI
 
+import Perception
 /// One text of a Bot or a group, edited on its own page: 保存 in the bar, the keyboard up.
 struct BotTextPage: View {
     @Environment(\.dismiss) private var dismiss
