@@ -1,6 +1,7 @@
 import Charts
 import SwiftUI
 
+import Perception
 /// A card a Bot sent with `show_view` and waits on: its content drawn natively, its inputs
 /// and answer parts (options, a confirm, a form, a submit button) sent back with `view-reply`.
 struct BotViewCard: View {
