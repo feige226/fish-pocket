@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One background job as `job/list` reports it (`JobView`).
 struct JobRow: Identifiable, Hashable {
     let id: String
