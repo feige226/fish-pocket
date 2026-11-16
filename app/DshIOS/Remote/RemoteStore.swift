@@ -78,15 +78,15 @@ final class RemoteStore {
     var expired = false
 
     @PerceptionIgnored private(set) var client: RemoteClient?
-    @ObservationIgnored private var follow: Task<Void, Never>?
+    @PerceptionIgnored private var follow: Task<Void, Never>?
     /// The sessions that have been opened (`SessionKeeper`, as for local conversations): opened
     /// again, one shows at once what it held and only has to catch up.
-    @ObservationIgnored private let kept = SessionKeeper<RemoteSessionModel>()
-    @ObservationIgnored private var inFront = true
+    @PerceptionIgnored private let kept = SessionKeeper<RemoteSessionModel>()
+    @PerceptionIgnored private var inFront = true
     /// The state of the session each request was read at; a later one is read again.
-    @ObservationIgnored private var requestSeq: [String: Int] = [:]
-    @ObservationIgnored private var requestReads: Set<String> = []
-    @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @PerceptionIgnored private var requestSeq: [String: Int] = [:]
+    @PerceptionIgnored private var requestReads: Set<String> = []
+    @PerceptionIgnored private var observers: [NSObjectProtocol] = []
 
     var signedIn: Bool { account != nil }
 
