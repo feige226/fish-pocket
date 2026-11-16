@@ -11,6 +11,8 @@ struct SessionLogExportSheet: View {
     @State private var failure: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
                 Text(file != nil ? "导出已就绪" : failure != nil ? "导出失败" : "正在导出会话")
@@ -41,7 +43,8 @@ struct SessionLogExportSheet: View {
         .fittedSheet()
         .task { await export() }
         .onDisappear { if let file { try? FileManager.default.removeItem(at: file) } }
-    }
+    
+        }}
 
     private func export() async {
         var components = URLComponents(url: app.client.origin.appendingPathComponent("api/session.export"), resolvingAgainstBaseURL: false)!
