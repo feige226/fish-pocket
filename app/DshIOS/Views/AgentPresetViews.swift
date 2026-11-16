@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 创造模式 (`cordis`) is held back on iOS: what it makes are plugins with their own
 /// Web views, and there is no good native SwiftUI way to run those yet. Only the entries
 /// that start it are hidden — the preset itself still exists, so a session already in it
