@@ -1,5 +1,6 @@
 import SafariServices
 import SwiftUI
+import Perception
 import WatchConnectivity
 
 /// Settings: only what people come here for (账号, 模型, 访问模式, 插件, 自动化, 后台运行: 静音音频,
