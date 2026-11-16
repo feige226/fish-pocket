@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Whose tasks a schedule section lists: a Bot's own chat or a group chat.
 enum BotScheduleTarget: Equatable {
     case bot(String)
