@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A group round: what each member said, under its name and mark, with the lines in
 /// between that say what else happened (someone stopped, did not answer, waits for the user).
 struct RoomRelayView: View {
