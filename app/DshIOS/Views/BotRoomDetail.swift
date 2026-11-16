@@ -20,6 +20,8 @@ struct RoomDetailView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack {
             Group {
@@ -81,7 +83,8 @@ struct RoomDetailView: View {
             .closeButton(dismiss)
         }
         .settingsStyle()
-    }
+    
+        }}
 
     @ViewBuilder
     private func about(_ room: RoomInfo) -> some View {
@@ -229,6 +232,8 @@ private struct RoomAddMembersSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let room = team.room(roomId)
         let others = team.bots.filter { !(room?.members.contains($0.id) ?? true) }
@@ -265,5 +270,6 @@ private struct RoomAddMembersSheet: View {
                 }
             }
         }
-    }
+    
+        }}
 }
