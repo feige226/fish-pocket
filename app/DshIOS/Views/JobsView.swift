@@ -127,7 +127,7 @@ struct JobsSheet: View {
                         } header: {
                             HStack {
                                 Button {
-                                    withAnimation(.snappy(duration: 0.2)) { settledOpen = !open }
+                                    withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { settledOpen = !open }
                                 } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: "chevron.right").font(.caption2.weight(.bold)).rotationEffect(.degrees(open ? 90 : 0))
