@@ -139,19 +139,20 @@ private struct WorkbenchTerminal: View {
                     .padding(.horizontal, 6)
                     .padding(.top, 6)
                 } else if connection != nil {
-                    ContentUnavailableView {
-                        Label("此终端已不存在，请新建终端。", systemImage: "apple.terminal")
-                    } actions: {
-                        Button("新建终端") { Task { await replace() } }
-                    }
+                    WorkbenchEmptyState(
+                        title: "此终端已不存在，请新建终端。",
+                        systemImage: "apple.terminal",
+                        actionTitle: "新建终端",
+                        action: { Task { await replace() } }
+                    )
                 } else if let error {
-                    ContentUnavailableView {
-                        Label("终端不可用", systemImage: "apple.terminal")
-                    } description: {
-                        Text(error)
-                    } actions: {
-                        Button("重试") { retry() }
-                    }
+                    WorkbenchEmptyState(
+                        title: "终端不可用",
+                        systemImage: "apple.terminal",
+                        message: error,
+                        actionTitle: "重试",
+                        action: { retry() }
+                    )
                 } else {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -423,7 +424,11 @@ private struct WorkbenchChanges: View {
         NavigationStack {
             Group {
                 if changes.isEmpty {
-                    ContentUnavailableView("还没有改动", systemImage: "doc.text.magnifyingglass", description: Text("智能体改过的文件会显示在这里。"))
+                    WorkbenchEmptyState(
+                        title: "还没有改动",
+                        systemImage: "doc.text.magnifyingglass",
+                        message: "智能体改过的文件会显示在这里。"
+                    )
                 } else {
                     List {
                         Section {
@@ -511,7 +516,10 @@ private struct FileDiffPage: View {
                 // Each file starts at its top.
                 .id(path)
             } else {
-                ContentUnavailableView("这个文件不在改动里了", systemImage: "doc.text.magnifyingglass")
+                WorkbenchEmptyState(
+                    title: "这个文件不在改动里了",
+                    systemImage: "doc.text.magnifyingglass"
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -799,5 +807,38 @@ extension Array where Element == TimelineItem {
             if case .assistant(_, let blocks, _, _) = item { return blocks }
             return []
         }
+    }
+}
+
+
+/// iOS 16 fallback for SwiftUI's iOS 17 ContentUnavailableView.
+private struct WorkbenchEmptyState: View {
+    let title: String
+    let systemImage: String
+    var message: String? = nil
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 34, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            if let message {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
