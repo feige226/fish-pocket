@@ -358,7 +358,7 @@ struct FileContentView: View {
                 .padding(.vertical)
             }
             // Short files start at the top left instead of being centred.
-            .defaultScrollAnchor(.topLeading)
+            .defaultScrollAnchorCompat(.topLeading)
             .refreshable { reload() }
             .onAppear { if let lines { proxy.scrollTo(lines.lowerBound, anchor: .center) } }
         }
