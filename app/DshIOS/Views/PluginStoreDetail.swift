@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One plugin of a market: what it does, whether this DSH accepts it, and where it comes from.
 struct StoreEntryDetail: View {
     @Environment(AppModel.self) private var app
