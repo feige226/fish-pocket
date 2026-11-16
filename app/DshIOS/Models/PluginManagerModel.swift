@@ -228,9 +228,9 @@ final class PluginManagerModel {
     /// A package an install just enabled, marked in the list for a moment.
     var highlight: String?
 
-    @ObservationIgnored private var inflight: Task<Void, Never>?
-    @ObservationIgnored private var rerun = false
-    @ObservationIgnored private var loadedRevision: Int?
+    @PerceptionIgnored private var inflight: Task<Void, Never>?
+    @PerceptionIgnored private var rerun = false
+    @PerceptionIgnored private var loadedRevision: Int?
 
     init(app: AppModel) {
         self.app = app
