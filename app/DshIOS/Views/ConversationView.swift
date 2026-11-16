@@ -325,7 +325,7 @@ struct ConversationView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if let openDrawer = openDrawer ?? splitSidebar.toggle {
-                ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) }
+                ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) }
             }
             if let bot {
                 // Beside the bar's leading buttons the bar gives an item only what it asks for:
@@ -335,7 +335,7 @@ struct ConversationView: View {
             // As the web keeps 新会话 in its sidebar, the bar keeps it one tap away: no drawer
             // first. A blank conversation is already a new one, so it only shows on a started one.
             if started && bot == nil {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         Haptics.tap()
                         app.newSessionRequest = NewSessionRequest(workspaceId: app.workspace(of: sessionId)?.id)
@@ -348,7 +348,7 @@ struct ConversationView: View {
             // A Bot's chat has the Bot's own title instead of the session's.
             if bot == nil {
                 if let parent = app.sessions[sessionId]?.parentId, model.subagentAddress != nil {
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: .navigationBarLeading) {
                         Button { app.open(session: parent) } label: { Image(systemName: "chevron.backward") }
                             .accessibilityLabel("返回父会话")
                     }
@@ -367,7 +367,7 @@ struct ConversationView: View {
                 }
             }
             if !blank {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     // A Bot runs no subagents of DSH's, its scheduled tasks are on its own page, and
                     // its background jobs float over the chat's foot.
                     if bot == nil { SessionHeaderActions(sessionId: sessionId) { headerSheet = $0 } }
@@ -468,7 +468,7 @@ struct ConversationView: View {
 
     /// The bar runs over the workbench too: centred, the title would sit on the column's edge.
     private var titlePlacement: ToolbarItemPlacement {
-        titleBesideWorkbench ? .topBarLeading : .principal
+        titleBesideWorkbench ? .navigationBarLeading : .principal
     }
 
     /// The workbench opens beside the conversation where there is room, over it otherwise.
@@ -1601,7 +1601,7 @@ struct ReasoningSheet: View {
             .navigationTitle("思考")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button { copyToPasteboard(shown) } label: { Image(systemName: "doc.on.doc") }
                         .accessibilityLabel("复制")
                 }
