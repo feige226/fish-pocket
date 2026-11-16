@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 struct Workspace: Identifiable, Hashable {
@@ -100,7 +100,7 @@ struct RenameRequest: Identifiable {
 /// Everything above one conversation: the engine connection, workspaces and
 /// their sessions. Views read it from the environment.
 @MainActor
-@Observable
+@Perceptible
 final class AppModel {
     let client: EngineClient
     let mux: StreamMux
@@ -112,7 +112,7 @@ final class AppModel {
     let remote = RemoteStore.shared
     /// This engine's conversations opened in this run (DSH's own, a Bot's chat, a group's), kept
     /// between visits as remote ones are. A new engine generation starts with none.
-    @ObservationIgnored private(set) lazy var localSessions = SessionKeeper<SessionModel>()
+    @PerceptionIgnored private(set) lazy var localSessions = SessionKeeper<SessionModel>()
 
     private(set) var workspaces: [Workspace] = []
     private(set) var pinned: [String] = []
