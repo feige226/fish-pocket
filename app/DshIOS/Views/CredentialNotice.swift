@@ -34,6 +34,8 @@ struct CredentialNotice: View {
     private var onFishPocket: Bool { model.modelCatalog?.selection(model)?.provider == FishPocketAPI.provider }
 
     var body: some View {
+        WithPerceptionTracking {
+
         // Not a Group: an empty one takes its modifiers with it, and the task below would never run.
         VStack(alignment: .leading, spacing: 0) {
             if !isLast {
@@ -92,7 +94,8 @@ struct CredentialNotice: View {
             guard problem == .missing else { return }
             ready = await app.onboardingReadiness() == .ready
         }
-    }
+    
+        }}
 
     private var record: some View {
         Text(problem == .missing ? "这条消息发送时还没有配置模型。" : "这条消息发送时 API Key 无法使用。")
