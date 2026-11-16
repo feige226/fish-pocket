@@ -80,8 +80,8 @@ final class VoiceInput {
         #endif
         return VoicePreferences.shared.source == .deepseek || VolcSpeech.shared.configured
     }
-    @ObservationIgnored private var transcriber: SpeechTranscriber?
-    @ObservationIgnored private var limit: Task<Void, Never>?
+    @PerceptionIgnored private var transcriber: SpeechTranscriber?
+    @PerceptionIgnored private var limit: Task<Void, Never>?
 
     var holding: Bool { phase == .listening }
 
