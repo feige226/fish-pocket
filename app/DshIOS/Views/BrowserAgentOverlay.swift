@@ -28,8 +28,8 @@ struct BrowserAgentOverlay: View {
         Color.clear
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            .onChange(of: state, initial: true) { _, state in model.showEffects(state) }
-            .onChange(of: running) { _, now in
+            .onChangeCompat(of: state, initial: true) { _, state in model.showEffects(state) }
+            .onChangeCompat(of: running) { _, now in
                 // The turn is over: nothing is left at the page.
                 if !now, presence.action == nil { presence.finish() }
             }
