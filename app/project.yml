@@ -2,7 +2,7 @@ name: DshIOS
 options:
   bundleIdPrefix: com.wsw
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "16.4"
     # The watch app (DshWatch): what an iPhone on iOS 17 pairs with.
     watchOS: "10.0"
   createIntermediateGroups: true
