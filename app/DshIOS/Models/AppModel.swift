@@ -184,18 +184,18 @@ final class AppModel {
     /// Count of `emit`s seen per event name; read through `revision(_:)`.
     private(set) var eventCounts: [String: Int] = [:]
 
-    @ObservationIgnored private var workspaceTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var eventsTask: Task<Void, Never>?
-    @ObservationIgnored private var controlTask: Task<Void, Never>?
-    @ObservationIgnored private var scheduleTask: Task<Void, Never>?
-    @ObservationIgnored private var eventsClientId: String?
+    @PerceptionIgnored private var workspaceTask: Task<Void, Never>?
+    @PerceptionIgnored private var refreshTask: Task<Void, Never>?
+    @PerceptionIgnored private var eventsTask: Task<Void, Never>?
+    @PerceptionIgnored private var controlTask: Task<Void, Never>?
+    @PerceptionIgnored private var scheduleTask: Task<Void, Never>?
+    @PerceptionIgnored private var eventsClientId: String?
     /// `api-session/status` from `$events`: the live running flag, which wins over
     /// `session/list` (that one can read idle while a tool call runs).
-    @ObservationIgnored private var runningStatus: [String: Bool] = [:]
-    @ObservationIgnored private var listeners: [UUID: (String, [JSON]) -> Void] = [:]
+    @PerceptionIgnored private var runningStatus: [String: Bool] = [:]
+    @PerceptionIgnored private var listeners: [UUID: (String, [JSON]) -> Void] = [:]
     /// Subagent children by parent, rebuilt with the list; rows ask per redraw.
-    @ObservationIgnored private(set) var childSessions: [String: [String]] = [:]
+    @PerceptionIgnored private(set) var childSessions: [String: [String]] = [:]
 
     init(launchURL: URL) {
         client = EngineClient(launchURL: launchURL)
