@@ -586,7 +586,7 @@ struct DiffLinesView: View {
                         .frame(minWidth: width, alignment: .leading)
                         .padding(.vertical, 14)
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             }
         }
         .font(.caption.monospaced())
