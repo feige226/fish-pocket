@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What picking a candidate does: run the `/` row's decision, or put text in place
 /// of the token (`keepOpen`: a directory drill, the menu continues one level down).
 enum Candidate {
