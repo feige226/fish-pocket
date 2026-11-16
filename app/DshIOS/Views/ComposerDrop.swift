@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import UniformTypeIdentifiers
 
 /// Things dragged onto a conversation join the draft (C-104): files and images from
