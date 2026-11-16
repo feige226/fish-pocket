@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Shell notices, filling the screen they sit on (the gap between them takes no
 /// touches). On top, what describes the app's state: the connection banner (S-10)
 /// and the account notices. At the bottom, in the thumb's reach just above the
