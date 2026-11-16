@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What the whole Bot team shares: connectors, capabilities, keys, the mailbox, and how much
 /// it has used. Each Bot's own page switches these on or off for it.
 struct BotTeamSettingsView: View {
