@@ -29,6 +29,8 @@ struct ConversationActivity: View {
     private var browser: BrowserModel? { Self.browser(of: sessionId, in: app) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         // Read here so the chips follow a browser made after this view.
         let browser = browserShown ? nil : browser
         HStack(spacing: 8) {
@@ -53,7 +55,8 @@ struct ConversationActivity: View {
         }
         .animation(.snappy(duration: 0.18), value: browser == nil)
         .animation(.snappy(duration: 0.18), value: jobs.visibleCount)
-    }
+    
+        }}
 
     private static func host(_ url: URL?) -> String? { FullScreenBrowser.site(url) }
 
