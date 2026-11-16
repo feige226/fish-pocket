@@ -1,6 +1,6 @@
 import CoreTransferable
 import Foundation
-import Observation
+import Perception
 import UIKit
 import UniformTypeIdentifiers
 
@@ -142,10 +142,10 @@ struct GoalInfo: Equatable {
 /// attachments and their uploads, the optimistic send with local echoes and
 /// failure restore (C-20, C-91), commands, the queue and the goal actions.
 @MainActor
-@Observable
+@Perceptible
 final class ComposerModel {
     /// Weak: sends and uploads outlive the conversation that started them (the session owns this model).
-    @ObservationIgnored private weak var session: SessionModel?
+    @PerceptionIgnored private weak var session: SessionModel?
     @ObservationIgnored let sessionId: String
     @ObservationIgnored let app: AppModel
 
