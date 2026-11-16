@@ -72,7 +72,7 @@ struct BotActivityLine: View {
         }
         .opacity(arrived ? 1 : 0)
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-        .onChange(of: current, initial: true) { _, current in
+        .onChangeCompat(of: current, initial: true) { _, current in
             withAnimation(arrived ? .spring(response: 0.35, dampingFraction: 0.7) : nil) { line = current }
         }
         .task {
