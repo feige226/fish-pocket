@@ -13,6 +13,8 @@ struct ModelPicker: View {
     @State private var searching = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Menu {
             if context.catalog.flatMap(\.models).count > 4 {
                 Button { searching = true } label: { Label("搜索模型…", systemImage: "magnifyingglass") }
@@ -57,7 +59,8 @@ struct ModelPicker: View {
         .onChange(of: app.revision("llm/adapters-updated", "settings/document-updated", "credentials/record-updated", "credentials/reference-updated")) {
             Task { await context.loadCatalog(model) }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func modelItem(_ choice: ModelChoice) -> some View {
@@ -96,10 +99,13 @@ struct ModelPicker: View {
 /// The 「1017」 info tag after the model name.
 struct Badge1017: View {
     var body: some View {
+        WithPerceptionTracking {
+
         Text("1017").font(.caption2.weight(.semibold)).foregroundStyle(Color.accentColor)
             .padding(.horizontal, 5).padding(.vertical, 1)
             .background(Color.accentColor.opacity(0.12), in: Capsule())
-    }
+    
+        }}
 }
 
 /// The model list with search (MS-01): provider sections, ranked by the fuzzy
@@ -112,6 +118,8 @@ struct ModelSearchList: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if query.isEmpty, let choice = context.currentChoice(model), !choice.reasoningEfforts.isEmpty {
                 Section("档位") { levels(choice) }
@@ -153,7 +161,8 @@ struct ModelSearchList: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索模型…")
         .navigationTitle("模型")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 
     /// The level stays in the list: picking one keeps the model and the page.
     /// Segments hold a handful of short names; an unusually long list falls back to a menu.
@@ -197,11 +206,14 @@ struct ModelSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             ModelSearchList(model: model, context: context).closeButton(dismiss)
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 }
 
 /// The message input: one rounded bar, the same in a new conversation and an
@@ -260,6 +272,8 @@ struct ComposerView: View {
     private var voice: VoiceInput { composer.voice }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let trigger = activeTrigger
         VStack(alignment: .leading, spacing: 8) {
             if let trigger {
@@ -393,7 +407,8 @@ struct ComposerView: View {
         .onChange(of: app.revision("commands/change", "agent-preset/selected")) { Task { await context.loadCommands(model) } }
         .onChange(of: app.revision("permission-presets/catalog-changed")) { Task { await context.loadPermissions(model) } }
         .onChange(of: app.revision("settings/document-updated")) { Task { await context.loadSettings(model) } }
-    }
+    
+        }}
 
     /// The `/` or `@` token being typed. It needs the keyboard: hiding it folds the panel.
     private var activeTrigger: TriggerHit? {
@@ -931,6 +946,8 @@ private struct DraftEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         let editingQueue = composer.editingQueue != nil
         NavigationStack {
             VStack(alignment: .leading, spacing: 8) {
@@ -958,7 +975,8 @@ private struct DraftEditor: View {
                 .onAppear { focused = true }
         }
         .presentationDetents([.large])
-    }
+    
+        }}
 }
 
 extension View {
