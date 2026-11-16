@@ -207,7 +207,7 @@ struct BotConnectorsPage: View {
     private func pill(_ title: String, picked: Bool, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.select()
-            withAnimation(.snappy(duration: 0.2)) { action() }
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { action() }
         } label: {
             Text(title).font(.subheadline.weight(picked ? .semibold : .regular))
                 .foregroundStyle(picked ? Palette.onInk : Palette.ink)
