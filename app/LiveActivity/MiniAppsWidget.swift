@@ -2,15 +2,24 @@ import SwiftUI
 import WidgetKit
 
 /// 我的应用 on the home screen: the apps the user picked (the most recent ones until they pick),
-/// each one tap away. Opening one needs no engine.
+/// each one tap away. iOS 17 uses per-widget App Intents configuration; iOS 16 shows recent apps.
 struct MiniAppsWidget: Widget {
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: MiniAppCatalog.widgetKind, intent: MiniAppsWidgetIntent.self, provider: MiniAppsProvider()) { entry in
-            MiniAppsWidgetView(entry: entry)
+        if #available(iOSApplicationExtension 17.0, *) {
+            AppIntentConfiguration(kind: MiniAppCatalog.widgetKind, intent: MiniAppsWidgetIntent.self, provider: MiniAppsProvider()) { entry in
+                MiniAppsWidgetView(entry: entry)
+            }
+            .configurationDisplayName("小工具")
+            .description("把你做的小工具和小游戏放到主屏幕上。")
+            .supportedFamilies([.systemSmall, .systemMedium])
+        } else {
+            StaticConfiguration(kind: MiniAppCatalog.widgetKind, provider: MiniAppsLegacyProvider()) { entry in
+                MiniAppsWidgetView(entry: entry)
+            }
+            .configurationDisplayName("小工具")
+            .description("把你做的小工具和小游戏放到主屏幕上。")
+            .supportedFamilies([.systemSmall, .systemMedium])
         }
-        .configurationDisplayName("小工具")
-        .description("把你做的小工具和小游戏放到主屏幕上。")
-        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
@@ -19,6 +28,28 @@ struct MiniAppsEntry: TimelineEntry {
     let apps: [MiniAppSummary]
 }
 
+/// iOS 16 fallback: display the latest apps without the iOS 17 per-widget picker.
+struct MiniAppsLegacyProvider: TimelineProvider {
+    func placeholder(in context: Context) -> MiniAppsEntry {
+        MiniAppsEntry(date: .now, apps: [MiniAppSummary(id: "demo", name: "记账本", icon: "💰", color: "#FF9500")])
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (MiniAppsEntry) -> Void) {
+        completion(makeEntry(context))
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<MiniAppsEntry>) -> Void) {
+        completion(Timeline(entries: [makeEntry(context)], policy: .never))
+    }
+
+    private func makeEntry(_ context: Context) -> MiniAppsEntry {
+        let all = MiniAppCatalog.read()
+        let limit = context.family == .systemSmall ? 1 : 4
+        return MiniAppsEntry(date: .now, apps: Array(all.prefix(limit)))
+    }
+}
+
+@available(iOSApplicationExtension 17.0, *)
 struct MiniAppsProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> MiniAppsEntry {
         MiniAppsEntry(date: .now, apps: [MiniAppSummary(id: "demo", name: String(localized: "记账本"), icon: "💰", color: "#FF9500")])
@@ -46,6 +77,14 @@ private struct MiniAppsWidgetView: View {
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
+        if #available(iOSApplicationExtension 17.0, *) {
+            content.containerBackground(WidgetPalette.background, for: .widget)
+        } else {
+            content.background(WidgetPalette.background)
+        }
+    }
+
+    private var content: some View {
         Group {
             if entry.apps.isEmpty {
                 empty
@@ -55,7 +94,6 @@ private struct MiniAppsWidgetView: View {
                 medium
             }
         }
-        .containerBackground(WidgetPalette.background, for: .widget)
     }
 
     private func icon(_ app: MiniAppSummary, size: CGFloat) -> some View {
