@@ -13,6 +13,8 @@ struct CordisPanelView: View {
     private var others: [JSON] { cordis.rows.filter { $0["agentId"].string != currentSession } }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 if !mine.isEmpty { Section("当前会话") { ForEach(mine, id: \.self) { CordisRow(row: $0) } }.groupedRow() }
@@ -39,7 +41,8 @@ struct CordisPanelView: View {
             .refreshable { await cordis.refresh(app: app) }
             .task { await cordis.refresh(app: app) }
         }
-    }
+    
+        }}
 }
 
 private struct CordisRow: View {
@@ -75,6 +78,8 @@ private struct CordisRow: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Circle().fill(dot).frame(width: 7, height: 7)
@@ -113,7 +118,8 @@ private struct CordisRow: View {
         .confirmationDialog("移除「\(package(selectedId)?["name"].string ?? pluginId)」？", isPresented: $removing, titleVisibility: .visible) {
             Button("移除", role: .destructive) { Task { await cordis.remove(row, app: app) } }
         }
-    }
+    
+        }}
 
     private var purpose: String {
         let text = package(selectedId)?["purpose"].string ?? ""
