@@ -82,10 +82,10 @@ struct RemoteConversationView: View {
             .scrollDismissesKeyboard(.immediately)
             .scrollBounceBehavior(.always)
             .simultaneousGesture(TapGesture().onEnded { dismissKeyboard() })
-            .onChange(of: model.rows.last?.id) { _, _ in
+            .onChangeCompat(of: model.rows.last?.id) { _, _ in
                 if case .user? = model.rows.last { atBottom = true; scrollToBottom(proxy) }
             }
-            .onChange(of: model.busy) { _, busy in if busy, atBottom { scrollToBottom(proxy) } }
+            .onChangeCompat(of: model.busy) { _, busy in if busy, atBottom { scrollToBottom(proxy) } }
             .overlay(alignment: .bottomTrailing) {
                 ZStack {
                     if !atBottom, !model.rows.isEmpty {
@@ -141,13 +141,13 @@ struct RemoteConversationView: View {
                 detail = item
             }
         ))
-        .onChange(of: presented(model)?.id) { _, id in if id != nil { dismissKeyboard() } }
-        .onChange(of: waiting(model)?.id) { old, new in if let new, new != old { Haptics.warning() } }
+        .onChangeCompat(of: presented(model)?.id) { _, id in if id != nil { dismissKeyboard() } }
+        .onChangeCompat(of: waiting(model)?.id) { old, new in if let new, new != old { Haptics.warning() } }
         .onChange(of: model.optionsRequest) { panel = .options }
         // Archived from here or from another device: the main view moves on, as with a local session.
-        .onChange(of: model.meta?.archived) { _, archived in if archived == true { selection = nil } }
+        .onChangeCompat(of: model.meta?.archived) { _, archived in if archived == true { selection = nil } }
         // Read once it is on screen, and again when a turn ends while it is.
-        .onChange(of: "\(model.meta?.unread == true)-\(scenePhase == .active)", initial: true) {
+        .onChangeCompat(of: "\(model.meta?.unread == true)-\(scenePhase == .active)", initial: true) {
             if scenePhase == .active { app.remote.markRead(sessionId) }
         }
         .sheet(item: interactionBinding(model)) { sheet(for: $0, model) }
@@ -170,7 +170,7 @@ struct RemoteConversationView: View {
         } message: { enable in
             Text(takeoverMessage(enable, model))
         }
-        .onChange(of: model.notice) { _, text in
+        .onChangeCompat(of: model.notice) { _, text in
             guard let text else { return }
             model.notice = nil
             app.showToast(text, tone: .warning)
