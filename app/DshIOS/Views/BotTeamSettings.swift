@@ -8,6 +8,8 @@ struct BotTeamSettingsView: View {
     @State private var releasing: JSON?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             Section {
@@ -95,7 +97,8 @@ struct BotTeamSettingsView: View {
                 if let id = releasing?["id"] { Task { await team.run("private-release", ["id": id]) } }
             }
         } message: { Text("它留下的文件不会删除，但别的 Bot 之后可以在那个文件夹里工作、读到里面的内容。") }
-    }
+    
+        }}
 }
 
 // MARK: - Capabilities
@@ -106,6 +109,8 @@ struct BotCapabilitiesPage: View {
     @State private var adding = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             if team.capabilities.isEmpty {
@@ -129,13 +134,16 @@ struct BotCapabilitiesPage: View {
         .navigationTitle("能力")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $adding) { NavigationStack { BotCapabilityEditor(original: nil) } }
-    }
+    
+        }}
 }
 
 struct BotCapabilityRow: View {
     let item: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Text(item["name"].string ?? "").foregroundStyle(Palette.ink)
@@ -145,7 +153,8 @@ struct BotCapabilityRow: View {
             if let detail = item["description"].string, !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(Palette.secondary).lineLimit(2) }
             if item["transport"].string == "stdio" { Text("需要在电脑上运行，iOS 上用不了").font(.caption2).foregroundStyle(Palette.waiting) }
         }
-    }
+    
+        }}
 
     static func kind(_ item: JSON) -> String {
         switch item["kind"].string {
@@ -175,6 +184,8 @@ struct BotCapabilityEditor: View {
     @State private var loaded = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         Form {
             Section {
@@ -216,7 +227,8 @@ struct BotCapabilityEditor: View {
         .navigationBarTitleDisplayMode(.inline)
         .saveToolbar(canSave: canSave, saving: saving, cancel: original == nil ? { dismiss() } : nil) { save() }
         .onAppear(perform: fill)
-    }
+    
+        }}
 
     private var canSave: Bool {
         guard !name.isEmpty else { return false }
@@ -278,6 +290,8 @@ struct BotSecretsPage: View {
     @State private var adding = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             if team.secrets.isEmpty {
@@ -308,7 +322,8 @@ struct BotSecretsPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: Binding(get: { editing.map(IdentifiedJSON.init) }, set: { editing = $0?.json })) { item in BotSecretSheet(original: item.json) }
         .sheet(isPresented: $adding) { BotSecretSheet(original: nil) }
-    }
+    
+        }}
 
     @MainActor
     static func scope(_ secret: JSON, team: BotModel) -> String {
@@ -336,6 +351,8 @@ private struct BotSecretSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack {
             Form {
@@ -364,7 +381,8 @@ private struct BotSecretSheet: View {
                 bots = Set(original["scope"].array.compactMap(\.string))
             }
         }
-    }
+    
+        }}
 
     private func save() {
         let scope: JSON = everyone ? "all" : .array(bots.sorted().map(JSON.string))
@@ -391,6 +409,8 @@ struct BotMailPage: View {
     @State private var recipient = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let mail = team.mail
         List {
@@ -436,7 +456,8 @@ struct BotMailPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $adding) { MailAccountSheet() }
         .task { await team.refreshState() }
-    }
+    
+        }}
 
     private func mailCall(_ endpoint: String, _ payload: [String: JSON]) {
         Task {
@@ -467,6 +488,8 @@ private struct MailAccountSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Form {
                 Section {
@@ -505,5 +528,6 @@ private struct MailAccountSheet: View {
                 }
             }
         }
-    }
+    
+        }}
 }
