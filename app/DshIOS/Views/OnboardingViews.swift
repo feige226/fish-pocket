@@ -25,6 +25,8 @@ struct OnboardingKeySheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("添加一个 API Key 开始使用").font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
@@ -69,7 +71,8 @@ struct OnboardingKeySheet: View {
         .fittedSheet()
         .interactiveDismissDisabled()
         .onAppear { focused = true }
-    }
+    
+        }}
 
     private func save() async {
         busy = true
