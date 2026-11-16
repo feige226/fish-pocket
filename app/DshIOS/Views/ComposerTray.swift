@@ -22,6 +22,8 @@ struct ComposerTray: View {
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -92,7 +94,8 @@ struct ComposerTray: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .sheetNotices()
-    }
+    
+        }}
 
     /// An ordinary conversation: this session's modes.
     private var sessionModes: some View {
@@ -146,6 +149,8 @@ private struct TrayTile: View {
     @Environment(\.isEnabled) private var enabled
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: systemImage).font(.system(size: 22))
@@ -157,5 +162,6 @@ private struct TrayTile: View {
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
-    }
+    
+        }}
 }
