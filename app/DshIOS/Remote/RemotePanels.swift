@@ -177,7 +177,11 @@ struct RemoteChangesSheet: View {
         NavigationStack {
             Group {
                 if changes.isEmpty {
-                    ContentUnavailableView("还没有改动", systemImage: "doc.text.magnifyingglass", description: Text("智能体改过的文件会显示在这里。"))
+                    CompatEmptyState(
+                        title: "还没有改动",
+                        systemImage: "doc.text.magnifyingglass",
+                        message: "智能体改过的文件会显示在这里。"
+                    )
                 } else {
                     List {
                         Section {
@@ -296,18 +300,22 @@ private struct RemoteDirectoryPage: View {
         .overlay {
             if let entries {
                 if entries.isEmpty {
-                    ContentUnavailableView("空文件夹", systemImage: "folder")
+                    CompatEmptyState(title: "空文件夹", systemImage: "folder")
                 } else if shown.isEmpty {
-                    ContentUnavailableView.search(text: query)
+                    CompatEmptyState(
+                        title: "没有匹配的文件",
+                        systemImage: "magnifyingglass",
+                        message: query.isEmpty ? nil : "没有找到“\(query)”"
+                    )
                 }
             } else if let failure {
-                ContentUnavailableView {
-                    Label("读不到这个文件夹", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(failure)
-                } actions: {
-                    Button("重试") { Task { await load() } }
-                }
+                CompatEmptyState(
+                    title: "读不到这个文件夹",
+                    systemImage: "exclamationmark.triangle",
+                    message: failure,
+                    actionTitle: "重试",
+                    action: { Task { await load() } }
+                )
             } else {
                 ProgressView()
             }
@@ -393,7 +401,11 @@ private struct RemoteFilePage: View {
                     .padding(16)
                 }
             } else if let failure {
-                ContentUnavailableView("打不开这个文件", systemImage: "doc.questionmark", description: Text(failure))
+                CompatEmptyState(
+                    title: "打不开这个文件",
+                    systemImage: "doc.questionmark",
+                    message: failure
+                )
             } else {
                 ProgressView()
             }
