@@ -381,7 +381,7 @@ struct TimeZonePicker: View {
                 if #available(iOS 17.0, *) {
                     ContentUnavailableView("没有匹配的时区", systemImage: "globe")
                 } else {
-                    ContentUnavailableViewCompat("没有匹配的时区", systemImage: "globe")
+                    CompatEmptyState(title: "没有匹配的时区", systemImage: "globe")
                 }
             }
         }
