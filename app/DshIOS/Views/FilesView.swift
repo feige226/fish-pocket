@@ -259,7 +259,7 @@ struct FileContentView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top, spacing: 0) { banner }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { actions }
+            ToolbarItem(placement: .navigationBarTrailing) { actions }
         }
         .quickLookPreview($preview)
         .task(id: LoadKey(renderer: renderer, revision: revision)) { await load() }
