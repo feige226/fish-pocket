@@ -16,6 +16,8 @@ struct ExploreTabView: View {
     @State private var watch = WatchPairing.current
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack(path: $path) {
             List {
                 Section {
@@ -71,7 +73,8 @@ struct ExploreTabView: View {
                 Task { await phoneControl.refresh() }
             }
         }
-    }
+    
+        }}
 
     /// Once signed in: computers online, offline, or the sign-in to renew. Before, the line under
     /// the name already says what it is for.
