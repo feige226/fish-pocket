@@ -47,7 +47,7 @@ struct ComposerStatusBar: View {
         }) {
             ComposerStatusSheet(model: model, waiting: waiting, reveal: reveal)
         }
-        .onChange(of: interactionArrived) { _, arrived in
+        .onChangeCompat(of: interactionArrived) { _, arrived in
             if arrived { showSheet = false }
         }
     
@@ -237,7 +237,7 @@ struct ComposerStatusSheet: View {
             // 「插话」 on the last queued row (or 「全部插话」, a delete, the agent picking
             // the queue up) leaves nothing to show: close, so the conversation behind
             // shows where the message went instead of a blank panel.
-            .onChange(of: hasContent) { _, has in
+            .onChangeCompat(of: hasContent) { _, has in
                 if !has { dismiss() }
             }
         }
