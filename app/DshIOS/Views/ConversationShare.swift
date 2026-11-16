@@ -61,7 +61,7 @@ struct ConversationShareSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if rounds.count > 1 {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     let all = selected.count == rounds.count
                     Button(all ? LocalizedStringKey("全不选") : "全选") { selected = all ? [] : Set(rounds.map(\.id)) }
                 }
