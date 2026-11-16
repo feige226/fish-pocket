@@ -1,14 +1,14 @@
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// One open conversation: follows the session's event stream and turns it
 /// into a timeline, tracks live assistant output, and sends the user's actions.
 @MainActor
-@Observable
+@Perceptible
 final class SessionModel {
     let sessionId: String
-    @ObservationIgnored private let app: AppModel
+    @PerceptionIgnored private let app: AppModel
 
     private(set) var items: [TimelineItem] = []
     private(set) var live: [AssistantBlock] = []
