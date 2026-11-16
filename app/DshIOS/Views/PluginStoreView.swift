@@ -31,8 +31,8 @@ struct PluginStoreView: View {
         .navigationTitle("插件")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let openSidebar { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openSidebar) } }
-            ToolbarItem(placement: .topBarTrailing) { menu }
+            if let openSidebar { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openSidebar) } }
+            ToolbarItem(placement: .navigationBarTrailing) { menu }
         }
         .sheet(isPresented: $managing) { StoreSourcesSheet(model: model) }
         .sheet(isPresented: $showReports) { PluginReportsPage() }
