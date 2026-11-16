@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The sheets the conversation's top bar opens.
 enum SessionHeaderSheet: String, Identifiable {
     case subagents, jobs, reminders, logExport
