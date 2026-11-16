@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What a Bot asks of the user in its own chat beyond a question or a form: a key, a
 /// connector, a mail to approve, a skill it learned. Each ends the Bot's turn until answered.
 struct BotRequestCards: View {
