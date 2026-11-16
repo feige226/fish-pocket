@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WatchConnectivity
 
 /// The 探索 tab: what the agent can be given beyond a conversation of its own — plugins,
