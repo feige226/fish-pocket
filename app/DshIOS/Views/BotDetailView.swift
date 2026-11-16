@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A Bot's page, drawn as 设置 is: who it is and how it works (all editable here), with its
 /// scheduled tasks and what it remembers one tap further in.
 struct BotDetailView: View {
