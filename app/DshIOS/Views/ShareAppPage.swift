@@ -27,6 +27,8 @@ struct ShareAppPage: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             tabs
             ScrollView {
@@ -47,7 +49,8 @@ struct ShareAppPage: View {
         // Whoever came this far needs no card asking them to.
         .onAppear { SupportPrompt.settle() }
         .task(id: style) { draw(style) }
-    }
+    
+        }}
 
     /// Centred when the three fit, scrolling on a narrow phone in a longer language.
     private var tabs: some View {
@@ -210,6 +213,8 @@ struct SharePoster: View {
     private static let pocketTop: CGFloat = 404
 
     var body: some View {
+        WithPerceptionTracking {
+
         ZStack(alignment: .topLeading) {
             Color.white
             dots
@@ -234,7 +239,8 @@ struct SharePoster: View {
         }
         .frame(width: Self.width, height: Self.height, alignment: .topLeading)
         .clipped()
-    }
+    
+        }}
 
     /// A faint dot grid under the top half, like the website's page.
     private var dots: some View {
