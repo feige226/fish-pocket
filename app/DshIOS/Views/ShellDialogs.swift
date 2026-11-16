@@ -115,6 +115,8 @@ private struct RenameWorkspaceSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -143,7 +145,8 @@ private struct RenameWorkspaceSheet: View {
             text = request.initial
             focused = true
         }
-    }
+    
+        }}
 
     private func save() async {
         guard let workspace else { return }
