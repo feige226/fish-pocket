@@ -1,3 +1,4 @@
+import Perception
 import AVFoundation
 import SwiftUI
 
@@ -12,7 +13,7 @@ import SwiftUI
 ///   for nothing the user has not already allowed.
 /// - Files stay on this phone, keyed by session and turn; the conversation shows them under
 ///   that turn.
-@MainActor @Observable
+@MainActor @Perceptible
 final class PhoneRecorder {
     static let shared = PhoneRecorder()
     static let enabledKey = "phoneControlRecording"
