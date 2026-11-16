@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// One provider's models in the catalog.
 struct ModelGroup: Identifiable {
@@ -24,7 +24,7 @@ struct CommandRow: Identifiable, Hashable {
 /// conversation: the `/` catalog, the model catalog, permission presets and
 /// the busy-Enter preference. Each reloads on its engine event.
 @MainActor
-@Observable
+@Perceptible
 final class ComposerContext {
     private(set) var commands: [CommandDescriptor] = []
     /// Providers in the web's order: DeepSeek account, DeepSeek official, then the rest.
