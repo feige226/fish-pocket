@@ -13,6 +13,7 @@ struct ComposerDrop: ViewModifier {
     @State private var targeted = false
 
     func body(content: Content) -> some View {
+        WithPerceptionTracking {
         content
             .onDrop(of: [.item], isTargeted: $targeted) { providers in
                 guard enabled else { return false }
@@ -30,7 +31,8 @@ struct ComposerDrop: ViewModifier {
                         .accessibilityHidden(true)
                 }
             }
-    }
+    
+        }}
 
     private func add(_ providers: [NSItemProvider]) async {
         var files: [URL] = []
