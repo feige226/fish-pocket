@@ -28,12 +28,12 @@ final class SettingsMirror {
     /// Bumped whenever a read or a write folds in, so derived caches can key on it.
     private(set) var stamp = 0
 
-    @ObservationIgnored private var loadedRevision: Int?
-    @ObservationIgnored private var inflight: Task<Void, Never>?
+    @PerceptionIgnored private var loadedRevision: Int?
+    @PerceptionIgnored private var inflight: Task<Void, Never>?
     /// An event landed during a read, which may predate it: read once more after.
-    @ObservationIgnored private var rereadPending = false
+    @PerceptionIgnored private var rereadPending = false
     /// Writes to one namespace go out one at a time, as `ConfigForm`'s write queue does.
-    @ObservationIgnored private var writeChains: [String: Task<Void, Never>] = [:]
+    @PerceptionIgnored private var writeChains: [String: Task<Void, Never>] = [:]
 
     init(client: EngineClient) {
         self.client = client
