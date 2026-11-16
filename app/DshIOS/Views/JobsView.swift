@@ -259,7 +259,7 @@ struct JobOutputView: View {
                     }
                     Color.clear.frame(height: 1).id("bottom")
                         // iOS 17 has no scroll geometry; this marker's place in the scroll view says the same.
-                        .onGeometryChange(for: OutputEnd.self) { geometry in
+                        .onGeometryChangeCompat(for: OutputEnd.self) { geometry in
                             {
                                 let distance: CGFloat
                                 if #available(iOS 18.0, *) {
@@ -284,7 +284,7 @@ struct JobOutputView: View {
         .navigationTitle("任务输出")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button { copyToPasteboard(current.label) } label: { Label("复制命令", systemImage: "terminal") }
                     Button { copyToPasteboard(text) } label: { Label("复制输出", systemImage: "doc.on.doc") }.disabled(text.isEmpty)
@@ -292,7 +292,7 @@ struct JobOutputView: View {
                 .accessibilityLabel("复制")
             }
             if current.status == "running" {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("停止", role: .destructive) { stopping = current }.tint(Palette.removed)
                 }
             }
