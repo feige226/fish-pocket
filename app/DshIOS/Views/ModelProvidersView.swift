@@ -151,6 +151,8 @@ struct ModelProvidersPage: View {
     @State private var defaultModel: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if app.settings.loaded, !app.settings.writable {
                 Section { Text("设置当前为只读。").font(.footnote).foregroundStyle(Palette.waiting) }.groupedRow()
@@ -206,7 +208,8 @@ struct ModelProvidersPage: View {
                  ? "删除 \(target.targetLabel) 会移除其配置和存储的 API 密钥。"
                  : "删除 \(target.targetLabel) 会移除其配置。")
         }
-    }
+    
+        }}
 
     private func loadDefaultModel() async {
         guard let value = try? await app.client.call("session/modelCatalog") else { return }
@@ -347,6 +350,8 @@ private struct APIKeyField: View {
     @State private var revealed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 8) {
             Group {
                 if revealed {
@@ -368,7 +373,8 @@ private struct APIKeyField: View {
             }
         }
         .onChange(of: text) { _, _ in revealed = false }
-    }
+    
+        }}
 }
 
 private struct DraftTextField: View {
@@ -378,6 +384,8 @@ private struct DraftTextField: View {
     var keyboard: UIKeyboardType = .default
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(Palette.secondary)
             TextField(placeholder, text: text, axis: .vertical)
@@ -386,7 +394,8 @@ private struct DraftTextField: View {
                 .autocorrectionDisabled()
                 .font(.callout)
         }
-    }
+    
+        }}
 }
 
 // MARK: - Provider editor
@@ -412,11 +421,14 @@ private struct ProviderEditorPage: View {
     var onAdded: (() -> Void)?
 
     var body: some View {
+        WithPerceptionTracking {
+
         ProviderEditor(model: model, row: row, namespace: namespace, onAdded: onAdded)
             .navigationTitle(row.displayName)
             .navigationBarTitleDisplayMode(.inline)
             .keyboardDoneButton()
-    }
+    
+        }}
 }
 
 /// One provider (M-03…M-09): the key, the model catalog and, behind 高级, address and identity.
@@ -476,6 +488,8 @@ private struct ProviderEditor: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollViewReader { proxy in
             Form {
                 if layout == .unknown {
@@ -505,7 +519,8 @@ private struct ProviderEditor: View {
         .navigationDestination(isPresented: $choosingModels) { modelsStep }
         .dismisses(when: saved)
         .task(id: row.provider) { prepare() }
-    }
+    
+        }}
 
     /// 下一步 or 保存, by where the card is.
     private struct EditorChrome: ViewModifier {
@@ -842,6 +857,8 @@ private struct ModelCatalogSection: View {
     private var inputField: String { family == .deepseek ? "inputModalities" : "input" }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Section {
             if let overridden {
                 LabeledContent("模型列表", value: overridden ? String(localized: "已自定义") : String(localized: "默认"))
@@ -916,7 +933,8 @@ private struct ModelCatalogSection: View {
             autoFetched = true
             await fetch(probe)
         }
-    }
+    
+        }}
 
     /// A catalog route's input types: what its own listing says, shown as each row's default.
     private func readInputDefaults() async {
@@ -999,6 +1017,8 @@ private struct ModelRowEditor: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Form {
             Section {
                 DraftTextField(title: "模型 ID", placeholder: "", text: field("id"))
@@ -1032,7 +1052,8 @@ private struct ModelRowEditor: View {
             let trimmed = id.trimmingCharacters(in: .whitespaces)
             if trimmed != id { write(model.setting(["id"], .string(trimmed))) }
         }
-    }
+    
+        }}
 
     private var selected: [String] {
         let list = model[inputField].array.compactMap(\.string)
@@ -1078,6 +1099,8 @@ private struct ReasoningEditor: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Section {
             Toggle("推理等级", isOn: Binding(get: { entries != nil }, set: { on in
                 let initial = ["off", "low", "medium", "high"].filter(levels.contains)
@@ -1140,7 +1163,8 @@ private struct ReasoningEditor: View {
             Text("参数值写入请求的推理强度字段，默认与档位名相同。Off 表示关闭思考。")
         }
         .groupedRow()
-    }
+    
+        }}
 }
 
 /// M-13: pick from what the provider lists: 全选 takes the visible rows, 取消全选 clears all.
@@ -1164,6 +1188,8 @@ private struct ModelPickerSheet: View {
     private var allVisiblePicked: Bool { !visible.isEmpty && visible.allSatisfy { picked.contains($0["id"].string ?? "") } }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -1214,7 +1240,8 @@ private struct ModelPickerSheet: View {
             }
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 }
 
 // MARK: - Adding
@@ -1232,6 +1259,8 @@ private struct AddProviderSheet: View {
     private var protocols: [String] { app.settings.graph("llm-pi-ai").map(protocolChoices) ?? [] }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 if let addable {
@@ -1275,7 +1304,8 @@ private struct AddProviderSheet: View {
         .onAppear {
             if addable == nil { addable = model.rows.filter { !$0.configured && app.settings.serves($0.settingsNs) } }
         }
-    }
+    
+        }}
 }
 
 /// M-12: declare a custom model API (writes `llm-pi-ai`, then the key). First the address
@@ -1336,6 +1366,8 @@ private struct CustomProviderForm: View {
     private var dirty: Bool { !baseURL.isEmpty || !keyDraft.isEmpty || !displayName.isEmpty || !routeDraft.isEmpty }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Form {
             Section {
                 DraftTextField(title: "API 地址", placeholder: api == "anthropic-messages" ? "https://gateway.example" : "https://gateway.example/v1", text: $baseURL, keyboard: .URL).disabled(locked)
@@ -1377,7 +1409,8 @@ private struct CustomProviderForm: View {
             if api.isEmpty { api = protocols.first ?? "" }
             if openedAt == nil { openedAt = namespace["revision"].int }
         }
-    }
+    
+        }}
 
     private var advancedPage: some View {
         Form {
