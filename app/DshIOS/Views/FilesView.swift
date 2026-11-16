@@ -2,6 +2,7 @@ import ImageIO
 import PDFKit
 import QuickLook
 import SwiftUI
+import Perception
 import WebKit
 
 /// One directory of the session workspace (the workbench 文件 tab): folders
