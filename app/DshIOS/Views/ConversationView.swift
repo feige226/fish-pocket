@@ -174,7 +174,7 @@ struct ConversationView: View {
                 .animation(.easeOut(duration: 0.2), value: model.loaded)
             }
             // The first read in: open at the last message.
-            .onChange(of: model.loaded) { _, loaded in
+            .onChangeCompat(of: model.loaded) { _, loaded in
                 if loaded { atBottom = true; scrollToBottom(proxy, animated: false) }
             }
             .environment(\.timelineScroll, TimelineScroll(keep: { id in
@@ -197,10 +197,10 @@ struct ConversationView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { dismissKeyboard() }
             })
             // The bottom anchor only holds for the first layout; follow the user's own message and the start of a turn.
-            .onChange(of: model.items.last?.id) { _, _ in
+            .onChangeCompat(of: model.items.last?.id) { _, _ in
                 if case .user? = model.items.last { atBottom = true; scrollToBottom(proxy) }
             }
-            .onChange(of: model.running) { _, running in if running, atBottom { scrollToBottom(proxy) } }
+            .onChangeCompat(of: model.running) { _, running in if running, atBottom { scrollToBottom(proxy) } }
             .overlay(alignment: .bottomTrailing) {
                 // Animated here, not on the scroll view: its rows must not animate with the buttons.
                 ZStack {
@@ -409,16 +409,16 @@ struct ConversationView: View {
         .fullScreenCover(isPresented: Binding(get: { fullBrowser != nil }, set: { if !$0 { fullBrowser = nil } })) {
             if let fullBrowser { FullScreenBrowser(model: fullBrowser) { self.fullBrowser = nil } }
         }
-        .onChange(of: workbenchOpen) { _, open in if open, workbenchBeside { splitSidebar.makeRoom() } }
+        .onChangeCompat(of: workbenchOpen) { _, open in if open, workbenchBeside { splitSidebar.makeRoom() } }
         .focusedSceneValue(\.workbenchCommands, WorkbenchCommands(available: !blank && hasTools, toggle: toggleWorkbench, open: openWorkbench))
         // The sheet leaves the background live, so the composer keeps its focus and the
         // keyboard would stay over the sheet; an answer comes first.
-        .onChange(of: presentedInteractionId(model)) { _, id in if id != nil { dismissKeyboard() } }
+        .onChangeCompat(of: presentedInteractionId(model)) { _, id in if id != nil { dismissKeyboard() } }
         // An approval or question arriving: the one alert-like tap (as the web's warning tone).
-        .onChange(of: waitingInteraction(model)?.id) { old, new in
+        .onChangeCompat(of: waitingInteraction(model)?.id) { old, new in
             if let new, new != old { Haptics.warning() }
         }
-        .onChange(of: pendingApprovalIds, initial: true) { _, ids in
+        .onChangeCompat(of: pendingApprovalIds, initial: true) { _, ids in
             if ids.isEmpty { approvalBatch = [] } else { approvalBatch.formUnion(ids) }
         }
         .task(id: app.questionRequests[sessionId]?.map(\.eventId)) { model.syncQuestionWaits() }
@@ -1618,7 +1618,7 @@ struct ReasoningSheet: View {
             await translation.prepare()
         }
         .onChange(of: text) { translation?.update(text, running: model?.reasoningStreaming(id) ?? false) }
-        .onChange(of: model?.reasoningStreaming(id)) { _, streaming in translation?.update(latest, running: streaming ?? false) }
+        .onChangeCompat(of: model?.reasoningStreaming(id)) { _, streaming in translation?.update(latest, running: streaming ?? false) }
         .onDisappear { translation?.cancel() }
     
         }}
