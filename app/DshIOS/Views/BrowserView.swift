@@ -412,6 +412,7 @@ struct WorkbenchBrowser: View {
     let model: BrowserModel
 
     var body: some View {
+        WithPerceptionTracking {
         Group {
             if let tab = model.selected, let page = tab.page {
                 BrowserPageView(model: model, page: page).id(tab.id)
@@ -421,7 +422,8 @@ struct WorkbenchBrowser: View {
             }
         }
         .onChange(of: model.selectedId) { _, _ in model.reviveSelected() }
-    }
+    
+        }}
 }
 
 /// One tab on screen: its page (or where to start), and the bar under it.
@@ -436,6 +438,7 @@ private struct BrowserPageView: View {
     private static let commonPorts = [3000, 5173, 8000, 8080]
 
     var body: some View {
+        WithPerceptionTracking {
         VStack(spacing: 0) {
             ZStack {
                 BrowserWebView(webView: page.webView)
@@ -462,7 +465,8 @@ private struct BrowserPageView: View {
         .sheet(isPresented: $showingTabs) { BrowserTabsSheet(model: model) }
         .onAppear(perform: takeFocus)
         .onChange(of: showingTabs) { _, showing in if !showing { takeFocus() } }
-    }
+    
+        }}
 
     /// A blank tab the user just opened: the cursor goes to its address bar, once nothing covers it.
     private func takeFocus() {
@@ -627,13 +631,15 @@ private struct TabCount: View {
     let count: Int
 
     var body: some View {
+        WithPerceptionTracking {
         Text(verbatim: count > 99 ? ":)" : "\(count)")
             .font(.system(size: count > 9 ? 10 : 12, weight: .semibold, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(Palette.ink)
             .frame(width: 21, height: 21)
             .overlay { RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Palette.ink, lineWidth: 1.6) }
-    }
+    
+        }}
 }
 
 /// The browser opened from the chat (full screen, or as a sheet for a link in a reply): the page alone, without the workbench's other tabs.
@@ -642,6 +648,7 @@ struct FullScreenBrowser: View {
     let close: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
         NavigationStack {
             WorkbenchBrowser(model: model)
                 .navigationTitle(Self.site(model.url) ?? String(localized: "浏览器"))
@@ -649,7 +656,8 @@ struct FullScreenBrowser: View {
                 .toolbar(.visible, for: .navigationBar)
                 .closeButton(action: close)
         }
-    }
+    
+        }}
 
     /// `www.` says nothing; the rest of the host is the site.
     static func site(_ url: URL?) -> String? {
