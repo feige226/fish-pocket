@@ -145,6 +145,8 @@ struct BotRoomView: View {
     @State private var detailOpen = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         if let room = team.room(roomId) {
             ConversationView(sessionId: room.sessionId, selection: $selection, openDrawer: nil, bot: BotChrome(
@@ -183,7 +185,8 @@ struct BotRoomView: View {
         } else {
             ContentUnavailableView("这个群聊已经不在了", systemImage: "person.2.slash")
         }
-    }
+    
+        }}
 }
 
 /// Above a group's composer: who speaks now, and a tap to @ a member.
@@ -193,6 +196,8 @@ private struct RoomMentions: View {
     let room: RoomInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let members = room.members.compactMap(team.bot)
         VStack(alignment: .leading, spacing: 8) {
@@ -233,7 +238,8 @@ private struct RoomMentions: View {
                 }
             }
         }
-    }
+    
+        }}
 }
 
 /// A member waits for the user to allow a tool in the group (only answerable here).
@@ -243,6 +249,8 @@ private struct RoomApprovalCard: View {
     @State private var sending = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let name = approval["botId"].string.flatMap(team.bot)?.name ?? ""
         BotCard {
@@ -261,7 +269,8 @@ private struct RoomApprovalCard: View {
             }
             .disabled(sending)
         }
-    }
+    
+        }}
 
     private func answer(_ allow: Bool) {
         sending = true
