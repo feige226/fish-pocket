@@ -5,7 +5,7 @@ import WebKit
 /// The Host's task catalog (`schedule/catalog`: every session, active and
 /// inactive, by target time), shared by the list and the detail it pushes.
 @MainActor
-@Observable
+@Perceptible
 final class ScheduleCatalog {
     enum Status { case loading, ready, error }
 
@@ -13,7 +13,7 @@ final class ScheduleCatalog {
     private(set) var status = Status.loading
     /// A read has succeeded at least once.
     private(set) var settled = false
-    @ObservationIgnored private var epoch = 0
+    @PerceptionIgnored private var epoch = 0
 
     func load(_ client: EngineClient) async {
         epoch += 1
