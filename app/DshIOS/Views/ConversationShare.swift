@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import UniformTypeIdentifiers
 
 /// 「分享为图片」: the conversation drawn as one long picture, sent on through the system share
