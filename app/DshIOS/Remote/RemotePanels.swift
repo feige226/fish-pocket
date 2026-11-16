@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The model, its reasoning level and the permission a remote session runs with: what the
 /// agent on the computer offers, changed there.
 struct RemoteOptionsSheet: View {
