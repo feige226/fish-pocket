@@ -225,6 +225,8 @@ struct PluginMarketPage: View {
     @State private var route: PluginRoute?
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let indexes = model.indexes {
                 if indexes.isEmpty {
@@ -261,7 +263,8 @@ struct PluginMarketPage: View {
             model.setText(search)
             await model.reload(app)
         }
-    }
+    
+        }}
 
     private func browser(_ indexes: [JSON]) -> some View {
         let metadata = model.result?["metadata"] ?? .null
@@ -454,6 +457,8 @@ private struct MarketEntryAction: View {
     let open: (String) -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         let status = entry["installation"]["status"].string
         let presented = presentedVersion(entry)
         switch status {
@@ -465,7 +470,8 @@ private struct MarketEntryAction: View {
                 .buttonStyle(.capsule(.secondary, height: 44, fill: false))
                 .disabled(presented.map { !installable($0["compatibility"]) } ?? true)
         }
-    }
+    
+        }}
 
     /// Installed entries read as a link to their page under 已安装.
     private func statusLink(_ text: String) -> some View {
@@ -487,6 +493,8 @@ private struct MarketEntryRow: View {
     let open: (String) -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         let version = presentedVersion(entry)
         NavigationLink {
             MarketEntryDetail(entry: entry, market: market, install: install)
@@ -508,7 +516,8 @@ private struct MarketEntryRow: View {
             }
             .padding(.vertical, 3)
         }
-    }
+    
+        }}
 
     private func meta(_ version: JSON?) -> String {
         [version?["version"].string, entry["author"].string, version.flatMap { formatDate($0["publishTimestamp"]) }].compactMap { $0 }.joined(separator: " · ")
@@ -523,6 +532,8 @@ private struct MarketEntryDetail: View {
     @State private var route: PluginRoute?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let version = presentedVersion(entry)
         List {
             Section {
@@ -581,7 +592,8 @@ private struct MarketEntryDetail: View {
         .navigationTitle(marketTitle(entry))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $route) { PluginDetailView(name: $0.name) }
-    }
+    
+        }}
 
     @ViewBuilder
     private func compatibilityNote(_ version: JSON) -> some View {
@@ -630,6 +642,8 @@ private struct MarketInstallConfirm: View {
     let choice: MarketChoice
 
     var body: some View {
+        WithPerceptionTracking {
+
         let number = choice.version["version"].string ?? ""
         let source = choice.version["source"]
         let pinned = PluginPins.note(package: choice.entry["name"].string ?? "", version: number)
@@ -680,7 +694,8 @@ private struct MarketInstallConfirm: View {
         .background(Palette.background)
         .presentationDetents([.medium])
         .tint(Palette.ink)
-    }
+    
+        }}
 }
 
 /// MK-03: the index list, written whole with `setIndexes`.
@@ -693,6 +708,8 @@ private struct MarketSourcesSheet: View {
     private var urls: [String] { (model.indexes ?? []).compactMap { $0["url"].string } }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -738,7 +755,8 @@ private struct MarketSourcesSheet: View {
             .closeButton(dismiss)
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 
     private var failureText: String? {
         switch model.sourceFailure {
