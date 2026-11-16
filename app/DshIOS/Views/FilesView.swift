@@ -28,6 +28,8 @@ struct DirectoryView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 if let error { Text(error).foregroundStyle(Palette.removed) }
@@ -80,7 +82,8 @@ struct DirectoryView: View {
         // Lists, then follows; a reconnect drops the stream and may have missed changes.
         .task(id: app.generation) { await watch() }
         .onDisappear { pendingReload?.cancel() }
-    }
+    
+        }}
 
     /// The workbench hides the navigation bar on its root, so the field sits in the list.
     private var searchField: some View {
@@ -180,11 +183,14 @@ struct FilePreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             FileContentView(sessionId: sessionId, path: path, root: root, lines: lines)
                 .closeButton(dismiss)
         }
-    }
+    
+        }}
 }
 
 /// One file (S-78): the renderer its name selects, 打开方式 where there are
@@ -225,6 +231,8 @@ struct FileContentView: View {
     private var renderer: FileRenderer { chosen ?? (lines != nil && renderers.contains(.text) ? .text : renderers[0]) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let failure, !(renderer.pagesText && loaded) {
                 if failure.notText { unsupported } else { failed(failure) }
@@ -256,7 +264,8 @@ struct FileContentView: View {
         .quickLookPreview($preview)
         .task(id: LoadKey(renderer: renderer, revision: revision)) { await load() }
         .task(id: app.generation) { await watch() }
-    }
+    
+        }}
 
     private struct LoadKey: Hashable { let renderer: FileRenderer; let revision: Int }
 
@@ -667,6 +676,8 @@ struct ZoomableImage: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let image {
                 ZoomingImageView(image: image).ignoresSafeArea(edges: .bottom)
@@ -682,7 +693,8 @@ struct ZoomableImage: View {
             image = decoded
             failed = decoded == nil
         }
-    }
+    
+        }}
 
     /// Downsampled: a camera photo decoded whole costs hundreds of megabytes on a phone.
     nonisolated static func decode(_ url: URL) -> UIImage? {
@@ -788,6 +800,8 @@ struct PDFPreview: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let document {
                 if document.isLocked {
@@ -807,7 +821,8 @@ struct PDFPreview: View {
             document = opened
             failed = opened == nil
         }
-    }
+    
+        }}
 }
 
 private struct PDFKitView: UIViewRepresentable {
