@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 // MARK: - Faces
 
 /// How a connector is shown: the service's mark on its colour where Simple Icons has one
