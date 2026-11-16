@@ -71,7 +71,7 @@ struct PressableCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.snappy(duration: 0.2), value: configuration.isPressed)
+            .animation(.spring(response: 0.2, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -585,8 +585,8 @@ struct AccountNotices: View {
             }
         }
         .padding(.top, 4)
-        .animation(.snappy, value: app.account.toast)
-        .animation(.snappy, value: app.account.bonuses)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.account.toast)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.account.bonuses)
     
         }}
 }
