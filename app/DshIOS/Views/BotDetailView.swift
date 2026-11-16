@@ -26,6 +26,8 @@ struct BotDetailView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack(path: $path) {
             Group {
@@ -62,7 +64,8 @@ struct BotDetailView: View {
             .botSchedules(schedules, app: app)
         }
         .settingsStyle()
-    }
+    
+        }}
 
     /// The Bot's face, what it is for, and what it is up to. A tap on the face changes it.
     private func header(_ bot: BotInfo) -> some View {
@@ -291,11 +294,14 @@ struct BotSchedulesPage: View {
     let schedules: BotSchedules
 
     var body: some View {
+        WithPerceptionTracking {
+
         List { BotScheduleSection(schedules: schedules) }
             .groupedList()
             .navigationTitle("定时任务")
             .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 /// What a Bot remembers: a summary, a way to ask or change it in plain words, the entries
@@ -308,6 +314,8 @@ struct BotMemoryPage: View {
     @State private var loading = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let bot = app.botTeam.bot(botId)
         let entries = memory["entries"].array
         List {
@@ -349,7 +357,8 @@ struct BotMemoryPage: View {
         .navigationTitle("记忆")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-    }
+    
+        }}
 
     private func origin(of entry: JSON) -> String {
         var parts: [String] = []
