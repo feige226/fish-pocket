@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WebKit
 
 /// One tab of a conversation's browser (S-87): a WKWebView, its address, and what it shows.
@@ -426,7 +427,7 @@ struct WorkbenchBrowser: View {
 /// One tab on screen: its page (or where to start), and the bar under it.
 private struct BrowserPageView: View {
     let model: BrowserModel
-    @Bindable var page: BrowserPage
+    @Perception.Bindable var page: BrowserPage
     @FocusState private var editing: Bool
     @State private var confirmingClear = false
     @State private var showingTabs = false
