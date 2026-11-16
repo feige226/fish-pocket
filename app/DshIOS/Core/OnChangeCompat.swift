@@ -75,8 +75,8 @@ extension View {
 }
 
 
-/// iOS 16 fallback for SwiftUI's iOS 17 ContentUnavailableView.
-struct ContentUnavailableView: View {
+/// iOS 16 fallback for SwiftUI's iOS 17 ContentUnavailableViewCompat.
+struct ContentUnavailableViewCompat: View {
     private let title: Text?
     private let systemImage: String?
     private let label: AnyView?
@@ -133,8 +133,8 @@ struct ContentUnavailableView: View {
     }
 
 
-    static func search(text: String) -> ContentUnavailableView {
-        ContentUnavailableView(
+    static func search(text: String) -> ContentUnavailableViewCompat {
+        ContentUnavailableViewCompat(
             "没有搜索结果",
             systemImage: "magnifyingglass",
             description: Text(text.isEmpty ? "没有可显示的内容。" : "没有找到与“\\(text)”匹配的内容。")
