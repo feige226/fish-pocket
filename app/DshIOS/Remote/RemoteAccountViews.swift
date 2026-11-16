@@ -138,15 +138,15 @@ private struct RemoteScanSheet: View {
                 if let code {
                     waiting(code)
                 } else if cameraDenied {
-                    ContentUnavailableView {
-                        Label("需要相机权限", systemImage: "camera")
-                    } description: {
-                        Text("扫描电脑上的登录二维码要用到相机。")
-                    } actions: {
-                        Button("打开系统设置") {
+                    CompatEmptyState(
+                        title: "需要相机权限",
+                        systemImage: "camera",
+                        message: "扫描电脑上的登录二维码要用到相机。",
+                        actionTitle: "打开系统设置",
+                        action: {
                             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                         }
-                    }
+                    )
                 } else {
                     RemoteCodeScanner { text in
                         guard code == nil else { return }
