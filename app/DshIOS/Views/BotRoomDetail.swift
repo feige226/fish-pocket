@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A group chat's page: its name and notice, who is in it and who speaks first,
 /// its scheduled tasks, and stopping or deleting it.
 struct RoomDetailView: View {
