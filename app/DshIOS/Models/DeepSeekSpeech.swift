@@ -1,6 +1,6 @@
 import AVFoundation
 import Foundation
-import Observation
+import Perception
 
 /// DeepSeek's speech recognition and synthesis, through the engine's `/api/ios-speech` routes
 /// (`engine/plugins/ios-speech`). The engine sends the DeepSeek API key stored for the models, else
@@ -262,7 +262,7 @@ final class DeepSeekTranscriber: SpeechTranscriber {
 /// Which service hold-to-talk uses. Until the user picks one: Volcengine when its key is saved
 /// (it shows the text while the user speaks), else DeepSeek with the models' own key.
 @MainActor
-@Observable
+@Perceptible
 final class VoicePreferences {
     static let shared = VoicePreferences()
 
@@ -304,7 +304,7 @@ final class VoicePreferences {
 /// Replies read aloud in DeepSeek's voice, one after another. Reading belongs to the conversation
 /// on screen (`scope`): moving to another one stops it.
 @MainActor
-@Observable
+@Perceptible
 final class ReadAloud {
     static let shared = ReadAloud()
 
@@ -316,11 +316,11 @@ final class ReadAloud {
     /// Held where it was; `resume()` goes on from there.
     private(set) var paused = false
     /// A failure worded for a toast; the app model shows it.
-    @ObservationIgnored var onError: ((String) -> Void)?
+    @PerceptionIgnored var onError: ((String) -> Void)?
 
-    @ObservationIgnored private var queue: [String] = []
-    @ObservationIgnored private var task: Task<Void, Never>?
-    @ObservationIgnored private var player: PCMPlayer?
+    @PerceptionIgnored private var queue: [String] = []
+    @PerceptionIgnored private var task: Task<Void, Never>?
+    @PerceptionIgnored private var player: PCMPlayer?
 
     func toggle(_ text: String) {
         if speaking { stop() } else { enqueue(text) }
