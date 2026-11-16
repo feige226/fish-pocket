@@ -29,7 +29,7 @@ final class AccountModel {
     static let clientVersion = "0.2.2-rc.1"
 
     @PerceptionIgnored private let client: EngineClient
-    @ObservationIgnored private let mux: StreamMux
+    @PerceptionIgnored private let mux: StreamMux
 
     /// The latest `AccountView`: `status`, `links`, `attempt`.
     private(set) var view: JSON?
@@ -42,10 +42,10 @@ final class AccountModel {
     var toast: String?
     var quotaPrompt = false
 
-    @ObservationIgnored private var watchTask: Task<Void, Never>?
-    @ObservationIgnored private var detailsGeneration = 0
-    @ObservationIgnored private var initializedAttempt: String?
-    @ObservationIgnored private var acked: Set<String> = []
+    @PerceptionIgnored private var watchTask: Task<Void, Never>?
+    @PerceptionIgnored private var detailsGeneration = 0
+    @PerceptionIgnored private var initializedAttempt: String?
+    @PerceptionIgnored private var acked: Set<String> = []
 
     init(client: EngineClient, mux: StreamMux) {
         self.client = client
