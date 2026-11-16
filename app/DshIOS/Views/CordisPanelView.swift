@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 「Cordis 插件」: plugins agents defined, the current session's first; versions,
 /// run / stop / remove / retry / roll back. Client parts cannot run here (`CordisModel`).
 struct CordisPanelView: View {
