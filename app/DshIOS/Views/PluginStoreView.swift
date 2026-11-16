@@ -27,7 +27,7 @@ struct PluginStoreView: View {
             }
         }
         .background(Palette.background)
-        .animation(.snappy(duration: 0.2), value: searching)
+        .animation(.spring(response: 0.2, dampingFraction: 0.82), value: searching)
         .navigationTitle("插件")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
