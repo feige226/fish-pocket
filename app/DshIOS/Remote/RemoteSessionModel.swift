@@ -74,17 +74,17 @@ final class RemoteSessionModel: Identifiable {
     var attachments: [RemoteUpload] = []
 
     @PerceptionIgnored private weak var store: RemoteStore?
-    @ObservationIgnored private var items: [RemoteItem] = []
-    @ObservationIgnored private var builder = RemoteTimelineBuilder()
-    @ObservationIgnored private var cursor = "seq:0"
-    @ObservationIgnored private var seen: Set<String> = []
-    @ObservationIgnored private var seenOrder: [String] = []
-    @ObservationIgnored private var run: Task<Void, Never>?
+    @PerceptionIgnored private var items: [RemoteItem] = []
+    @PerceptionIgnored private var builder = RemoteTimelineBuilder()
+    @PerceptionIgnored private var cursor = "seq:0"
+    @PerceptionIgnored private var seen: Set<String> = []
+    @PerceptionIgnored private var seenOrder: [String] = []
+    @PerceptionIgnored private var run: Task<Void, Never>?
     /// Live facts were read at this time; frames that arrived earlier are older than them.
-    @ObservationIgnored private var barrier = 0.0
-    @ObservationIgnored private var rebuildQueued = false
-    @ObservationIgnored private var suspended = false
-    @ObservationIgnored private var patience: Task<Void, Never>?
+    @PerceptionIgnored private var barrier = 0.0
+    @PerceptionIgnored private var rebuildQueued = false
+    @PerceptionIgnored private var suspended = false
+    @PerceptionIgnored private var patience: Task<Void, Never>?
 
     /// How long the channel may be down before the page says so.
     private static let quietReconnect = Duration.seconds(5)
