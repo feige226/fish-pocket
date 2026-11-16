@@ -53,6 +53,8 @@ struct StoreEntryDetail: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header.padding(.horizontal, 20).padding(.top, 12)
@@ -76,7 +78,8 @@ struct StoreEntryDetail: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $reporting) { PluginReportSheet(entry: entry, market: model.market.url) }
-    }
+    
+        }}
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -352,13 +355,16 @@ private struct StoreCaption: View {
     init(_ title: LocalizedStringKey) { self.title = title }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Text(title)
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Palette.secondary)
             .padding(.horizontal, 34)
             .padding(.top, 22)
             .padding(.bottom, 7)
-    }
+    
+        }}
 }
 
 /// The package's long description, as the Host reads it from the version's source.
@@ -371,6 +377,8 @@ private struct StoreReadmePage: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let markdown {
                 ScrollView {
@@ -392,7 +400,8 @@ private struct StoreReadmePage: View {
         .navigationTitle(entry.shortName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-    }
+    
+        }}
 
     /// Many READMEs lay themselves out in HTML, which reads as noise here: the words stay, the
     /// tags go, as they do in the web client. Code keeps its angle brackets.
@@ -452,6 +461,8 @@ struct StoreInstallConfirm: View {
     private var entry: StoreEntry { StoreEntry(json: choice.entry) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let number = choice.version["version"].string ?? ""
         let source = choice.version["source"]
         let pinned = PluginPins.note(package: entry.name, version: number)
@@ -505,7 +516,8 @@ struct StoreInstallConfirm: View {
         .background(Palette.background)
         .presentationDetents([.height(height)])
         .tint(Palette.ink)
-    }
+    
+        }}
 
     private func line(_ title: LocalizedStringKey, _ value: Text) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -523,6 +535,8 @@ struct StoreWebUINote: View {
     @State private var showWeb = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: compact ? .center : .top, spacing: 10) {
             Image(systemName: "info.circle").font(.subheadline).foregroundStyle(Palette.secondary)
             if compact {
@@ -552,7 +566,8 @@ struct StoreWebUINote: View {
         .padding(.vertical, compact ? 10 : 14)
         .background(Palette.grouped, in: RoundedRectangle(cornerRadius: compact ? 16 : 20, style: .continuous))
         .fullScreenCover(isPresented: $showWeb) { WebFallbackView() }
-    }
+    
+        }}
 }
 
 /// 询问 AI: leaves for a new conversation that already holds the plugin and its install.
@@ -562,6 +577,8 @@ struct PluginAskRow: View {
     let question: () -> String
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button {
             Haptics.tap()
             app.ask(question())
@@ -581,7 +598,8 @@ struct PluginAskRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
+    
+        }}
 }
 
 /// A web version button for pages that show one plugin, so its interface is a tap away.
