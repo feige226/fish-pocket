@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The staged form every official plugin page shares (`SettingsFormModel`, F-50):
 /// edits stay local until 保存, which writes one `settings/mutate` fenced by the
 /// revision read when the first edit was staged. A field shows the user's own value;
