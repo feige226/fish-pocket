@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A session on one of the user's computers. It reads like a local conversation (the same
 /// turns, tool rows and sheets) and says in its title whose it is: the agent and the machine.
 /// What it can do follows the computer: offline it shows the history it has, and a session
