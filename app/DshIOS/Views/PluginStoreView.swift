@@ -221,17 +221,13 @@ private struct StoreDiscoverPage: View {
                 actions()
             }
         } else {
-            VStack(spacing: 12) {
+            ContentUnavailableViewCompat {
                 Label(title, systemImage: systemImage)
-                    .font(.title3.weight(.semibold))
+            } description: {
                 Text(description)
-                    .font(.footnote)
-                    .foregroundStyle(Palette.secondary)
-                    .multilineTextAlignment(.center)
+            } actions: {
                 actions()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
         }
     }
 
