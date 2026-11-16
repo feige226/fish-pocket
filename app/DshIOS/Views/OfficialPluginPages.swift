@@ -6,7 +6,7 @@ import Perception
 /// revision read when the first edit was staged. A field shows the user's own value;
 /// an inherited one is its placeholder, so grey means default.
 @MainActor
-@Observable
+@Perceptible
 final class StagedForm {
     enum Kind { case number((Double) -> Bool), text }
 
