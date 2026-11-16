@@ -29,6 +29,8 @@ struct RemoteConversationView: View {
     private static let bottomId = "remote-timeline-bottom"
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let model {
                 content(model)
@@ -47,7 +49,8 @@ struct RemoteConversationView: View {
             model = nil
             app.remote.release(sessionId)
         }
-    }
+    
+        }}
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
         Task { @MainActor in
@@ -354,6 +357,8 @@ private struct RemoteTitleMenu: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let meta = model.meta
         Menu {
             if let meta {
@@ -386,7 +391,8 @@ private struct RemoteTitleMenu: View {
         }
         .accessibilityLabel(Text("会话：\(meta?.displayTitle ?? "")，\(subtitle)"))
         .accessibilityHint("打开会话菜单")
-    }
+    
+        }}
 
     private func change(_ work: @escaping () async -> String?) {
         Task {
@@ -400,6 +406,8 @@ private struct RemoteTimelineList: View {
     let model: RemoteSessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         let turnOpen: Bool = if case .turn(let turn)? = model.rows.last { turn.inProgress } else { false }
         VStack(alignment: .leading, spacing: 20) {
             if model.hasOlder { RemoteLoadOlder(model: model) }
@@ -415,7 +423,8 @@ private struct RemoteTimelineList: View {
         .padding(.top, 20)
         .padding(.bottom, 12)
         .readableWidth()
-    }
+    
+        }}
 }
 
 private struct RemoteRowView: View, Equatable {
@@ -425,6 +434,8 @@ private struct RemoteRowView: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.row == rhs.row && lhs.model === rhs.model }
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch row {
         case .user(let id, let text, let attachments, let delivery):
             RemoteUserBubble(id: id, text: text, attachments: attachments, delivery: delivery, model: model)
@@ -440,7 +451,8 @@ private struct RemoteRowView: View, Equatable {
                 .foregroundStyle(isError ? Palette.removed : Palette.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
-    }
+    
+        }}
 }
 
 /// Older records load when the top of the timeline comes into view, as in a local conversation.
@@ -450,6 +462,8 @@ private struct RemoteLoadOlder: View {
     @State private var inView = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         ProgressView()
             .controlSize(.small)
             .frame(maxWidth: .infinity, minHeight: 36)
@@ -465,7 +479,8 @@ private struct RemoteLoadOlder: View {
                 }
             }
             .accessibilityLabel("正在加载更早的消息")
-    }
+    
+        }}
 }
 
 private struct RemoteUserBubble: View {
@@ -477,6 +492,8 @@ private struct RemoteUserBubble: View {
     @Environment(\.conversationActions) private var actions
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .trailing, spacing: 6) {
             let images = attachments.filter(\.isImage)
             if !images.isEmpty {
@@ -516,7 +533,8 @@ private struct RemoteUserBubble: View {
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.leading, 60)
-    }
+    
+        }}
 }
 
 /// A picture a message carries: fetched from the account's server, opened full screen on a tap.
@@ -528,6 +546,8 @@ private struct RemoteImageThumb: View {
     @State private var viewing = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let image {
                 Button { viewing = true } label: {
@@ -553,7 +573,8 @@ private struct RemoteImageThumb: View {
         .fullScreenCover(isPresented: $viewing) {
             if let image { ImageViewer(image: image, name: attachment.name) }
         }
-    }
+    
+        }}
 }
 
 /// In the composer's place while nothing can be sent: why, and the one thing to do about it.
@@ -562,6 +583,8 @@ private struct RemoteBlockBar: View {
     var action: (title: LocalizedStringKey, perform: () -> Void)?
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 10) {
             Text(text).font(.subheadline).foregroundStyle(Palette.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -574,7 +597,8 @@ private struct RemoteBlockBar: View {
         .padding(.trailing, 9)
         .frame(minHeight: 54)
         .background(Palette.field, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-    }
+    
+        }}
 }
 
 /// A note from the agent that asks for nothing; its own actions (dismiss…) are one tap away.
@@ -583,6 +607,8 @@ private struct RemoteNoticeLine: View {
     let model: RemoteSessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: notice.severity == "error" ? "exclamationmark.triangle" : "info.circle")
                 .foregroundStyle(notice.severity == "error" ? Palette.removed : Palette.secondary)
@@ -604,5 +630,6 @@ private struct RemoteNoticeLine: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.grouped, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
+    
+        }}
 }
