@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WebKit
 
 /// Tells a nested `PluginsView` that an enclosing sheet already shows the shell notices.
