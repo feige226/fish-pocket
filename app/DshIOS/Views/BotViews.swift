@@ -515,7 +515,7 @@ struct BotHomeView: View {
             if hiddenCount > 0 && needle.isEmpty {
                 Section {
                     Button(showHidden ? String(localized: "收起已隐藏的") : String(localized: "显示 \(hiddenCount) 个已隐藏的")) {
-                        withAnimation(.snappy) { showHidden.toggle() }
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { showHidden.toggle() }
                     }
                     .font(.footnote)
                     .foregroundStyle(Palette.secondary)
