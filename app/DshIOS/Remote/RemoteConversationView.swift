@@ -36,7 +36,7 @@ struct RemoteConversationView: View {
                 content(model)
             } else {
                 ConversationLoading().background(Palette.background)
-                    .toolbar { if let openDrawer { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) } } }
+                    .toolbar { if let openDrawer { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) } } }
             }
         }
         .task(id: app.remote.signedIn) {
@@ -76,7 +76,7 @@ struct RemoteConversationView: View {
                     proxy.scrollTo(id, anchor: .top)
                 }
             }, top: timelineTop))
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { timelineTop = $0 }
+            .onGeometryChangeCompat(for: CGFloat.self) { $0.frame(in: .global).minY } action: { timelineTop = $0 }
             .modifier(TimelineAnchor())
             .modifier(BottomFollow(atBottom: $atBottom) { scrollToBottom(proxy, animated: false) })
             .scrollDismissesKeyboard(.immediately)
@@ -109,7 +109,7 @@ struct RemoteConversationView: View {
                 .padding(.top, 6)
                 .padding(.bottom, 8)
                 .readableWidth()
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { app.composerHeight = $0 }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { app.composerHeight = $0 }
         }
         .navigationTitle(model.meta?.displayTitle ?? "")
         .navigationBarTitleDisplayMode(.inline)
@@ -117,10 +117,10 @@ struct RemoteConversationView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if let openDrawer {
-                ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) }
+                ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) }
             }
             if let meta = model.meta {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         Haptics.tap()
                         app.remoteSessionRequest = RemoteSessionTarget(deviceId: meta.deviceId, agentId: meta.agentId, projectId: meta.projectId)
@@ -131,7 +131,7 @@ struct RemoteConversationView: View {
                 }
             }
             ToolbarItem(placement: .principal) { RemoteTitleMenu(model: model) }
-            ToolbarItem(placement: .topBarTrailing) { moreMenu(model) }
+            ToolbarItem(placement: .navigationBarTrailing) { moreMenu(model) }
         }
         .environment(\.conversationActions, ConversationActions(
             openChanges: { panel = .changes },
@@ -467,7 +467,7 @@ private struct RemoteLoadOlder: View {
         ProgressView()
             .controlSize(.small)
             .frame(maxWidth: .infinity, minHeight: 36)
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { inView = $0 > scroll.top }
+            .onGeometryChangeCompat(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { inView = $0 > scroll.top }
             .task(id: "\(inView)-\(model.rows.first?.id ?? "")") {
                 guard inView else { return }
                 try? await Task.sleep(for: .milliseconds(300))
