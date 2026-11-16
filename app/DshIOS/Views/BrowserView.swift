@@ -9,7 +9,7 @@ import WebKit
 /// it and take over. That is why a page belongs to its conversation's `BrowserModel` rather than to a view: the
 /// agent can open one before the user ever looks at the workbench.
 @MainActor
-@Observable
+@Perceptible
 final class BrowserPage: NSObject {
     var address = ""
     /// The refused address's reason, shown under the bar.
@@ -33,30 +33,30 @@ final class BrowserPage: NSObject {
     private(set) var notice: String?
 
     /// The conversation this browser belongs to: downloads go to its working directory.
-    @ObservationIgnored let sessionId: String
+    @PerceptionIgnored let sessionId: String
     /// The conversation's browser this page is a tab of: its kept scripts run here too, and its
     /// downloads are listed there.
-    @ObservationIgnored weak var browser: BrowserModel?
+    @PerceptionIgnored weak var browser: BrowserModel?
     /// What the pages wrote to the console, and the requests their scripts made (`logs`).
-    @ObservationIgnored var consoleLog: [[String: Any]] = []
-    @ObservationIgnored var networkLog: [[String: Any]] = []
-    @ObservationIgnored var logSeq = 0
-    @ObservationIgnored var cachedUserAgent: String?
+    @PerceptionIgnored var consoleLog: [[String: Any]] = []
+    @PerceptionIgnored var networkLog: [[String: Any]] = []
+    @PerceptionIgnored var logSeq = 0
+    @PerceptionIgnored var cachedUserAgent: String?
     /// This page's downloads still coming, by their place in the browser's list.
-    @ObservationIgnored var downloadTasks: [ObjectIdentifier: Int] = [:]
-    @ObservationIgnored private var noticeTimer: Task<Void, Never>?
+    @PerceptionIgnored var downloadTasks: [ObjectIdentifier: Int] = [:]
+    @PerceptionIgnored private var noticeTimer: Task<Void, Never>?
 
-    @ObservationIgnored let webView: WKWebView
-    @ObservationIgnored let origin: URL
-    @ObservationIgnored private var observations: [NSKeyValueObservation] = []
+    @PerceptionIgnored let webView: WKWebView
+    @PerceptionIgnored let origin: URL
+    @PerceptionIgnored private var observations: [NSKeyValueObservation] = []
     /// Why the last load failed, as WebKit said it, for the agent; `failure` is the user's sentence.
-    @ObservationIgnored private(set) var loadFailure: NSError?
+    @PerceptionIgnored private(set) var loadFailure: NSError?
     /// The agent's operations, one after another: two at once would read a page the other is changing.
-    @ObservationIgnored private var tail: Task<Void, Never>?
+    @PerceptionIgnored private var tail: Task<Void, Never>?
     /// The agent at work on this page, drawn over it in the workbench.
-    @ObservationIgnored let presence = BrowserPresence()
+    @PerceptionIgnored let presence = BrowserPresence()
     /// The address or title changed: the tab set is kept again.
-    @ObservationIgnored var changed: (() -> Void)?
+    @PerceptionIgnored var changed: (() -> Void)?
 
     /// Every tab of every conversation's browser shares one store of its own, kept across launches, so a site
     /// signed in to once stays signed in, for the user and for the agent. It is apart from the default store,
@@ -179,7 +179,7 @@ final class BrowserPage: NSObject {
     }
 
     /// The effects as last asked for; a page that loads afresh gets them again.
-    @ObservationIgnored private var effects = PageEffects(shown: false, action: nil, done: true)
+    @PerceptionIgnored private var effects = PageEffects(shown: false, action: nil, done: true)
 
     func showEffects(_ effects: PageEffects) {
         self.effects = effects
