@@ -23,6 +23,8 @@ struct ComposerStatusBar: View {
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let summary = summary
         let tail = tail
         let hasStatus = !summary.characters.isEmpty || !tail.isEmpty
@@ -48,7 +50,8 @@ struct ComposerStatusBar: View {
         .onChange(of: interactionArrived) { _, arrived in
             if arrived { showSheet = false }
         }
-    }
+    
+        }}
 
     private func bar(summary: AttributedString, tail: String, hasStatus: Bool) -> some View {
         HStack(spacing: 0) {
@@ -209,6 +212,8 @@ struct ComposerStatusSheet: View {
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 attention
@@ -238,7 +243,8 @@ struct ComposerStatusSheet: View {
         }
         .presentationDetents([.medium, .large])
         .sheetNotices()
-    }
+    
+        }}
 
     /// Whether any section still has something in it. The status bar hides on the same
     /// terms, so an empty sheet has no bar left to have opened it either.
@@ -306,6 +312,8 @@ private struct GoalSection: View {
     @State private var confirmingClear = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         if let goal = composer.visibleGoal {
             let armed = composer.armed(goal)
             Section("目标") {
@@ -334,7 +342,8 @@ private struct GoalSection: View {
                 Button("清除目标", role: .destructive) { run(.clear) }
             }
         }
-    }
+    
+        }}
 
     private func actions(_ goal: GoalInfo, armed: Bool?) -> some View {
         Menu {
@@ -409,6 +418,8 @@ private struct QueueSection: View {
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let rows = composer.queueRows
         let sending = composer.visiblePending
         if !rows.isEmpty || !sending.isEmpty {
@@ -429,7 +440,8 @@ private struct QueueSection: View {
             }
             .groupedRow()
         }
-    }
+    
+        }}
 
     private func header(rows: [QueueRow], sending: [PendingSubmission]) -> some View {
         let queued = rows.count + sending.filter { $0.placement == .queued }.count
