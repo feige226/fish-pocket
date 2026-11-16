@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Where a new remote session should start, as far as the asker knows.
 struct RemoteSessionTarget: Identifiable, Equatable {
     let id = UUID()
