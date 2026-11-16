@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Add a workspace (`directory-browser`): browse folders under the engine's `~/Documents` level
 /// by level, or make one, and open the current level. The folders are the engine's to
 /// read: a system folder picker returns paths outside the sandbox it cannot reach, and
