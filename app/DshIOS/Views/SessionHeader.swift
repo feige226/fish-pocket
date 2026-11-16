@@ -25,6 +25,8 @@ struct SessionTitleMenu: View {
     private var title: String { durableTitle ?? String(localized: "新会话") }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Menu {
             Section {
                 Button { app.renameRequest = RenameRequest(target: .session(sessionId), initial: durableTitle ?? "") } label: {
@@ -61,7 +63,8 @@ struct SessionTitleMenu: View {
         }
         .accessibilityLabel(Text("会话：\(title)"))
         .accessibilityHint("打开会话菜单")
-    }
+    
+        }}
 }
 
 /// Top-bar entries that only appear when there is something to show: subagents and this
@@ -95,6 +98,8 @@ struct SessionHeaderActions: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let entries = entries
         if entries.count > 1 {
             // A phone's bar has room for one more icon next to the workbench.
@@ -109,7 +114,8 @@ struct SessionHeaderActions: View {
         } else if let entry = entries.first {
             button(entry.icon, dot: entry.dot, label: entry.label) { open(entry.sheet) }
         }
-    }
+    
+        }}
 
     private func button(_ icon: String, dot: Bool, label: Text, action: @escaping () -> Void) -> some View {
         Button(action: action) { self.icon(icon, dot: dot) }
