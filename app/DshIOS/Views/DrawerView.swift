@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The left drawer (the iPad sidebar) is for finding a session. One list: the feature rows
 /// (插件 … 远程控制), the sessions under a header that carries the view menu (by time, by
 /// workspace, by device), and 「已归档」 at the end. The app's name and the search button float
