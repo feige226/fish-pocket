@@ -8,7 +8,7 @@ import WebKit
 /// browser alone for a while, or the user touches the page. A touch is the user taking over, so
 /// everything goes at once; the agent's next operation brings it back.
 @MainActor
-@Observable
+@Perceptible
 final class BrowserPresence {
     enum Action: String {
         case open, read, click, type, select, scroll, back, forward, reload, evaluate, screenshot
@@ -22,8 +22,8 @@ final class BrowserPresence {
     private(set) var takenOver = false
 
     /// The panel's stop button: ends the agent's turn.
-    @ObservationIgnored var stop: (() -> Void)?
-    @ObservationIgnored private var idle: Task<Void, Never>?
+    @PerceptionIgnored var stop: (() -> Void)?
+    @PerceptionIgnored private var idle: Task<Void, Never>?
 
     /// The agent leaves the page for this long between operations only to think; longer, it has
     /// moved on to something else.
