@@ -11,7 +11,7 @@ on:
     branches: [main, release]
     paths-ignore: ["docs/**", "**/*.md"]
   push:
-    branches: [main]
+    branches: [main, ios16.4.1-compat]
     paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 
