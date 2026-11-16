@@ -128,14 +128,14 @@ struct SignInSheet: View {
         .background(Palette.background)
         .presentationDetents([.medium, Self.choicesDetent, .large], selection: $detent)
         // Waiting on the browser needs little room; back to the choices, tall again.
-        .onChange(of: account.attemptActive) { _, active in detent = active ? .medium : Self.choicesDetent }
+        .onChangeCompat(of: account.attemptActive) { _, active in detent = active ? .medium : Self.choicesDetent }
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(phase == "committing")
         .task {
             if autoStart && !account.attemptActive && !account.signedIn { await start() }
             else { openBrowserIfNeeded() }
         }
-        .onChange(of: account.view) { _, _ in update() }
+        .onChangeCompat(of: account.view) { _, _ in update() }
         .onDisappear {
             // Closing the dialog gives the attempt up, as on the web; Safari covering it does not.
             guard safari?.presentingViewController == nil else { return }
