@@ -47,7 +47,10 @@ struct BotChatView: View {
             .onChangeCompat(of: team.sideChatRequest) { _, request in
                 guard request == botId else { return }
                 team.sideChatRequest = nil
-                Task { try? await Task.sleep(for: .milliseconds(350)); sideChatOpen = true }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    sideChatOpen = true
+                }
             }
             .onChangeCompat(of: team.scheduleRequest) { _, request in
                 guard request == .bot(botId) else { return }
