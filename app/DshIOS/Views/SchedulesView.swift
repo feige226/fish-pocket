@@ -155,21 +155,20 @@ struct SchedulesView: View {
         if !catalog.settled && catalog.status != .error {
             ProgressView()
         } else if catalog.status == .error && catalog.records.isEmpty {
-            ContentUnavailableView {
-                Label("无法加载任务", systemImage: "exclamationmark.triangle")
-            } actions: {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle").font(.title2).foregroundStyle(Palette.secondary)
+                Text("无法加载任务").foregroundStyle(Palette.ink)
                 Button("重试") { Task { await catalog.load(app.client) } }
-            }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if shown.isEmpty {
-            ContentUnavailableView {
-                Label(emptyTitle, systemImage: "clock")
-            } description: {
-                if scoped.isEmpty { Text("在对话里让 DSH 安排，例如「每天早上 9 点总结提交」。") }
-            } actions: {
+            VStack(spacing: 12) {
+                Image(systemName: "clock").font(.title2).foregroundStyle(Palette.secondary)
+                Text(emptyTitle).foregroundStyle(Palette.ink)
+                if scoped.isEmpty { Text("在对话里让 DSH 安排，例如「每天早上 9 点总结提交」。").font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center) }
                 if sessionId == nil && scoped.isEmpty {
                     Button("新建") { Task { await newTask() } }.disabled(creating)
                 }
-            }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -311,7 +310,10 @@ struct ScheduleDetailView: View {
                 }
                 .pageBackground()
             } else if catalog.settled {
-                ContentUnavailableView("任务已不可用，可能已被删除", systemImage: "clock")
+                VStack(spacing: 12) {
+                    Image(systemName: "clock").font(.title2).foregroundStyle(Palette.secondary)
+                    Text("任务已不可用，可能已被删除").foregroundStyle(Palette.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView()
             }
@@ -358,8 +360,13 @@ struct ScheduleDetailView: View {
         }
         .onChangeCompat(of: shown?.kind) { _, kind in
             // A switch into the interval picks the unit that states it, unless one was chosen.
-            guard kind == .every else { explicitUnit = false; return }
-            if !explicitUnit, let seconds = shown?.draft.seconds { unit = .preferred(seconds) }
+            if kind != .every {
+                explicitUnit = false
+                return
+            }
+            if !explicitUnit {
+                if let seconds = shown?.draft.seconds { unit = .preferred(seconds) }
+            }
         }
     
         }}
@@ -687,13 +694,16 @@ private struct DeliveryHistoryView: View {
                 if loading {
                     ProgressView()
                 } else if let failure {
-                    ContentUnavailableView {
-                        Label(failure.text, systemImage: "exclamationmark.triangle")
-                    } actions: {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle").font(.title2).foregroundStyle(Palette.secondary)
+                        Text(failure.text).foregroundStyle(Palette.ink)
                         Button(failure.cursor ? "刷新" : "重试") { Task { await load(failure.before) } }
-                    }
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    ContentUnavailableView("暂无任务运行记录", systemImage: "clock")
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock").font(.title2).foregroundStyle(Palette.secondary)
+                        Text("暂无任务运行记录").foregroundStyle(Palette.secondary)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
