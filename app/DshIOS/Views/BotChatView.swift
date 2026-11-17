@@ -46,8 +46,7 @@ struct BotChatView: View {
                 detailOpen = true
             }
             .onChangeCompat(of: team.sideChatRequest) { _, request in
-                guard let requestedBotId = request else { return }
-                if requestedBotId != botId { return }
+                guard isMatchingBotRequest(request) else { return }
                 team.sideChatRequest = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     sideChatOpen = true
@@ -78,6 +77,12 @@ struct BotChatView: View {
         }
     
         }}
+    }
+
+    private func isMatchingBotRequest(_ request: String?) -> Bool {
+        guard let request else { return false }
+        return request == botId
+    }
 }
 
 /// The bar's title: the Bot's mark, name and what it is doing.
