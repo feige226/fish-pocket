@@ -47,7 +47,10 @@ struct BotDetailView: View {
                         Text("它的私聊、记忆和定时任务都会删掉，它也会退出所有群聊。")
                     }
                 } else {
-                    ContentUnavailableView("这个 Bot 已不在团队里", systemImage: "person.slash")
+                    VStack(spacing: 10) {
+                        Image(systemName: "person.slash").font(.largeTitle).foregroundStyle(Palette.secondary)
+                        Text("这个 Bot 已不在团队里").font(.headline).foregroundStyle(Palette.secondary)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .navigationTitle(team.bot(botId)?.name ?? String(localized: "Bot"))
