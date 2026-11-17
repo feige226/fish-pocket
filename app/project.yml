@@ -49,6 +49,8 @@ targets:
       - path: DshIOS
         excludes:
           - "MiniApps/MiniAppExamples/**"
+          # AppShortcuts string catalogs require iOS 17; use localized .strings for iOS 16.
+          - "AppShortcuts.xcstrings"
       # 我的应用's examples, each a folder as the agent would write one (MiniAppExamples.swift).
       - path: DshIOS/MiniApps/MiniAppExamples
         type: folder
