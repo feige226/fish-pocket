@@ -255,7 +255,7 @@ struct MainView: View {
             link = nil
             Task { await follow(request.link) }
         }
-        .onChange(of: workspaceId) { WidgetSnapshotWriter.shared.refresh() }
+        .onChangeCompat(of: workspaceId) { _, _ in WidgetSnapshotWriter.shared.refresh() }
         .onAppear { settledWidth = sizeClass }
         .onChangeCompat(of: sizeClass) { _, size in
             if scenePhase == .active { settle(size) }
@@ -1113,7 +1113,11 @@ private struct SidebarToggle: ViewModifier {
     let system: Bool
 
     func body(content: Content) -> some View {
-        if system { content } else { content.toolbar(removing: .sidebarToggle) }
+        if #available(iOS 17.0, *) {
+            if system { content } else { content.toolbar(removing: .sidebarToggle) }
+        } else {
+            content
+        }
     }
 }
 
