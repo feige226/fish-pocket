@@ -384,7 +384,7 @@ struct ComposerView: View {
         .onChangeCompat(of: showTray || showEditor || browsing != nil) { _, open in
             if open { sheetUp.wrappedValue = true }
         }
-        .onChange(of: composer.focusRequest) { focused = true }
+        .onChangeCompat(of: composer.focusRequest) { focused = true }
         .onChangeCompat(of: focused) { _, now in
             // Anything that brings the keyboard back (a prompt placed, a tray choice) shows the text.
             if now { voice.mode = false }
@@ -399,9 +399,9 @@ struct ComposerView: View {
             pickerStateChanged(open)
         }
         // C-99 / C-110 / C-141: catalogs and the preference follow their engine events.
-        .onChange(of: app.revision("commands/change", "agent-preset/selected")) { Task { await context.loadCommands(model) } }
-        .onChange(of: app.revision("permission-presets/catalog-changed")) { Task { await context.loadPermissions(model) } }
-        .onChange(of: app.revision("settings/document-updated")) { Task { await context.loadSettings(model) } }
+        .onChangeCompat(of: app.revision("commands/change", "agent-preset/selected")) { Task { await context.loadCommands(model) } }
+        .onChangeCompat(of: app.revision("permission-presets/catalog-changed")) { Task { await context.loadPermissions(model) } }
+        .onChangeCompat(of: app.revision("settings/document-updated")) { Task { await context.loadSettings(model) } }
     
         }}
 
