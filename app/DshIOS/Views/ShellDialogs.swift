@@ -29,7 +29,7 @@ struct ShellDialogs: ViewModifier {
         WithPerceptionTracking {
         content
             // The text is in place before the alert reads it.
-            .onChange(of: app.renameRequest?.id) {
+            .onChangeCompat(of: app.renameRequest?.id) { _, _ in
                 guard let request = app.renameRequest, case .session = request.target else { return }
                 title = request.initial
                 renaming = true
