@@ -176,7 +176,11 @@ private struct MiniAppWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: app.dataStoreId)
+        if #available(iOS 17.0, *) {
+            configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: app.dataStoreId)
+        } else {
+            configuration.websiteDataStore = .default()
+        }
         configuration.setURLSchemeHandler(MiniAppServer(app: app), forURLScheme: MiniAppServer.scheme)
         configuration.userContentController.add(context.coordinator.messages, name: MiniAppServer.messageName)
         configuration.allowsInlineMediaPlayback = true
