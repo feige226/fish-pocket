@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 创造模式 (`cordis`) is held back on iOS: what it makes are plugins with their own
 /// Web views, and there is no good native SwiftUI way to run those yet. Only the entries
 /// that start it are hidden — the preset itself still exists, so a session already in it
@@ -40,7 +41,7 @@ func presetHeldBack(_ presetId: String?) -> Bool { CreatorMode.isHidden(presetId
 /// The Agent preset roster (`agentPresets/list`) with the display copy the web keeps
 /// for shipped presets: a preset that publishes no name is one of these.
 @MainActor
-@Observable
+@Perceptible
 final class AgentPresetCatalog {
     struct Option: Identifiable, Hashable {
         let id: String
@@ -103,6 +104,8 @@ struct AgentPresetChip: View {
     private var chosen: String { current ?? app.presetId(of: sessionId) ?? catalog.fallback }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if !catalog.options.isEmpty && !chosen.isEmpty {
                 Button { choosing = true } label: {
@@ -133,7 +136,8 @@ struct AgentPresetChip: View {
                 _ = await select(standard)
             }
         }
-    }
+    
+        }}
 
     /// A blank session's preset is not in the shared projections until it is touched.
     private func readCurrent() async {
@@ -165,6 +169,8 @@ private struct AgentPresetSheet: View {
     @State private var pending: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 ForEach(catalog.visible) { option in
@@ -199,7 +205,8 @@ private struct AgentPresetSheet: View {
         .tint(Palette.ink)
         .presentationDetents([.medium, .large])
         .sheetNotices()
-    }
+    
+        }}
 
     private func pick(_ option: AgentPresetCatalog.Option) {
         guard option.id != chosen else { dismiss(); return }

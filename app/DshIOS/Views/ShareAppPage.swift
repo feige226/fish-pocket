@@ -1,6 +1,7 @@
 import Photos
 import SwiftUI
 
+import Perception
 /// 「分享 Fish Pocket」: a poster with the QR code, a poster with the link written out, or the
 /// link alone, each sent through the system share sheet; posters also save to the album.
 /// Reached from the top of 设置 and from the support card. Everything points at the website
@@ -26,6 +27,8 @@ struct ShareAppPage: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             tabs
             ScrollView {
@@ -46,7 +49,8 @@ struct ShareAppPage: View {
         // Whoever came this far needs no card asking them to.
         .onAppear { SupportPrompt.settle() }
         .task(id: style) { draw(style) }
-    }
+    
+        }}
 
     /// Centred when the three fit, scrolling on a narrow phone in a longer language.
     private var tabs: some View {
@@ -209,6 +213,8 @@ struct SharePoster: View {
     private static let pocketTop: CGFloat = 404
 
     var body: some View {
+        WithPerceptionTracking {
+
         ZStack(alignment: .topLeading) {
             Color.white
             dots
@@ -233,7 +239,8 @@ struct SharePoster: View {
         }
         .frame(width: Self.width, height: Self.height, alignment: .topLeading)
         .clipped()
-    }
+    
+        }}
 
     /// A faint dot grid under the top half, like the website's page.
     private var dots: some View {

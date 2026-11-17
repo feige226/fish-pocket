@@ -1,14 +1,14 @@
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// One open conversation: follows the session's event stream and turns it
 /// into a timeline, tracks live assistant output, and sends the user's actions.
 @MainActor
-@Observable
+@Perceptible
 final class SessionModel {
     let sessionId: String
-    @ObservationIgnored private let app: AppModel
+    @PerceptionIgnored private let app: AppModel
 
     private(set) var items: [TimelineItem] = []
     private(set) var live: [AssistantBlock] = []
@@ -56,24 +56,24 @@ final class SessionModel {
     /// The child's own mode (`subagent` projection): tells an address opened as `unknown`.
     private(set) var subagentMode: String?
     /// The open conversation's model catalog; a prompt first moves off a model that no longer routes.
-    @ObservationIgnored weak var modelCatalog: ComposerContext?
+    @PerceptionIgnored weak var modelCatalog: ComposerContext?
     /// Composer state (draft, local echoes, attachments): one per open conversation.
-    @ObservationIgnored private(set) lazy var composer = ComposerModel(session: self, app: app)
+    @PerceptionIgnored private(set) lazy var composer = ComposerModel(session: self, app: app)
 
     /// Durable events folded so far (the source of `items`).
-    @ObservationIgnored private var timeline = TimelineBuilder()
+    @PerceptionIgnored private var timeline = TimelineBuilder()
     /// The events themselves, oldest first: a page of older history refolds from the start.
-    @ObservationIgnored private var events: [JSON] = []
-    @ObservationIgnored private var cursor = -1
-    @ObservationIgnored private var followTask: Task<Void, Never>?
-    @ObservationIgnored private var projectionTask: Task<Void, Never>?
-    @ObservationIgnored private var liveAttempt: String?
-    @ObservationIgnored private var livePartials: [Int: (kind: String, text: String, toolId: String?, toolName: String?)] = [:]
+    @PerceptionIgnored private var events: [JSON] = []
+    @PerceptionIgnored private var cursor = -1
+    @PerceptionIgnored private var followTask: Task<Void, Never>?
+    @PerceptionIgnored private var projectionTask: Task<Void, Never>?
+    @PerceptionIgnored private var liveAttempt: String?
+    @PerceptionIgnored private var livePartials: [Int: (kind: String, text: String, toolId: String?, toolName: String?)] = [:]
     /// Pending publish of `live`: chunks arrive per token, the view redraws at most this often.
-    @ObservationIgnored private var livePublish: Task<Void, Never>?
-    @ObservationIgnored private var waitClaims: [String: Task<Void, Never>] = [:]
-    @ObservationIgnored private var waitTimers: [String: Task<Void, Never>] = [:]
-    @ObservationIgnored private let imageCache: NSCache<NSString, UIImage> = {
+    @PerceptionIgnored private var livePublish: Task<Void, Never>?
+    @PerceptionIgnored private var waitClaims: [String: Task<Void, Never>] = [:]
+    @PerceptionIgnored private var waitTimers: [String: Task<Void, Never>] = [:]
+    @PerceptionIgnored private let imageCache: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 60
         return cache
@@ -87,7 +87,7 @@ final class SessionModel {
     /// The last user message the latest `session/follow` snapshot held: the first one, a kept
     /// conversation catching up on its return, a reconnect. Those are history; only later ones
     /// were sent while the conversation was on screen.
-    @ObservationIgnored private(set) var snapshotThrough = 0
+    @PerceptionIgnored private(set) var snapshotThrough = 0
 
     var client: EngineClient { app.client }
 

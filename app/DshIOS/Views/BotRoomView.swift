@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What a Bot's chat or a group chat changes in `ConversationView`: the title in the bar
 /// and cards above the composer. Everything else (attachments, approvals, stopping,
 /// the keyboard) is the conversation view's own: a Bot's chat is an ordinary session.
@@ -144,6 +145,8 @@ struct BotRoomView: View {
     @State private var detailOpen = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         if let room = team.room(roomId) {
             ConversationView(sessionId: room.sessionId, selection: $selection, openDrawer: nil, bot: BotChrome(
@@ -170,7 +173,7 @@ struct BotRoomView: View {
             .sheet(isPresented: $detailOpen) {
                 RoomDetailView(roomId: roomId).environment(\.browserLinks, BrowserLinks(sessionId: room.sessionId, origin: app.client.origin))
             }
-            .onChange(of: team.scheduleRequest) { _, request in
+            .onChangeCompat(of: team.scheduleRequest) { _, request in
                 guard request == .room(roomId) else { return }
                 team.scheduleRequest = nil
                 Task { try? await Task.sleep(for: .milliseconds(350)); detailOpen = true }
@@ -180,9 +183,10 @@ struct BotRoomView: View {
         } else if team.status == .unknown {
             ConversationLoading().background(Palette.background)
         } else {
-            ContentUnavailableView("这个群聊已经不在了", systemImage: "person.2.slash")
+            CompatEmptyState(title: "这个群聊已经不在了", systemImage: "person.2.slash")
         }
-    }
+    
+        }}
 }
 
 /// Above a group's composer: who speaks now, and a tap to @ a member.
@@ -192,6 +196,8 @@ private struct RoomMentions: View {
     let room: RoomInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let members = room.members.compactMap(team.bot)
         VStack(alignment: .leading, spacing: 8) {
@@ -232,7 +238,8 @@ private struct RoomMentions: View {
                 }
             }
         }
-    }
+    
+        }}
 }
 
 /// A member waits for the user to allow a tool in the group (only answerable here).
@@ -242,6 +249,8 @@ private struct RoomApprovalCard: View {
     @State private var sending = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let name = approval["botId"].string.flatMap(team.bot)?.name ?? ""
         BotCard {
@@ -260,7 +269,8 @@ private struct RoomApprovalCard: View {
             }
             .disabled(sending)
         }
-    }
+    
+        }}
 
     private func answer(_ allow: Bool) {
         sending = true
@@ -282,7 +292,7 @@ private struct OpenOtherSession: ViewModifier {
     let sessionId: String
 
     func body(content: Content) -> some View {
-        content.onChange(of: selection) { _, id in
+        content.onChangeCompat(of: selection) { _, id in
             guard let id, id != sessionId else { return }
             selection = nil
             app.open(session: id)

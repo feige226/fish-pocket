@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 举报插件: what is wrong with a market plugin, sent to Fish Pocket for review; then its number, and
 /// the offer to switch the plugin off while it is reviewed.
 struct PluginReportSheet: View {
@@ -25,6 +26,8 @@ struct PluginReportSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Group {
                 if let receipt { sent(receipt) } else { form }
@@ -35,7 +38,8 @@ struct PluginReportSheet: View {
         }
         .tint(Palette.ink)
         .interactiveDismissDisabled(sending)
-    }
+    
+        }}
 
     // MARK: Form
 
@@ -142,7 +146,7 @@ struct PluginReportSheet: View {
                 log: log
             )
             Haptics.success()
-            withAnimation(.snappy(duration: 0.25)) { receipt = sent }
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { receipt = sent }
         } catch {
             failure = (error as? LocalizedError)?.errorDescription ?? String(localized: "提交失败，请稍后再试。")
         }
@@ -220,14 +224,17 @@ struct PluginReportsPage: View {
     private var reports: PluginReports { PluginReports.shared }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Group {
                 if reports.receipts.isEmpty {
-                    ContentUnavailableView {
-                        Label("还没有举报", systemImage: "flag")
-                    } description: {
-                        Text("在插件详情页底部可以举报有问题的插件。")
+                    VStack(spacing: 12) {
+                        Image(systemName: "flag").font(.largeTitle).foregroundStyle(Palette.secondary)
+                        Text("还没有举报").font(.headline)
+                        Text("在插件详情页底部可以举报有问题的插件。").font(.subheadline).foregroundStyle(Palette.secondary).multilineTextAlignment(.center)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
                         Section {
@@ -248,7 +255,8 @@ struct PluginReportsPage: View {
             .task { await reports.refreshReceipts() }
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 
     private func tone(_ status: String) -> Color {
         switch status {

@@ -2,6 +2,7 @@ import ImageIO
 import PDFKit
 import QuickLook
 import SwiftUI
+import Perception
 import WebKit
 
 /// One directory of the session workspace (the workbench 文件 tab): folders
@@ -27,6 +28,8 @@ struct DirectoryView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 if let error { Text(error).foregroundStyle(Palette.removed) }
@@ -68,9 +71,9 @@ struct DirectoryView: View {
             if loading {
                 ProgressView()
             } else if entries.isEmpty && error == nil {
-                ContentUnavailableView("空文件夹", systemImage: "folder")
+                VStack(spacing: 8) { Image(systemName: "folder").font(.largeTitle); Text("空文件夹").font(.headline) }.foregroundStyle(Palette.secondary)
             } else if shown.isEmpty && error == nil {
-                ContentUnavailableView.search(text: query)
+                VStack(spacing: 8) { Image(systemName: "magnifyingglass").font(.largeTitle); Text("没有找到匹配的文件").font(.headline); Text(query).font(.footnote).foregroundStyle(Palette.secondary) }
             }
         }
         .navigationTitle(title)
@@ -79,7 +82,8 @@ struct DirectoryView: View {
         // Lists, then follows; a reconnect drops the stream and may have missed changes.
         .task(id: app.generation) { await watch() }
         .onDisappear { pendingReload?.cancel() }
-    }
+    
+        }}
 
     /// The workbench hides the navigation bar on its root, so the field sits in the list.
     private var searchField: some View {
@@ -179,11 +183,14 @@ struct FilePreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             FileContentView(sessionId: sessionId, path: path, root: root, lines: lines)
                 .closeButton(dismiss)
         }
-    }
+    
+        }}
 }
 
 /// One file (S-78): the renderer its name selects, 打开方式 where there are
@@ -224,6 +231,8 @@ struct FileContentView: View {
     private var renderer: FileRenderer { chosen ?? (lines != nil && renderers.contains(.text) ? .text : renderers[0]) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let failure, !(renderer.pagesText && loaded) {
                 if failure.notText { unsupported } else { failed(failure) }
@@ -250,12 +259,13 @@ struct FileContentView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top, spacing: 0) { banner }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { actions }
+            ToolbarItem(placement: .navigationBarTrailing) { actions }
         }
         .quickLookPreview($preview)
         .task(id: LoadKey(renderer: renderer, revision: revision)) { await load() }
         .task(id: app.generation) { await watch() }
-    }
+    
+        }}
 
     private struct LoadKey: Hashable { let renderer: FileRenderer; let revision: Int }
 
@@ -300,14 +310,12 @@ struct FileContentView: View {
     }
 
     private func failed(_ failure: FileFailure) -> some View {
-        ContentUnavailableView {
-            Label("无法打开文件", systemImage: "doc.questionmark")
-        } description: {
-            Text(failure.message)
-        } actions: {
+        VStack(spacing: 10) {
+            Label("无法打开文件", systemImage: "doc.questionmark").font(.headline)
+            Text(failure.message).font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center)
             if failure.retry { Button("重试") { reload() } }
             if failure.external, let localURL { Button("用快速查看打开") { preview = localURL } }
-        }
+        }.padding()
     }
 
     /// A format with no renderer here, known or not: the file itself, and the ways to take it elsewhere.
@@ -348,7 +356,7 @@ struct FileContentView: View {
                 .padding(.vertical)
             }
             // Short files start at the top left instead of being centred.
-            .defaultScrollAnchor(.topLeading)
+            .defaultScrollAnchorCompat(.topLeading)
             .refreshable { reload() }
             .onAppear { if let lines { proxy.scrollTo(lines.lowerBound, anchor: .center) } }
         }
@@ -666,11 +674,13 @@ struct ZoomableImage: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let image {
                 ZoomingImageView(image: image).ignoresSafeArea(edges: .bottom)
             } else if failed {
-                ContentUnavailableView("无法显示这张图片", systemImage: "photo")
+                VStack(spacing: 8) { Image(systemName: "photo").font(.largeTitle); Text("无法显示这张图片") }.foregroundStyle(Palette.secondary)
             } else {
                 ProgressView()
             }
@@ -681,7 +691,8 @@ struct ZoomableImage: View {
             image = decoded
             failed = decoded == nil
         }
-    }
+    
+        }}
 
     /// Downsampled: a camera photo decoded whole costs hundreds of megabytes on a phone.
     nonisolated static func decode(_ url: URL) -> UIImage? {
@@ -787,15 +798,17 @@ struct PDFPreview: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let document {
                 if document.isLocked {
-                    ContentUnavailableView("此 PDF 需要密码，暂不支持预览", systemImage: "lock.doc")
+                    VStack(spacing: 8) { Image(systemName: "lock.doc").font(.largeTitle); Text("此 PDF 需要密码，暂不支持预览").multilineTextAlignment(.center) }.foregroundStyle(Palette.secondary)
                 } else {
                     PDFKitView(document: document).ignoresSafeArea(edges: .bottom)
                 }
             } else if failed {
-                ContentUnavailableView("无法显示 PDF", systemImage: "doc.richtext")
+                VStack(spacing: 8) { Image(systemName: "doc.richtext").font(.largeTitle); Text("无法显示 PDF") }.foregroundStyle(Palette.secondary)
             } else {
                 ProgressView()
             }
@@ -806,7 +819,8 @@ struct PDFPreview: View {
             document = opened
             failed = opened == nil
         }
-    }
+    
+        }}
 }
 
 private struct PDFKitView: UIViewRepresentable {

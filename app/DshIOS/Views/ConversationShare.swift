@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import UniformTypeIdentifiers
 
 /// 「分享为图片」: the conversation drawn as one long picture, sent on through the system share
@@ -29,6 +30,8 @@ struct ConversationShareSheet: View {
     private var chosen: [ShareRound] { rounds.filter { selected.contains($0.id) } }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
             ScrollView {
@@ -58,7 +61,7 @@ struct ConversationShareSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if rounds.count > 1 {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     let all = selected.count == rounds.count
                     Button(all ? LocalizedStringKey("全不选") : "全选") { selected = all ? [] : Set(rounds.map(\.id)) }
                 }
@@ -74,7 +77,8 @@ struct ConversationShareSheet: View {
             defer { drawing = false }
             image = ConversationShareCard.draw(title: title, rounds: chosen, locale: locale)
         }
-    }
+    
+        }}
 
     private var actions: some View {
         VStack(spacing: 8) {
@@ -215,6 +219,8 @@ struct ConversationShareCard: View {
     private static let pixelBudget: CGFloat = 32_000_000
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.horizontal, 20)
@@ -235,7 +241,8 @@ struct ConversationShareCard: View {
         .background(Palette.background)
         // The preview shows what the picture will: code whole, tables wrapped, no buttons.
         .environment(\.drawnAsPicture, true)
-    }
+    
+        }}
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {

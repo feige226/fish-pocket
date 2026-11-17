@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import Perception
 import UniformTypeIdentifiers
 
 /// The model picker in a blank conversation's top bar (a started one shows its
@@ -12,6 +13,8 @@ struct ModelPicker: View {
     @State private var searching = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Menu {
             if context.catalog.flatMap(\.models).count > 4 {
                 Button { searching = true } label: { Label("搜索模型…", systemImage: "magnifyingglass") }
@@ -53,10 +56,11 @@ struct ModelPicker: View {
         .accessibilityLabel(context.effortName(model).map { Text("模型：\(context.modelName(model))，推理档位 \($0)") } ?? Text("模型：\(context.modelName(model))"))
         .sheet(isPresented: $searching) { ModelSearchSheet(model: model, context: context) }
         // MS-03: a provider's key or adapter changed; the catalog the menu shows follows.
-        .onChange(of: app.revision("llm/adapters-updated", "settings/document-updated", "credentials/record-updated", "credentials/reference-updated")) {
+        .onChangeCompat(of: app.revision("llm/adapters-updated", "settings/document-updated", "credentials/record-updated", "credentials/reference-updated")) {
             Task { await context.loadCatalog(model) }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func modelItem(_ choice: ModelChoice) -> some View {
@@ -95,10 +99,13 @@ struct ModelPicker: View {
 /// The 「1017」 info tag after the model name.
 struct Badge1017: View {
     var body: some View {
+        WithPerceptionTracking {
+
         Text("1017").font(.caption2.weight(.semibold)).foregroundStyle(Color.accentColor)
             .padding(.horizontal, 5).padding(.vertical, 1)
             .background(Color.accentColor.opacity(0.12), in: Capsule())
-    }
+    
+        }}
 }
 
 /// The model list with search (MS-01): provider sections, ranked by the fuzzy
@@ -111,6 +118,8 @@ struct ModelSearchList: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if query.isEmpty, let choice = context.currentChoice(model), !choice.reasoningEfforts.isEmpty {
                 Section("档位") { levels(choice) }
@@ -152,7 +161,8 @@ struct ModelSearchList: View {
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索模型…")
         .navigationTitle("模型")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 
     /// The level stays in the list: picking one keeps the model and the page.
     /// Segments hold a handful of short names; an unusually long list falls back to a menu.
@@ -196,11 +206,14 @@ struct ModelSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             ModelSearchList(model: model, context: context).closeButton(dismiss)
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 }
 
 /// The message input: one rounded bar, the same in a new conversation and an
@@ -259,6 +272,8 @@ struct ComposerView: View {
     private var voice: VoiceInput { composer.voice }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let trigger = activeTrigger
         VStack(alignment: .leading, spacing: 8) {
             if let trigger {
@@ -272,8 +287,8 @@ struct ComposerView: View {
                     }
                 }
                 // The bar turns at the touch; only letting go eases back.
-                .animation(voice.holding ? nil : .snappy(duration: 0.18), value: voice.phase)
-                .animation(.snappy(duration: 0.18), value: voice.cancelArmed)
+                .animation(voice.holding ? nil : .spring(response: 0.18, dampingFraction: 0.82), value: voice.phase)
+                .animation(.spring(response: 0.18, dampingFraction: 0.82), value: voice.cancelArmed)
                 .composerSurface()
         }
         .task(id: pendingDraft) {
@@ -309,7 +324,7 @@ struct ComposerView: View {
             consumeFocus()
         }
         .photosPicker(isPresented: $showPhotos, selection: $photos, maxSelectionCount: max(1, composer.remainingImageSlots), matching: .any(of: [.images, .videos]), preferredItemEncoding: .current)
-        .onChange(of: photos) { _, items in
+        .onChangeCompat(of: photos) { _, items in
             Task { await loadPhotos(items) }
         }
         .fullScreenCover(isPresented: $showCamera) {
@@ -359,39 +374,44 @@ struct ComposerView: View {
         }
         .permissionConfirmation($confirmingPermission, confirm: applyPermission)
         // A popover has no `onDismiss`. A picker presented before its dismissal ends never shows.
-        .onChange(of: showTray) { _, open in
+        .onChangeCompat(of: showTray) { _, open in
             guard !open, sizeClass == .regular else { return }
             Task {
                 try? await Task.sleep(for: .milliseconds(450))
                 sheetClosed()
             }
         }
-        .onChange(of: showTray || showEditor || browsing != nil) { _, open in
+        .onChangeCompat(of: showTray || showEditor || browsing != nil) { _, open in
             if open { sheetUp.wrappedValue = true }
         }
-        .onChange(of: composer.focusRequest) { focused = true }
-        .onChange(of: focused) { _, now in
+        .onChangeCompat(of: composer.focusRequest) { focused = true }
+        .onChangeCompat(of: focused) { _, now in
             // Anything that brings the keyboard back (a prompt placed, a tray choice) shows the text.
             if now { voice.mode = false }
             focusChanged(now)
         }
         // A call or the app leaving the foreground ends the hold without a touch-up: throw it away.
-        .onChange(of: scenePhase) { _, phase in if phase != .active { voice.cancel() } }
+        .onChangeCompat(of: scenePhase) { _, phase in if phase != .active { voice.cancel() } }
         .onDisappear { voice.cancel() }
         // A picker closing gives the keyboard back when it was up before: typed into
         // (`/model`, `/file`) or reached from the tray while it was up.
-        .onChange(of: pickerUp) { _, open in
-            if open {
-                refocus = refocus || focused
-            } else {
-                if refocus { focused = true }
-                refocus = false
-            }
+        .onChangeCompat(of: pickerUp) { _, open in
+            pickerStateChanged(open)
         }
         // C-99 / C-110 / C-141: catalogs and the preference follow their engine events.
-        .onChange(of: app.revision("commands/change", "agent-preset/selected")) { Task { await context.loadCommands(model) } }
-        .onChange(of: app.revision("permission-presets/catalog-changed")) { Task { await context.loadPermissions(model) } }
-        .onChange(of: app.revision("settings/document-updated")) { Task { await context.loadSettings(model) } }
+        .onChangeCompat(of: app.revision("commands/change", "agent-preset/selected")) { Task { await context.loadCommands(model) } }
+        .onChangeCompat(of: app.revision("permission-presets/catalog-changed")) { Task { await context.loadPermissions(model) } }
+        .onChangeCompat(of: app.revision("settings/document-updated")) { Task { await context.loadSettings(model) } }
+    
+        }}
+
+    private func pickerStateChanged(_ open: Bool) {
+        if open {
+            refocus = refocus || focused
+        } else {
+            if refocus { focused = true }
+            refocus = false
+        }
     }
 
     /// The `/` or `@` token being typed. It needs the keyboard: hiding it folds the panel.
@@ -456,7 +476,7 @@ struct ComposerView: View {
             .focused($focused)
             .tint(Palette.ink)
             .padding(.trailing, tall ? 30 : 0)
-            .onGeometryChange(for: Bool.self) { $0.size.height > threeLines } action: { tall = $0 }
+            .onGeometryChangeCompat(for: Bool.self) { $0.size.height > threeLines } action: { tall = $0 }
             .overlay(alignment: .topTrailing) {
                 if tall {
                     Button { refocus = true; showEditor = true } label: {
@@ -924,12 +944,14 @@ struct CameraPicker: UIViewControllerRepresentable {
 
 /// The draft on a page of its own, for text too long for the input.
 private struct DraftEditor: View {
-    @Bindable var composer: ComposerModel
+    @Perception.Bindable var composer: ComposerModel
     let send: () -> Void
     @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         let editingQueue = composer.editingQueue != nil
         NavigationStack {
             VStack(alignment: .leading, spacing: 8) {
@@ -957,7 +979,8 @@ private struct DraftEditor: View {
                 .onAppear { focused = true }
         }
         .presentationDetents([.large])
-    }
+    
+        }}
 }
 
 extension View {
@@ -985,7 +1008,7 @@ struct FittedSheet: ViewModifier {
 
     func body(content: Content) -> some View {
         ScrollView {
-            content.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+            content.onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         }
         .scrollBounceBehavior(.basedOnSize)
         .presentationDetents([.height(height)])

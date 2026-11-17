@@ -137,7 +137,6 @@ struct MonoToggleStyle: ToggleStyle {
                     MonoSwitch(isOn: configuration.$isOn)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isToggle)
                 .accessibilityValue(configuration.isOn ? Text("开") : Text("关"))
                 .accessibilityAction { configuration.isOn.toggle() }
             }
@@ -172,12 +171,11 @@ struct MonoSwitch: View {
                     .frame(width: 22, height: 22)
                     .padding(3)
             }
-            .animation(.snappy(duration: 0.2), value: isOn)
+            .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isOn)
             .contentShape(Capsule())
             .onTapGesture { isOn.toggle(); Haptics.select() }
             .accessibilityElement()
             .accessibilityLabel(label ?? Text(""))
-            .accessibilityAddTraits(.isToggle)
             .accessibilityValue(isOn ? Text("开") : Text("关"))
             .accessibilityAction { isOn.toggle() }
     }
@@ -356,7 +354,7 @@ extension View {
     /// The same button, for a view its presenter closes.
     func closeButton(action: @escaping () -> Void) -> some View {
         toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button(action: action) { Image(systemName: "xmark") }
                     .accessibilityLabel("关闭")
             }
@@ -532,5 +530,35 @@ private struct StatusBarSoftening: View {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? scenes.first?.windows.first
         return window?.safeAreaInsets.top ?? 54
+    }
+}
+
+
+/// Back-port of SwiftUI's iOS 18 geometry observation for the iOS 16.4 build.
+private struct GeometryChangeCompatPreferenceKey<Value: Equatable>: PreferenceKey {
+    static var defaultValue: Value? { nil }
+
+    static func reduce(value: inout Value?, nextValue: () -> Value?) {
+        value = nextValue() ?? value
+    }
+}
+
+extension View {
+    func onGeometryChangeCompat<Value: Equatable>(
+        for valueType: Value.Type,
+        _ transform: @escaping (GeometryProxy) -> Value,
+        action: @escaping (Value) -> Void
+    ) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: GeometryChangeCompatPreferenceKey<Value>.self,
+                    value: transform(proxy)
+                )
+            }
+        }
+        .onPreferenceChange(GeometryChangeCompatPreferenceKey<Value>.self) { value in
+            if let value { action(value) }
+        }
     }
 }

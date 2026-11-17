@@ -1,11 +1,12 @@
 import SwiftUI
 
+import Perception
 /// The staged form every official plugin page shares (`SettingsFormModel`, F-50):
 /// edits stay local until 保存, which writes one `settings/mutate` fenced by the
 /// revision read when the first edit was staged. A field shows the user's own value;
 /// an inherited one is its placeholder, so grey means default.
 @MainActor
-@Observable
+@Perceptible
 final class StagedForm {
     enum Kind { case number((Double) -> Bool), text }
 
@@ -164,6 +165,8 @@ private struct StagedField: View {
     var keyboard: UIKeyboardType = .numberPad
 
     var body: some View {
+        WithPerceptionTracking {
+
         let mirror = app.settings
         VStack(alignment: .leading, spacing: 4) {
             if keyboard == .URL {
@@ -187,7 +190,8 @@ private struct StagedField: View {
         }
         .id(key)
         .resettable(form.overridden(key, mirror)) { form.reset(key, mirror) }
-    }
+    
+        }}
 
     private func field(_ mirror: SettingsMirror) -> some View {
         TextField(form.placeholder(key, mirror), text: Binding(get: { form.display(key, mirror) }, set: { form.edit(key, $0, mirror) }))
@@ -218,6 +222,8 @@ private struct OfficialForm<Content: View>: View {
     private static var failure: String { "official-form-failure" }
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollViewReader { proxy in
             Form {
                 if app.settings.loaded && !available {
@@ -236,7 +242,7 @@ private struct OfficialForm<Content: View>: View {
                     content.disabled(!app.settings.writable || saving)
                 }
             }
-            .onChange(of: failed) { _, failed in
+            .onChangeCompat(of: failed) { _, failed in
                 guard failed else { return }
                 withAnimation { proxy.scrollTo(failedField ?? Self.failure, anchor: .center) }
             }
@@ -259,7 +265,8 @@ private struct OfficialForm<Content: View>: View {
         }
         .dismisses(when: saved)
         .followSettings()
-    }
+    
+        }}
 }
 
 /// PC-01…PC-04.
@@ -267,13 +274,16 @@ struct OfficialPluginPage: View {
     let page: OfficialPluginItem.Page
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch page {
         case .subagent: SubagentSettingsPage()
         case .webSearch: WebSearchSettingsPage()
         case .agentLoop: AgentLoopSettingsPage()
         case .shell: ShellSettingsPage()
         }
-    }
+    
+        }}
 }
 
 private func integerAtLeast(_ minimum: Double) -> (Double) -> Bool {
@@ -286,6 +296,8 @@ private struct AgentLoopSettingsPage: View {
     @State private var form = StagedForm(ns: "agent-loop", specs: [.init(key: "maxParallelToolCalls", kind: .number { _ in true })])
 
     var body: some View {
+        WithPerceptionTracking {
+
         OfficialForm(title: "Agent 循环", available: app.settings.serves("agent-loop"), dirty: form.dirty, invalid: form.invalid, saving: form.saving, failed: form.failed, failedField: form.failedField, discard: form.discard, save: { await form.save(app.settings) }) {
             Section {
                 StagedField(form: form, key: "maxParallelToolCalls", title: "并行工具调用数")
@@ -294,7 +306,8 @@ private struct AgentLoopSettingsPage: View {
             }
             .groupedRow()
         }
-    }
+    
+        }}
 }
 
 /// PC-04: `pwsh-sandbox` where the Host serves it, else `bash-sandbox`.
@@ -310,6 +323,8 @@ private struct ShellSettingsPage: View {
     private var form: StagedForm { app.settings.serves("pwsh-sandbox") ? pwsh : bash }
 
     var body: some View {
+        WithPerceptionTracking {
+
         OfficialForm(title: "终端", available: app.settings.serves(form.ns), dirty: form.dirty, invalid: form.invalid, saving: form.saving, failed: form.failed, failedField: form.failedField, discard: form.discard, save: { await form.save(app.settings) }) {
             Section {
                 StagedField(form: form, key: "timeoutMs", title: "命令超时", unit: "毫秒")
@@ -319,7 +334,8 @@ private struct ShellSettingsPage: View {
             }
             .groupedRow()
         }
-    }
+    
+        }}
 }
 
 /// PC-01: limits, and which models the Agent may pick for subagents. One 保存 writes
@@ -355,6 +371,8 @@ private struct SubagentSettingsPage: View {
     private static func key(_ route: JSON) -> String { "\(route["provider"].string ?? "")\u{0}\(route["model"].string ?? "")" }
 
     var body: some View {
+        WithPerceptionTracking {
+
         OfficialForm(title: "子智能体", available: app.settings.serves("subagent"), dirty: limits.dirty || modelsDirty, invalid: limits.invalid || needsModel, saving: saving || limits.saving, failed: failed || limits.failed || conflicted, failedField: limits.failedField ?? (conflicted ? Self.modelSelectionRow : nil), discard: discard, save: save) {
             Section {
                 StagedField(form: limits, key: "maxDepth", title: "最大递归深度")
@@ -388,7 +406,8 @@ private struct SubagentSettingsPage: View {
             }
         }
         .task { await loadCatalog() }
-    }
+    
+        }}
 
     @ViewBuilder
     private var modelSections: some View {
@@ -524,6 +543,8 @@ private struct WebSearchSettingsPage: View {
     private var invalid: Bool { messages.invalid || api.invalid }
 
     var body: some View {
+        WithPerceptionTracking {
+
         OfficialForm(title: "网页搜索", available: available, dirty: dirty, invalid: invalid, saving: saving, failed: messages.failed || api.failed || selection.failed, discard: discard, save: save) {
             if switchAvailable {
                 Section {
@@ -557,7 +578,8 @@ private struct WebSearchSettingsPage: View {
             .groupedRow()
         }
         .task(id: "\(ref)#\(app.settingsRevision)") { await readCredential() }
-    }
+    
+        }}
 
     /// The endpoint and limits of the selected way of searching; staged with the page.
     private var advanced: some View {

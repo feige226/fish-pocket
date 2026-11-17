@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 「添加一个 API Key 开始使用」: the official credential-only editor. Only the
 /// key is written (`credentials/set`), never the settings.
 struct OnboardingKeySheet: View {
@@ -24,6 +25,8 @@ struct OnboardingKeySheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("添加一个 API Key 开始使用").font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
@@ -68,7 +71,8 @@ struct OnboardingKeySheet: View {
         .fittedSheet()
         .interactiveDismissDisabled()
         .onAppear { focused = true }
-    }
+    
+        }}
 
     private func save() async {
         busy = true

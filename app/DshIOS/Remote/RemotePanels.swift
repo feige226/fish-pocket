@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The model, its reasoning level and the permission a remote session runs with: what the
 /// agent on the computer offers, changed there.
 struct RemoteOptionsSheet: View {
@@ -10,6 +11,8 @@ struct RemoteOptionsSheet: View {
     private var permissionSelection: String? { model.state?.selections["permission"] ?? nil }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 if let catalog = model.catalog {
@@ -67,7 +70,8 @@ struct RemoteOptionsSheet: View {
         .tint(Palette.ink)
         .presentationDetents([.medium, .large])
         .task { await model.loadCatalog(force: true) }
-    }
+    
+        }}
 
     private func groups(_ models: [RemoteModelOption]) -> [(name: String?, models: [RemoteModelOption])] {
         var order: [String?] = []
@@ -110,6 +114,8 @@ struct RemoteInfoSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 if let meta = model.meta {
@@ -155,7 +161,8 @@ struct RemoteInfoSheet: View {
         .tint(Palette.ink)
         .presentationDetents([.medium, .large])
         .task { await model.loadCatalog() }
-    }
+    
+        }}
 }
 
 /// The files the loaded turns changed, each with its diff: the workbench's 改动 for a remote session.
@@ -164,11 +171,17 @@ struct RemoteChangesSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         let changes = FileChange.collect(model.blocks, root: model.cwd)
         NavigationStack {
             Group {
                 if changes.isEmpty {
-                    ContentUnavailableView("还没有改动", systemImage: "doc.text.magnifyingglass", description: Text("智能体改过的文件会显示在这里。"))
+                    CompatEmptyState(
+                        title: "还没有改动",
+                        systemImage: "doc.text.magnifyingglass",
+                        message: "智能体改过的文件会显示在这里。"
+                    )
                 } else {
                     List {
                         Section {
@@ -205,7 +218,8 @@ struct RemoteChangesSheet: View {
             }
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 }
 
 /// The session's folder on the computer, read through the account's server: folders to walk
@@ -217,6 +231,8 @@ struct RemoteFilesSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             RemoteDirectoryPage(deviceId: deviceId, root: root, path: root, title: (root as NSString).lastPathComponent)
                 .closeButton(dismiss)
@@ -231,7 +247,8 @@ struct RemoteFilesSheet: View {
                 }
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 }
 
 private struct RemoteDirectoryPage: View {
@@ -258,6 +275,8 @@ private struct RemoteDirectoryPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if entries != nil {
                 Section {
@@ -281,18 +300,22 @@ private struct RemoteDirectoryPage: View {
         .overlay {
             if let entries {
                 if entries.isEmpty {
-                    ContentUnavailableView("空文件夹", systemImage: "folder")
+                    CompatEmptyState(title: "空文件夹", systemImage: "folder")
                 } else if shown.isEmpty {
-                    ContentUnavailableView.search(text: query)
+                    CompatEmptyState(
+                        title: "没有匹配的文件",
+                        systemImage: "magnifyingglass",
+                        message: query.isEmpty ? nil : "没有找到“\(query)”"
+                    )
                 }
             } else if let failure {
-                ContentUnavailableView {
-                    Label("读不到这个文件夹", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(failure)
-                } actions: {
-                    Button("重试") { Task { await load() } }
-                }
+                CompatEmptyState(
+                    title: "读不到这个文件夹",
+                    systemImage: "exclamationmark.triangle",
+                    message: failure,
+                    actionTitle: "重试",
+                    action: { Task { await load() } }
+                )
             } else {
                 ProgressView()
             }
@@ -301,7 +324,8 @@ private struct RemoteDirectoryPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { if entries == nil { await load() } }
         .refreshable { await load() }
-    }
+    
+        }}
 
     private func row(_ entry: RemoteFileEntry) -> some View {
         HStack(spacing: 14) {
@@ -358,6 +382,8 @@ private struct RemoteFilePage: View {
     private var isMarkdown: Bool { ["md", "markdown"].contains((entry.name as NSString).pathExtension.lowercased()) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let text {
                 ScrollView {
@@ -375,7 +401,11 @@ private struct RemoteFilePage: View {
                     .padding(16)
                 }
             } else if let failure {
-                ContentUnavailableView("打不开这个文件", systemImage: "doc.questionmark", description: Text(failure))
+                CompatEmptyState(
+                    title: "打不开这个文件",
+                    systemImage: "doc.questionmark",
+                    message: failure
+                )
             } else {
                 ProgressView()
             }
@@ -386,7 +416,7 @@ private struct RemoteFilePage: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let text {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     if isMarkdown {
                         Button { rendered.toggle() } label: { Image(systemName: rendered ? "chevron.left.forwardslash.chevron.right" : "doc.richtext") }
                             .accessibilityLabel(rendered ? "查看源文本" : "查看排版")
@@ -397,7 +427,8 @@ private struct RemoteFilePage: View {
             }
         }
         .task { if text == nil { await load() } }
-    }
+    
+        }}
 
     private func load() async {
         guard let client = app.remote.client else { return }

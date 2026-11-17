@@ -1,12 +1,12 @@
 import AVFoundation
 import Foundation
-import Observation
+import Perception
 import Security
 
 /// Hold-to-talk through Volcengine's streaming recognition (豆包语音), on the user's own API Key.
 /// The key stays in this device's keychain; audio goes straight from the phone to Volcengine.
 @MainActor
-@Observable
+@Perceptible
 final class VolcSpeech {
     static let shared = VolcSpeech()
 
@@ -150,7 +150,7 @@ final class VolcTranscriber: SpeechTranscriber {
         level: @escaping @MainActor (Float) -> Void,
         failed: @escaping @MainActor (Error) -> Void
     ) async throws {
-        guard AVAudioApplication.shared.recordPermission == .granted else { throw VoiceError.microphoneDenied }
+        guard AVAudioSession.sharedInstance().recordPermission == .granted else { throw VoiceError.microphoneDenied }
         let stream = stream
         mic.onChunk = { stream.send(audio: $0, last: false) }
         mic.onLevel = { value in Task { @MainActor in level(value) } }

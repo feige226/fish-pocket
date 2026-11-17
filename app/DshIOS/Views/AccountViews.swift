@@ -1,9 +1,12 @@
 import SafariServices
 import SwiftUI
 
+import Perception
 /// What the app can and cannot see of a DeepSeek sign-in, shown wherever sign-in starts.
 struct SignInPrivacyNote: View {
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "lock.shield").font(.subheadline).foregroundStyle(Palette.secondary)
             Text("登录在 DeepSeek 官方页面完成，本 App 读不到你的任何登录信息：登录页运行在与 App 隔离的系统 Safari 中。")
@@ -15,7 +18,8 @@ struct SignInPrivacyNote: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.control, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// One way in on the 开始使用 sheet: a card, the whole of it a button. The ways are drawn alike.
@@ -27,6 +31,8 @@ struct SignInChoice: View {
     let action: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button(action: action) {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: icon)
@@ -56,7 +62,8 @@ struct SignInChoice: View {
         }
         .buttonStyle(PressableCardStyle())
         .disabled(busy)
-    }
+    
+        }}
 }
 
 /// A card that sinks a little under the finger.
@@ -64,7 +71,7 @@ struct PressableCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.snappy(duration: 0.2), value: configuration.isPressed)
+            .animation(.spring(response: 0.2, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -96,6 +103,8 @@ struct SignInSheet: View {
     private var phase: String? { account.phase }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
                 Text(title).font(.title3.weight(.semibold)).foregroundStyle(Palette.ink)
@@ -119,20 +128,21 @@ struct SignInSheet: View {
         .background(Palette.background)
         .presentationDetents([.medium, Self.choicesDetent, .large], selection: $detent)
         // Waiting on the browser needs little room; back to the choices, tall again.
-        .onChange(of: account.attemptActive) { _, active in detent = active ? .medium : Self.choicesDetent }
+        .onChangeCompat(of: account.attemptActive) { _, active in detent = active ? .medium : Self.choicesDetent }
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(phase == "committing")
         .task {
             if autoStart && !account.attemptActive && !account.signedIn { await start() }
             else { openBrowserIfNeeded() }
         }
-        .onChange(of: account.view) { _, _ in update() }
+        .onChangeCompat(of: account.view) { _, _ in update() }
         .onDisappear {
             // Closing the dialog gives the attempt up, as on the web; Safari covering it does not.
             guard safari?.presentingViewController == nil else { return }
             if account.attemptActive && phase != "committing" { Task { await account.cancelSignIn() } }
         }
-    }
+    
+        }}
 
     private var title: LocalizedStringKey {
         if localFailed || phase == "failed" { return "登录失败" }
@@ -281,6 +291,8 @@ struct DeepSeekKeyRow: View {
     @State private var draft = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button {
             draft = ""
             editing = true
@@ -307,7 +319,8 @@ struct DeepSeekKeyRow: View {
         } message: {
             Text("只保存在本机引擎里，任何读取接口都不会返回它。")
         }
-    }
+    
+        }}
 
     private func load() async {
         if let value = try? await app.client.call("credentials/describe", ["refs": ["DEEPSEEK_API_KEY"]]) {
@@ -329,6 +342,8 @@ struct AccountPage: View {
     private var account: AccountModel { app.account }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if !account.signedIn && !account.attemptActive {
                 signedOut
@@ -364,7 +379,8 @@ struct AccountPage: View {
             case .unknown: Text("暂时无法确认任务状态。退出登录可能会中断使用此账号的任务，是否继续？")
             }
         }
-    }
+    
+        }}
 
     private var signedOut: some View {
         Section {
@@ -524,6 +540,8 @@ struct AccountAvatar: View {
     var size: CGFloat = 36
 
     var body: some View {
+        WithPerceptionTracking {
+
         AsyncImage(url: url) { image in
             image.resizable().scaledToFill()
         } placeholder: {
@@ -533,7 +551,8 @@ struct AccountAvatar: View {
         .background(Palette.control)
         .clipShape(Circle())
         .accessibilityHidden(true)
-    }
+    
+        }}
 }
 
 /// Shell notices from the account: the toast line and the bonus card stack.
@@ -541,6 +560,8 @@ struct AccountNotices: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 8) {
             if let toast = app.account.toast {
                 Text(toast)
@@ -564,9 +585,10 @@ struct AccountNotices: View {
             }
         }
         .padding(.top, 4)
-        .animation(.snappy, value: app.account.toast)
-        .animation(.snappy, value: app.account.bonuses)
-    }
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.account.toast)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.account.bonuses)
+    
+        }}
 }
 
 private struct BonusCard: View {
@@ -574,6 +596,8 @@ private struct BonusCard: View {
     let close: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "gift").font(.callout).foregroundStyle(Palette.ink)
             VStack(alignment: .leading, spacing: 2) {
@@ -591,5 +615,6 @@ private struct BonusCard: View {
         .background(Palette.grouped, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Palette.stroke))
         .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
-    }
+    
+        }}
 }

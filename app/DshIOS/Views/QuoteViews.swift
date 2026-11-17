@@ -30,10 +30,10 @@ struct QuotePreview: View {
             Text(line)
                 .lineLimit(1)
                 .foregroundStyle(Palette.secondary)
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { shownWidth = $0 }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.width } action: { shownWidth = $0 }
                 .background(alignment: .leading) {
                     Text(line).lineLimit(1).fixedSize().hidden()
-                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
+                        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture { if clipped { showAll = true } }
@@ -66,7 +66,7 @@ struct QuoteRail: View {
         if !quotes.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(Array(quotes.enumerated()), id: \.offset) { index, quote in
-                    QuotePreview(text: quote) { withAnimation(.snappy(duration: 0.18)) { remove(index) } }
+                    QuotePreview(text: quote) { withAnimation(.spring(response: 0.18, dampingFraction: 0.82)) { remove(index) } }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

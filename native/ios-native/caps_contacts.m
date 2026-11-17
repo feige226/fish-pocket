@@ -91,7 +91,7 @@ typedef NS_ENUM(NSInteger, ContactsAccess) {
 static ContactsAccess current_access(void) {
   CNAuthorizationStatus status = [CNContactStore authorizationStatusForEntityType:CNEntityTypeContacts];
   // Compared outside the switch because the constant only exists from iOS 18 and
-  // the deployment target is 17. Below 18 the system cannot return it at all.
+  // the deployment target is 16.4. Below 18 the system cannot return it at all.
   if (@available(iOS 18.0, *)) {
     if (status == CNAuthorizationStatusLimited) return ContactsAccessLimited;
   }

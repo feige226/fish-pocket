@@ -1,6 +1,7 @@
 import StoreKit
 import SwiftUI
 
+import Perception
 /// The root. From iOS 18 the system's adaptable tab bar in every width: 会话, Bot, 应用, 探索 and 设置,
 /// at the bottom on a phone, at the top or as a sidebar where there is room (iPad, iPhone Duo open).
 /// The 会话 tab pushes a conversation over its list where it is narrow and keeps one beside it where it
@@ -184,17 +185,17 @@ struct MainView: View {
             }
         }
         // The drawer and the new conversation page, which have no way to the store themselves.
-        .onChange(of: app.pluginStoreRequest) { _, token in
+        .onChangeCompat(of: app.pluginStoreRequest) { _, token in
             guard token != nil, scenePhase != .background else { return }
             app.pluginStoreRequest = nil
             openPlugins()
         }
-        .onChange(of: app.webRequest) { _, token in
+        .onChangeCompat(of: app.webRequest) { _, token in
             guard token != nil, scenePhase != .background else { return }
             app.webRequest = nil
             webOpen = true
         }
-        .onChange(of: app.botTeam.openRequest?.token) { _, token in
+        .onChangeCompat(of: app.botTeam.openRequest?.token) { _, token in
             guard token != nil, let request = app.botTeam.openRequest else { return }
             app.botTeam.openRequest = nil
             sheet = nil
@@ -205,19 +206,19 @@ struct MainView: View {
             setDrawer(false)
         }
         // The sidebar's own row; the page is also still under Settings.
-        .onChange(of: app.nativeCapabilitiesRequest) { _, token in
+        .onChangeCompat(of: app.nativeCapabilitiesRequest) { _, token in
             guard token != nil, scenePhase != .background else { return }
             app.nativeCapabilitiesRequest = nil
             sheet = .capabilities
         }
-        .onChange(of: app.remoteRequest) { _, token in
+        .onChangeCompat(of: app.remoteRequest) { _, token in
             guard token != nil, scenePhase != .background else { return }
             app.remoteRequest = nil
             setDrawer(false)
             sheet = .remote
         }
         // Asked for from the sidebar, a conversation or a page inside a sheet: that sheet goes first.
-        .onChange(of: app.remoteSessionRequest) { _, request in
+        .onChangeCompat(of: app.remoteSessionRequest) { _, request in
             guard let request, scenePhase != .background else { return }
             app.remoteSessionRequest = nil
             setDrawer(false)
@@ -230,45 +231,45 @@ struct MainView: View {
         }
         .sheet(item: $remoteTarget) { RemoteNewSessionSheet(target: $0).sheetNotices() }
         // Signed out of remote control (or the server ended it): its conversation has nothing to show.
-        .onChange(of: app.remote.signedIn) { _, signedIn in
+        .onChangeCompat(of: app.remote.signedIn) { _, signedIn in
             if !signedIn, RemoteStore.sessionId(of: selection) != nil { selection = nil }
         }
         // Its computer was taken off the account: the same.
-        .onChange(of: app.remote.departed) { _, gone in
+        .onChangeCompat(of: app.remote.departed) { _, gone in
             if let id = RemoteStore.sessionId(of: selection), gone.contains(id) { selection = nil }
         }
-        .onChange(of: app.connectorsRequest) { _, token in
+        .onChangeCompat(of: app.connectorsRequest) { _, token in
             guard token != nil, scenePhase != .background else { return }
             app.connectorsRequest = nil
             sheet = .connectors
         }
-        .onChange(of: app.phoneControlRequest) { _, token in
+        .onChangeCompat(of: app.phoneControlRequest) { _, token in
             guard token != nil, scenePhase != .background else { return }
             app.phoneControlRequest = nil
             sheet = .phoneControl
         }
         .fullScreenCover(isPresented: $webOpen) { WebFallbackView() }
         // The Live Activity and the widgets; a cold launch keeps the link until this view is up.
-        .onChange(of: link?.token, initial: true) {
+        .onChangeCompat(of: link?.token, initial: true) {
             guard let request = link else { return }
             link = nil
             Task { await follow(request.link) }
         }
-        .onChange(of: workspaceId) { WidgetSnapshotWriter.shared.refresh() }
+        .onChangeCompat(of: workspaceId) { _, _ in WidgetSnapshotWriter.shared.refresh() }
         .onAppear { settledWidth = sizeClass }
-        .onChange(of: sizeClass) { _, size in
+        .onChangeCompat(of: sizeClass) { _, size in
             if scenePhase == .active { settle(size) }
         }
         // On the tab bar the Bot pages are its Bot tab. A conversation left pushed under another
         // tab is not on screen: what finishes there meanwhile is marked unread, and the watch told.
-        .onChange(of: tab) { _, tab in
+        .onChangeCompat(of: tab) { _, tab in
             guard usesTabs else { return }
             botOpen = tab == .bot
             app.currentSession = shownSession
         }
-        .onChange(of: botOpen) { _, open in if usesTabs, open { tab = .bot } }
+        .onChangeCompat(of: botOpen) { _, open in if usesTabs, open { tab = .bot } }
         // Back to the list (or the archive) on the 会话 tab: no conversation on screen any more.
-        .onChange(of: sessionsPath) { _, path in
+        .onChangeCompat(of: sessionsPath) { _, path in
             guard usesTabs else { return }
             let top = path.last?.session
             if top != selection { selection = top }
@@ -281,16 +282,16 @@ struct MainView: View {
     private var shell: some View {
         layout
         .tint(Palette.ink)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
+        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.width } action: { windowWidth = $0 }
         .focusedSceneValue(\.windowCommands, windowCommands)
         .task(id: app.workspaces.map(\.id)) { launched() }
-        .onChange(of: place) { _, place in
+        .onChangeCompat(of: place) { _, place in
             if placeRestored, let place { UserDefaults.standard.set(place, forKey: Self.placeKey) }
         }
         // Which store this copy came from: only an App Store install is asked for a rating.
         .task { await AppDistribution.refresh() }
         // The sidebar's 我的应用 row; on the tab bar the page is a tab.
-        .onChange(of: app.miniAppsRequest) { _, token in
+        .onChangeCompat(of: app.miniAppsRequest) { _, token in
             guard token != nil, scenePhase != .background else { return }
             app.miniAppsRequest = nil
             if usesTabs { tab = .apps } else { sheet = .miniApps }
@@ -323,7 +324,7 @@ struct MainView: View {
             }
         }
         // Windows take turns: what is read is the one in front.
-        .onChange(of: scenePhase) { _, phase in
+        .onChangeCompat(of: scenePhase) { _, phase in
             if phase == .active {
                 // Folded or opened while away: that one counts.
                 settle(sizeClass)
@@ -332,8 +333,8 @@ struct MainView: View {
             }
         }
         // Reading aloud belongs to the conversation on screen: moving to another one stops it.
-        .onChange(of: onScreen, initial: true) { _, session in ReadAloud.shared.scope = session }
-        .onChange(of: selection) { _, id in
+        .onChangeCompat(of: onScreen, initial: true) { _, session in ReadAloud.shared.scope = session }
+        .onChangeCompat(of: selection) { _, id in
             app.currentSession = shownSession
             if usesTabs {
                 showInTabs(id)
@@ -347,11 +348,11 @@ struct MainView: View {
             }
         }
         // An archived current session leaves the main view (here, the drawer, a follow push).
-        .onChange(of: app.archived) { _, archived in
+        .onChangeCompat(of: app.archived) { _, archived in
             if let selection, archived.contains(selection) { self.selection = nil }
         }
         // `app.open(session:)`: toasts, the subagent catalog, schedules…
-        .onChange(of: app.openRequest?.token) { _, token in
+        .onChangeCompat(of: app.openRequest?.token) { _, token in
             guard token != nil, scenePhase != .background, let id = app.openRequest?.id else { return }
             app.openRequest = nil
             // Asked for over a sheet (a toast there): the sheet goes, or the session opens unseen behind it.
@@ -361,7 +362,7 @@ struct MainView: View {
             if usesTabs { showInTabs(id) }
             setDrawer(false)
         }
-        .onChange(of: app.newSessionRequest?.token) { _, token in
+        .onChangeCompat(of: app.newSessionRequest?.token) { _, token in
             guard token != nil, scenePhase != .background, let request = app.newSessionRequest else { return }
             app.newSessionRequest = nil
             sheet = nil
@@ -375,7 +376,7 @@ struct MainView: View {
             newConversation(in: target, agentPreset: request.agentPreset, draft: request.draft, prompt: request.prompt)
             setDrawer(false)
         }
-        .onChange(of: app.credentialRequest?.token) { _, token in
+        .onChangeCompat(of: app.credentialRequest?.token) { _, token in
             guard token != nil, scenePhase != .background, let step = app.credentialRequest?.step else { return }
             app.credentialRequest = nil
             Task { await openCredentials(step) }
@@ -502,6 +503,8 @@ struct MainView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         shell
         .sheet(item: $sheet) { page(of: $0).sheetNotices() }
         .sheet(item: $onboarding, onDismiss: onboardingDismissed) { step in
@@ -529,7 +532,7 @@ struct MainView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.94)))
             }
         }
-        .animation(.snappy, value: supportDialog)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: supportDialog)
         // A live turn ran out of account balance: offer Platform's top-up page, then re-read balances.
         .alert("当前无可用余额", isPresented: Binding(get: { app.account.quotaPrompt }, set: { app.account.quotaPrompt = $0 })) {
             Button("取消", role: .cancel) {}
@@ -550,14 +553,15 @@ struct MainView: View {
         } message: {
             Text("它们仍然装着。可以在插件页逐个重新打开，找出是哪个卡住了引擎。\n\n\((safeModeDisabled ?? []).joined(separator: "\n"))")
         }
-        .onChange(of: app.lastError) { _, error in if error != nil { Haptics.error() } }
+        .onChangeCompat(of: app.lastError) { _, error in if error != nil { Haptics.error() } }
         .alert("出错了", isPresented: Binding(get: { app.lastError != nil }, set: { if !$0 { app.lastError = nil } })) {
             Button("好", role: .cancel) {}
         } message: {
             Text(app.lastError ?? "")
         }
         .environment(\.openSession) { open(session: $0) }
-    }
+    
+        }}
 
     // MARK: Credentials
 
@@ -739,7 +743,7 @@ struct MainView: View {
                     drag = min(0, translation)
                 } ended: { predicted in
                     if predicted == 0, drag != 0 {
-                        withAnimation(.snappy(duration: 0.25)) { drag = 0 }
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { drag = 0 }
                     } else {
                         settleDrawer(predicted: predicted, width: width)
                     }
@@ -752,7 +756,7 @@ struct MainView: View {
         guard drag != 0 else { return }
         let open = drawerOpen ? predicted > -width / 2 : predicted > width / 2
         if open != drawerOpen { Haptics.select() }
-        withAnimation(.snappy(duration: 0.25)) {
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) {
             drawerOpen = open
             drag = 0
         }
@@ -779,7 +783,7 @@ struct MainView: View {
 
     private func setDrawer(_ open: Bool) {
         if open { dismissKeyboard() }
-        withAnimation(.snappy(duration: 0.25)) { drawerOpen = open }
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { drawerOpen = open }
     }
 
     private var drawer: some View { drawer(.sidebar) }
@@ -997,7 +1001,7 @@ struct MainView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Palette.background)
-                .toolbar { if let openDrawer { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) } } }
+                .toolbar { if let openDrawer { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) } } }
         }
     }
 
@@ -1109,7 +1113,11 @@ private struct SidebarToggle: ViewModifier {
     let system: Bool
 
     func body(content: Content) -> some View {
-        if system { content } else { content.toolbar(removing: .sidebarToggle) }
+        if #available(iOS 17.0, *) {
+            if system { content } else { content.toolbar(removing: .sidebarToggle) }
+        } else {
+            content
+        }
     }
 }
 
@@ -1123,7 +1131,7 @@ private struct PastTheFold: ViewModifier {
         content
             .padding(.leading, inset)
             .background(Palette.background)
-            .onGeometryChange(for: CGFloat.self) { proxy in
+            .onGeometryChangeCompat(for: CGFloat.self) { proxy in
                 guard let fold = proxy.fold, fold.height > fold.width, fold.midX < proxy.size.width / 2 else { return 0 }
                 return max(0, fold.maxX)
             } action: { inset = $0 }
@@ -1136,8 +1144,11 @@ struct SheetStack<Content: View>: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack { content.closeButton(dismiss) }
-    }
+    
+        }}
 }
 
 /// A leftward swipe over the open drawer, reported as it follows the finger. It begins only for

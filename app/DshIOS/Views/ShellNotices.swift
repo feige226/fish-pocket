@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Shell notices, filling the screen they sit on (the gap between them takes no
 /// touches). On top, what describes the app's state: the connection banner (S-10)
 /// and the account notices. At the bottom, in the thumb's reach just above the
@@ -14,6 +15,8 @@ struct ShellNotices: View {
     private var bottomInset: CGFloat { hosted ? 56 : app.composerHeight + 8 }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 8) {
             if showOffline {
                 Label("引擎已断开，正在重连…", systemImage: "wifi.exclamationmark")
@@ -40,15 +43,16 @@ struct ShellNotices: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, bottomInset)
-        .animation(.snappy, value: app.toast)
-        .animation(.snappy, value: ReadAloud.shared.speaking)
-        .animation(.snappy, value: showOffline)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: app.toast)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: ReadAloud.shared.speaking)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: showOffline)
         .task(id: app.connected) {
             guard !app.connected, app.generation > 0 else { showOffline = false; return }
             try? await Task.sleep(for: .seconds(1.5))
             if !Task.isCancelled { showOffline = true }
         }
-    }
+    
+        }}
 }
 
 /// The toast bar: an icon for its tone, the short text, and its button on the
@@ -58,6 +62,8 @@ private struct ToastView: View {
     let dismiss: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 8) {
             switch toast.tone {
             case .success: Image(systemName: "checkmark.circle.fill")
@@ -97,7 +103,8 @@ private struct ToastView: View {
             // raises it just as the install sheet closes.
             if !Task.isCancelled { dismiss() }
         }
-    }
+    
+        }}
 }
 
 /// While a reply is read aloud: what is happening, pause or go on, and stop.
@@ -105,11 +112,20 @@ private struct ReadAloudBar: View {
     private var reading: ReadAloud { .shared }
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 4) {
-            Image(systemName: "speaker.wave.2.fill")
-                .symbolEffect(.variableColor.iterative, isActive: !reading.paused)
-                .foregroundStyle(Palette.secondary)
-                .padding(.leading, 14)
+            if #available(iOS 17.0, *) {
+                Image(systemName: "speaker.wave.2.fill")
+                    .symbolEffect(.variableColor.iterative, isActive: !reading.paused)
+                    .foregroundStyle(Palette.secondary)
+                    .padding(.leading, 14)
+            } else {
+                Image(systemName: "speaker.wave.2.fill")
+                    .foregroundStyle(Palette.secondary)
+                    .opacity(reading.paused ? 0.55 : 1)
+                    .padding(.leading, 14)
+            }
             (reading.paused ? Text("朗读已暂停") : Text("正在朗读"))
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Palette.ink)
@@ -136,5 +152,6 @@ private struct ReadAloudBar: View {
         .background(Palette.grouped, in: Capsule())
         .overlay(Capsule().strokeBorder(Palette.stroke))
         .accessibilityElement(children: .contain)
-    }
+    
+        }}
 }

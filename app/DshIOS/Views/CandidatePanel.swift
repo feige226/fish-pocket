@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What picking a candidate does: run the `/` row's decision, or put text in place
 /// of the token (`keepOpen`: a directory drill, the menu continues one level down).
 enum Candidate {
@@ -41,6 +42,8 @@ struct CandidatePanel: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let rows = hit.trigger == "/" ? commandRows : references
         VStack(alignment: .leading, spacing: 0) {
             if rows.isEmpty {
@@ -80,7 +83,8 @@ struct CandidatePanel: View {
             references = rows
             searched = true
         }
-    }
+    
+        }}
 
     private func rowView(_ row: Row) -> some View {
         CandidateRowView(row: row, pick: pick, descend: pick)
@@ -184,6 +188,8 @@ struct CandidateRowView: View {
     let descend: (Candidate) -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 0) {
             Button { pick(row.candidate) } label: {
                 HStack(spacing: 10) {
@@ -212,7 +218,8 @@ struct CandidateRowView: View {
                 .accessibilityLabel("进入目录")
             }
         }
-    }
+    
+        }}
 }
 
 /// Every candidate with a search field: the panel's 「全部」 and the ＋ tray's
@@ -256,6 +263,8 @@ struct CandidateList: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if rows.isEmpty {
                 if trigger == "/" || searched {
@@ -286,7 +295,8 @@ struct CandidateList: View {
             references = rows
             searched = true
         }
-    }
+    
+        }}
 
     /// The folder's mention is a live token: its query lists the folder.
     private func descend(_ candidate: Candidate) {
@@ -310,12 +320,15 @@ struct CandidateSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             CandidateList(model: model, context: context, trigger: hit.trigger, query: hit.query, quoted: hit.quoted, leading: hit.leading, pick: pick)
                 .closeButton(dismiss)
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 }
 
 /// Attachments waiting in the composer (C-106): image thumbnails and file cards
@@ -324,6 +337,8 @@ struct AttachmentRail: View {
     let composer: ComposerModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         if !composer.attachments.isEmpty {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -343,12 +358,13 @@ struct AttachmentRail: View {
                     .padding(.top, 4)
                     .padding(.trailing, 4)
                 }
-                .onChange(of: composer.attachments.count) { old, new in
+                .onChangeCompat(of: composer.attachments.count) { old, new in
                     if new > old, let last = composer.attachments.last { withAnimation { proxy.scrollTo(last.id, anchor: .trailing) } }
                 }
             }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func item(_ attachment: DraftAttachment) -> some View {

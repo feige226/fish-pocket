@@ -1,6 +1,6 @@
 import ActivityKit
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 /// Mirrors agent work onto one Live Activity while the user is away from it: the phone's own
@@ -85,7 +85,7 @@ final class LiveActivityController {
         // reads the session list too: a change there comes back here to follow another.
         hold(Self.runningSessions(in: app).first?.id)
         let held = held
-        let next = withObservationTracking { Self.state(of: app, held: held) } onChange: { [weak self] in
+        let next = withPerceptionTracking { Self.state(of: app, held: held) } onChange: { [weak self] in
             Task { @MainActor in self?.observe() }
         }
         apply(next)

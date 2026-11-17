@@ -1,6 +1,6 @@
 import AVFoundation
 import SwiftUI
-
+import Perception
 /// 设置 → 语音: which service recognizes hold-to-talk, and the voice replies are read in. DeepSeek uses the key or account the
 /// models already use; Volcengine (豆包语音) takes the user's own API Key: how to get one, where
 /// it goes, and a check that it works. Also the sheet the microphone button opens when
@@ -19,6 +19,8 @@ struct VoiceSettingsPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 Text("按住输入栏说话，松手把识别出的文字发出去。")
@@ -44,7 +46,7 @@ struct VoiceSettingsPage: View {
                 }
             }
             .groupedRow()
-            .onChange(of: preferences.source) { status = nil }
+            .onChange(of: preferences.source) { _ in status = nil }
 
             if preferences.source == .deepseek {
                 Section {
@@ -80,13 +82,14 @@ struct VoiceSettingsPage: View {
                 Text("朗读回复和 Agent 念出来的话都用 DeepSeek 的声音，同样用「模型」里的 DeepSeek API Key，费用由 DeepSeek 按字数收取。")
             }
             .groupedRow()
-            .onChange(of: preferences.readingVoice) { ReadAloud.shared.stop() }
+            .onChange(of: preferences.readingVoice) { _ in ReadAloud.shared.stop() }
         }
         .groupedList()
         .scrollDismissesKeyboard(.immediately)
         .navigationTitle("语音")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 
     @ViewBuilder
     private var statusFooter: some View {
@@ -140,7 +143,7 @@ struct VoiceSettingsPage: View {
             Text("识别用的是豆包流式语音识别模型 2.0。计费方式要和你在控制台开通的一致，没特别选过就用「小时版」。录音直接发给火山引擎识别，App 不保存录音。")
         }
         .groupedRow()
-        .onChange(of: speech.resource) { status = nil }
+        .onChange(of: speech.resource) { _ in status = nil }
 
         Section {
             Button {
@@ -254,7 +257,7 @@ enum MicrophoneAccess {
     enum State { case granted, denied, undecided }
 
     static var state: State {
-        switch AVAudioApplication.shared.recordPermission {
+        switch AVAudioSession.sharedInstance().recordPermission {
         case .granted: .granted
         case .denied: .denied
         default: .undecided
@@ -262,6 +265,10 @@ enum MicrophoneAccess {
     }
 
     static func request() async -> Bool {
-        await AVAudioApplication.requestRecordPermission()
+        await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                continuation.resume(returning: granted)
+            }
+        }
     }
 }

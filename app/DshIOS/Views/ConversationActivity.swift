@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What the agent has going on beside the conversation, floating over its foot: the web page it
 /// works in and its background jobs. One tap opens either, without a trip to the top bar. Each shows
 /// only while there is something to see; a running one carries the green dot.
@@ -28,6 +29,8 @@ struct ConversationActivity: View {
     private var browser: BrowserModel? { Self.browser(of: sessionId, in: app) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         // Read here so the chips follow a browser made after this view.
         let browser = browserShown ? nil : browser
         HStack(spacing: 8) {
@@ -50,9 +53,10 @@ struct ConversationActivity: View {
                 )
             }
         }
-        .animation(.snappy(duration: 0.18), value: browser == nil)
-        .animation(.snappy(duration: 0.18), value: jobs.visibleCount)
-    }
+        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: browser == nil)
+        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: jobs.visibleCount)
+    
+        }}
 
     private static func host(_ url: URL?) -> String? { FullScreenBrowser.site(url) }
 

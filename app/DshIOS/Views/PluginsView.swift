@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WebKit
 
 /// Tells a nested `PluginsView` that an enclosing sheet already shows the shell notices.
@@ -39,6 +40,8 @@ struct PluginIcon: View {
     var glyph = "puzzlepiece.extension"
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let source, source.hasPrefix("data:image/svg") {
                 SVGIconView(source: source)
@@ -56,7 +59,8 @@ struct PluginIcon: View {
         .padding(6)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.stroke))
         .accessibilityHidden(true)
-    }
+    
+        }}
 
     private var fallback: some View {
         Image(systemName: glyph).font(.system(size: size * 0.55)).foregroundStyle(Palette.secondary)
@@ -83,6 +87,8 @@ private struct RemoteIcon<Fallback: View>: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             switch art {
             case .image(let image): Image(uiImage: image).resizable().scaledToFit()
@@ -91,7 +97,8 @@ private struct RemoteIcon<Fallback: View>: View {
             }
         }
         .task(id: url) { art = await PluginIconMemory.load(url) }
-    }
+    
+        }}
 }
 
 private struct SVGIconView: UIViewRepresentable {
@@ -134,13 +141,16 @@ struct PluginTag: View {
     var tone: Color = Palette.secondary
 
     var body: some View {
+        WithPerceptionTracking {
+
         Text(text)
             .font(.caption2.weight(.medium))
             .foregroundStyle(tone)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(tone.opacity(0.12), in: Capsule())
-    }
+    
+        }}
 }
 
 /// The official plugins' configuration cards (`plugins.item`), each while its namespace is served.
@@ -183,6 +193,8 @@ struct PluginsView: View {
     private var showingMarket: Bool { tab == "discover" && manager.marketEnabled }
 
     var body: some View {
+        WithPerceptionTracking {
+
         content
             .navigationTitle("插件")
             .navigationBarTitleDisplayMode(.inline)
@@ -196,12 +208,17 @@ struct PluginsView: View {
             .task(id: app.revision("plugin-manager/changed")) { await manager.refresh(revision: app.revision("plugin-manager/changed")) }
             .followSettings()
             .modifier(HostNotices(hosted: noticesHosted))
-    }
+    
+        }}
 
     @ViewBuilder
     private var content: some View {
         if manager.status == .unavailable {
-            ContentUnavailableView("无法管理插件", systemImage: "puzzlepiece.extension", description: Text("当前无法安装或启停插件。"))
+            VStack(spacing: 10) {
+                Image(systemName: "puzzlepiece.extension").font(.largeTitle).foregroundStyle(Palette.secondary)
+                Text("无法管理插件").font(.headline).foregroundStyle(Palette.ink)
+                Text("当前无法安装或启停插件。").font(.subheadline).foregroundStyle(Palette.secondary)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .pageBackground()
         } else if manager.marketEnabled {
             VStack(spacing: 0) {
@@ -381,13 +398,16 @@ private struct MoreExtensionsView: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section { ForEach(app.plugins.allExtensions) { PluginCard(package: $0) } }.groupedRow()
         }
         .groupedList()
         .navigationTitle("实验性插件")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 /// P-04: artwork, name, tags, one-liner and the state; the switch is on the detail page it opens.
@@ -400,6 +420,8 @@ private struct PluginCard: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationLink {
             PluginDetailView(name: package.name)
         } label: {
@@ -438,7 +460,8 @@ private struct PluginCard: View {
             try? await Task.sleep(for: .seconds(2.4))
             if manager.highlight == package.name { manager.highlight = nil }
         }
-    }
+    
+        }}
 }
 
 /// The status tags: version, 实验性, 异常, 未安装 / 包不可用, 可更新.
@@ -447,6 +470,8 @@ private struct PluginTags: View {
     let version: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         if version, let number = package.version { PluginTag(text: "v\(number)") }
         if package.beta { PluginTag(text: String(localized: "实验性")) }
         if package.problem { PluginTag(text: String(localized: "异常"), tone: Palette.removed) }
@@ -454,7 +479,8 @@ private struct PluginTags: View {
             PluginTag(text: package.installed ? String(localized: "包不可用") : String(localized: "未安装"))
         }
         if package.updateAvailable { PluginTag(text: String(localized: "可更新"), tone: Palette.running) }
-    }
+    
+        }}
 }
 
 private extension View {
@@ -497,17 +523,23 @@ struct PluginDetailView: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let package = manager.package(name) {
                 detail(package).confirmUninstall(package, isPresented: $confirmingUninstall) { uninstalled = true }
             } else {
-                ContentUnavailableView("插件已移除", systemImage: "puzzlepiece.extension")
+                VStack(spacing: 10) {
+                    Image(systemName: "puzzlepiece.extension").font(.largeTitle).foregroundStyle(Palette.secondary)
+                    Text("插件已移除").font(.headline).foregroundStyle(Palette.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .followSettings()
         .dismisses(when: uninstalled)
-    }
+    
+        }}
 
     private func detail(_ package: PluginPackage) -> some View {
         List {
@@ -683,11 +715,14 @@ private struct FlowTags: View {
     let package: PluginPackage
 
     var body: some View {
+        WithPerceptionTracking {
+
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 6) { PluginTags(package: package, version: true) }
             VStack(alignment: .leading, spacing: 4) { PluginTags(package: package, version: true) }
         }
-    }
+    
+        }}
 }
 
 /// P-08: one component: its state dot, name, description and switch. The switch
@@ -698,6 +733,8 @@ private struct PluginRowView: View {
     let showSwitch: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -726,7 +763,8 @@ private struct PluginRowView: View {
             }
         }
         .padding(.vertical, 2)
-    }
+    
+        }}
 
     private var dotColor: Color {
         guard row.enabled, let phase = row.phase else { return Palette.faint }

@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 /// One Bot of the team, as ds-bot's `state` lists it.
@@ -68,7 +68,7 @@ struct RoomInfo: Identifiable, Hashable {
 /// to read `state` again and carries each new entry of a Bot's own chat as it lands.
 /// The app pins the plugin's version (`PluginPins`): these endpoints carry no version.
 @MainActor
-@Observable
+@Perceptible
 final class BotModel {
     static let package = "ds-bot"
     /// The open-source project behind the Bot feature, linked where it is credited.
@@ -87,7 +87,7 @@ final class BotModel {
         case ready
     }
 
-    @ObservationIgnored private unowned let app: AppModel
+    @PerceptionIgnored private unowned let app: AppModel
     /// The `state` view (bots, rooms, questions…), replaced on each new revision.
     private(set) var team: JSON = .null
     /// What changes without a revision: `activity` (per Bot) and `work`.
@@ -118,15 +118,15 @@ final class BotModel {
     /// Show the Bot pages (the root view consumes it).
     var openRequest: BotOpenRequest?
     /// Approvals already announced, so each rings once.
-    @ObservationIgnored private var announcedApprovals: Set<String> = []
+    @PerceptionIgnored private var announcedApprovals: Set<String> = []
     /// The chat on screen (a Bot's or a group's id): what waits there needs no announcement.
     var visibleChat: String?
 
-    @ObservationIgnored private var revision: Double?
-    @ObservationIgnored private var liveKey: String?
-    @ObservationIgnored private var followTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var listeners: [UUID: (String, JSON) -> Void] = [:]
+    @PerceptionIgnored private var revision: Double?
+    @PerceptionIgnored private var liveKey: String?
+    @PerceptionIgnored private var followTask: Task<Void, Never>?
+    @PerceptionIgnored private var refreshTask: Task<Void, Never>?
+    @PerceptionIgnored private var listeners: [UUID: (String, JSON) -> Void] = [:]
 
     init(app: AppModel) {
         self.app = app

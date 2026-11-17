@@ -2,7 +2,7 @@ name: DshIOS
 options:
   bundleIdPrefix: com.wsw
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "16.4"
     # The watch app (DshWatch): what an iPhone on iOS 17 pairs with.
     watchOS: "10.0"
   createIntermediateGroups: true
@@ -18,6 +18,9 @@ packages:
   SwiftMath:
     url: https://github.com/mgriebling/SwiftMath
     exactVersion: 1.7.3
+  Perception:
+    url: https://github.com/pointfreeco/swift-perception
+    exactVersion: 2.0.12
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -46,6 +49,8 @@ targets:
       - path: DshIOS
         excludes:
           - "MiniApps/MiniAppExamples/**"
+          # AppShortcuts string catalogs require iOS 17; use localized .strings for iOS 16.
+          - "AppShortcuts.xcstrings"
       # 我的应用's examples, each a folder as the agent would write one (MiniAppExamples.swift).
       - path: DshIOS/MiniApps/MiniAppExamples
         type: folder
@@ -111,8 +116,8 @@ targets:
       - sdk: HomeKit.framework
       # native/ios-native 的 photos：读相册元数据、导出一张给本机识别。不增不改不删。
       - sdk: Photos.framework
-      # native/ios-native 的 alarm：真闹钟。weak link 不能省——部署目标是 17.0，
-      # AlarmKit 要 26.0，强链接会让 17–25 的机器在 dyld 阶段就起不来，而不是
+      # native/ios-native 的 alarm：真闹钟。weak link 不能省——部署目标是 16.4，
+      # AlarmKit 要 26.0，强链接会让 16.4–25 的机器在 dyld 阶段就起不来，而不是
       # 用到这个能力才失败。
       - sdk: AlarmKit.framework
         weak: true
@@ -131,6 +136,7 @@ targets:
       - sdk: libiconv.tbd
       - package: SwiftTerm
       - package: SwiftMath
+      - package: Perception
       - target: DshLiveActivity
       # 系统分享面板里的 Fish Pocket：别的 App 分享的内容进新对话或某个 Bot 的输入框。
       - target: DshShare
@@ -174,8 +180,10 @@ targets:
         # 本机能力「日历」。这条弹窗是用户在点「允许」前唯一一次被告知的机会，
         # 所以第二句写明数据会随对话发出去（docs/native-services.md §6.2.1）。
         # iOS 17 起读日历必须要 full access，没有只读档。
+        NSCalendarsUsageDescription: 让智能体按你的要求查看和安排日程。为回答你的问题，相关日程内容会随对话发送给你选择的模型服务商。
         NSCalendarsFullAccessUsageDescription: 让智能体按你的要求查看和安排日程。为回答你的问题，相关日程内容会随对话发送给你选择的模型服务商。
         # 本机能力「提醒」。同样的理由：第二句是产品选择，不是硬性要求。
+        NSRemindersUsageDescription: 让智能体按你的要求查看和创建提醒。为回答你的问题，相关提醒内容会随对话发送给你选择的模型服务商。
         NSRemindersFullAccessUsageDescription: 让智能体按你的要求查看和创建提醒。为回答你的问题，相关提醒内容会随对话发送给你选择的模型服务商。
         NSPhotoLibraryAddUsageDescription: 把分享海报和交流群二维码保存到相册。
         # 本机能力「位置」。只要 when-in-use，不做任何后台或持续定位，所以第一句
@@ -298,7 +306,7 @@ targets:
         DshURLScheme: $(DSH_URL_SCHEME)
     dependencies:
       # 闹钟的锁屏呈现（AlarmActivity.swift）要它。和 App target 同理：部署目标
-      # 是 17.0，AlarmKit 要 26.0，必须 weak link。
+      # 是 16.4，AlarmKit 要 26.0，必须 weak link。
       - sdk: AlarmKit.framework
         weak: true
     entitlements:

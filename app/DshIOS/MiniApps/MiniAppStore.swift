@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import Observation
+import Perception
 import WidgetKit
 import WebKit
 
@@ -83,7 +83,7 @@ struct MiniApp: Identifiable, Hashable {
 }
 
 /// The apps in `~/apps`, newest first: last opened or last changed, whichever is later.
-@MainActor @Observable
+@MainActor @Perceptible
 final class MiniAppStore {
     static let shared = MiniAppStore()
 
@@ -135,7 +135,9 @@ final class MiniAppStore {
         var opened = UserDefaults.standard.dictionary(forKey: Self.openedKey) as? [String: Double] ?? [:]
         opened[app.id] = nil
         UserDefaults.standard.set(opened, forKey: Self.openedKey)
-        try? await WKWebsiteDataStore.remove(forIdentifier: app.dataStoreId)
+        if #available(iOS 17.0, *) {
+            try? await WKWebsiteDataStore.remove(forIdentifier: app.dataStoreId)
+        }
         refresh()
     }
 }

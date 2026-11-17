@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WatchConnectivity
 
 /// The 探索 tab: what the agent can be given beyond a conversation of its own — plugins,
@@ -15,6 +16,8 @@ struct ExploreTabView: View {
     @State private var watch = WatchPairing.current
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack(path: $path) {
             List {
                 Section {
@@ -64,13 +67,14 @@ struct ExploreTabView: View {
             // the user is in another app.
             .task { await phoneControl.refresh() }
             .onAppear { watch = WatchPairing.current }
-            .onChange(of: scenePhase) { _, phase in
+            .onChangeCompat(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
                 watch = WatchPairing.current
                 Task { await phoneControl.refresh() }
             }
         }
-    }
+    
+        }}
 
     /// Once signed in: computers online, offline, or the sign-in to renew. Before, the line under
     /// the name already says what it is for.

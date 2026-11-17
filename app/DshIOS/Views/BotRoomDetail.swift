@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A group chat's page: its name and notice, who is in it and who speaks first,
 /// its scheduled tasks, and stopping or deleting it.
 struct RoomDetailView: View {
@@ -19,6 +20,8 @@ struct RoomDetailView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack {
             Group {
@@ -72,7 +75,7 @@ struct RoomDetailView: View {
                         Text("群里的聊天记录和定时任务都会删掉，成员 Bot 不受影响。")
                     }
                 } else {
-                    ContentUnavailableView("这个群聊已经不在了", systemImage: "person.2.slash")
+                    CompatEmptyState(title: "这个群聊已经不在了", systemImage: "person.2.slash")
                 }
             }
             .navigationTitle(team.room(roomId).map(team.name(of:)) ?? String(localized: "群聊"))
@@ -80,7 +83,8 @@ struct RoomDetailView: View {
             .closeButton(dismiss)
         }
         .settingsStyle()
-    }
+    
+        }}
 
     @ViewBuilder
     private func about(_ room: RoomInfo) -> some View {
@@ -228,6 +232,8 @@ private struct RoomAddMembersSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let room = team.room(roomId)
         let others = team.bots.filter { !(room?.members.contains($0.id) ?? true) }
@@ -264,5 +270,6 @@ private struct RoomAddMembersSheet: View {
                 }
             }
         }
-    }
+    
+        }}
 }

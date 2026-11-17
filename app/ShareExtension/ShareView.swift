@@ -3,7 +3,7 @@ import SwiftUI
 /// The sheet: what was shared on top, then where it goes: 新对话 first, then the Bots and the
 /// group chats in the Bot page's order. A tap opens the app there.
 struct ShareView: View {
-    let model: ShareModel
+    @ObservedObject var model: ShareModel
     /// The app's ink, as in the app: an extension does not take `NSAccentColorName` by itself.
     static let ink = Color("AccentColor")
 
@@ -22,15 +22,25 @@ struct ShareView: View {
         .tint(Self.ink)
     }
 
+    private func unavailable(_ title: String, symbol: String, message: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 32)).foregroundStyle(.secondary)
+            Text(title).font(.headline)
+            Text(message).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch model.phase {
         case .empty:
-            ContentUnavailableView("没能读取分享的内容", systemImage: "exclamationmark.triangle",
-                                   description: Text("换一种方式分享，或者在 Fish Pocket 里从文件添加。"))
+            unavailable("没能读取分享的内容", symbol: "exclamationmark.triangle",
+                         message: "换一种方式分享，或者在 Fish Pocket 里从文件添加。")
         case .waitingForApp:
-            ContentUnavailableView("已经准备好", systemImage: "checkmark.circle",
-                                   description: Text("打开 Fish Pocket 就能在输入框里看到，确认后再发送。"))
+            unavailable("已经准备好", symbol: "checkmark.circle",
+                         message: "打开 Fish Pocket 就能在输入框里看到，确认后再发送。")
         case .reading where model.preset != nil, .ready where model.preset != nil:
             // From the top row: nothing to pick, just a moment to read what was shared.
             VStack(spacing: 10) {
@@ -88,7 +98,7 @@ struct ShareView: View {
 
 /// What was shared: the first picture or a symbol, and a line or two saying what it is.
 private struct SharedPreview: View {
-    let model: ShareModel
+    @ObservedObject var model: ShareModel
 
     var body: some View {
         HStack(spacing: 12) {

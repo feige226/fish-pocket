@@ -1,5 +1,6 @@
 import SafariServices
 import SwiftUI
+import Perception
 import WatchConnectivity
 
 /// Settings: only what people come here for (账号, 模型, 访问模式, 插件, 自动化, 后台运行: 静音音频,
@@ -38,6 +39,8 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 if !engineRunning {
@@ -110,8 +113,8 @@ struct SettingsView: View {
                 } footer: {
                     Text(backgroundFooter)
                 }
-                .onChange(of: keepAlive) { BackgroundKeeper.shared.settingsChanged() }
-                .onChange(of: continuedProcessing) { BackgroundKeeper.shared.settingsChanged() }
+                .onChangeCompat(of: keepAlive) { _, _ in BackgroundKeeper.shared.settingsChanged() }
+                .onChangeCompat(of: continuedProcessing) { _, _ in BackgroundKeeper.shared.settingsChanged() }
                 .alert("关闭静音音频？", isPresented: $confirmingKeepAliveOff) {
                     Button("取消", role: .cancel) {}
                     Button("关闭", role: .destructive) { keepAlive = false }
@@ -127,7 +130,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("关掉后，主屏幕和锁屏小组件只显示数量和状态。设备锁定时，标题总会被打码。")
                 }
-                .onChange(of: widgetTitles) { WidgetSnapshotWriter.shared.refresh() }
+                .onChangeCompat(of: widgetTitles) { _, _ in WidgetSnapshotWriter.shared.refresh() }
 
                 Section {
                     if let theme = mirror.namespace("ui-theme") {
@@ -154,7 +157,7 @@ struct SettingsView: View {
                         Label("语言", systemImage: "globe")
                     }
                     .pickerValueTint()
-                    .onChange(of: languageChoice) { _, value in
+                    .onChangeCompat(of: languageChoice) { _, value in
                         AppLanguage.chosen = value == "system" ? nil : value
                         languageChanged = true
                     }
@@ -205,7 +208,8 @@ struct SettingsView: View {
         // 设置 and every page pushed or presented from it: the system's lists, not the monochrome ones.
         .environment(\.systemLists, true)
         .tint(Palette.ink)
-    }
+    
+        }}
 
     private var aboutValue: String {
         if case .available = UpdateChecker.shared.status { return String(localized: "有新版本") }
@@ -333,6 +337,8 @@ private struct AdvancedSettingsPage: View {
     @State private var showCordis = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 NavigationLink("内置插件") { PluginInventoryPage() }
@@ -357,7 +363,8 @@ private struct AdvancedSettingsPage: View {
         .navigationTitle("高级")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $showWeb) { WebFallbackView() }
-    }
+    
+        }}
 }
 
 /// 设置 → 关于: the way to a newer version, or a manual check for one.
@@ -366,6 +373,8 @@ private struct UpdateRow: View {
     private let checker = UpdateChecker.shared
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch checker.status {
         case .available(let update):
             Button("更新到 \(update.version)") { openURL(update.url) }
@@ -376,7 +385,8 @@ private struct UpdateRow: View {
                 LabeledContent("检查更新", value: note)
             }
         }
-    }
+    
+        }}
 
     private var note: String {
         switch checker.status {
@@ -395,6 +405,8 @@ private struct AboutPage: View {
     @State private var storage: Int64?
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section { EngineCard() }
             Section {
@@ -425,7 +437,8 @@ private struct AboutPage: View {
         .navigationTitle("关于")
         .navigationBarTitleDisplayMode(.inline)
         .task { storage = await Self.storageSize() }
-    }
+    
+        }}
 
     private static var appVersion: String {
         let info = Bundle.main.infoDictionary
@@ -454,6 +467,8 @@ private struct AllSettingsPage: View {
     private var mirror: SettingsMirror { app.settings }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 ForEach(grouped, id: \.title) { group in
@@ -478,7 +493,8 @@ private struct AllSettingsPage: View {
         .navigationBarTitleDisplayMode(.inline)
         // The plugin titles the rows of unnamed namespaces fall back to.
         .task(id: app.revision("plugin-manager/changed")) { await app.plugins.refresh(revision: app.revision("plugin-manager/changed")) }
-    }
+    
+        }}
 
     private var grouped: [(title: String, items: [JSON])] {
         let groups: [(String, (String) -> Bool)] = [
@@ -570,6 +586,8 @@ private struct EngineCard: View {
     @EnvironmentObject private var engine: NodeEngine
 
     var body: some View {
+        WithPerceptionTracking {
+
         TimelineView(.periodic(from: .now, by: 30)) { context in
             HStack(spacing: 14) {
                 if case .running = engine.phase { StatusDot(state: .running, size: 8, halo: true) }
@@ -582,7 +600,8 @@ private struct EngineCard: View {
             }
             .accessibilityElement(children: .combine)
         }
-    }
+    
+        }}
 
     private var title: String {
         switch engine.phase {
@@ -621,6 +640,8 @@ private struct EngineLogView: View {
     @State private var text = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             Text(text.isEmpty ? String(localized: "（日志为空）") : text)
                 .font(.caption2.monospaced())
@@ -629,18 +650,19 @@ private struct EngineLogView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
         }
-        .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchorCompat(.bottom)
         .background(Palette.grouped)
         .navigationTitle("引擎日志")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Button { load() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("刷新")
                 ShareLink(item: file)
             }
         }
         .onAppear { load() }
-    }
+    
+        }}
 
     private func load() {
         guard let handle = try? FileHandle(forReadingFrom: file) else { return }
@@ -654,6 +676,8 @@ private struct EngineLogView: View {
 /// The way into 「分享 Fish Pocket」 at the top of 设置: the app's icon, so it reads as the app itself.
 private struct ShareAppRow: View {
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 12) {
             Group {
                 if let image = UIImage(named: "AppIcon") {
@@ -672,7 +696,8 @@ private struct ShareAppRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
-    }
+    
+        }}
 }
 
 /// The settings sheet's ✕; the 设置 tab has none.

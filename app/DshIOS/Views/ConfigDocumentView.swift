@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 设置 S-05, in the app: `settings/openSettingsDocument` opens the file with the Host's
 /// native editor, which iOS does not have, and the engine has no RPC to read or write it.
 /// It lives in this app's own container, so it is edited here directly; the engine's
@@ -28,9 +29,11 @@ struct ConfigDocumentView: View {
     private var dirty: Bool { original != nil && text != original }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let failure {
-                ContentUnavailableView("无法打开配置文件", systemImage: "doc.badge.ellipsis", description: Text(failure))
+                VStack(spacing: 10) { Image(systemName: "doc.badge.ellipsis").font(.largeTitle); Text("无法打开配置文件").font(.headline); Text(failure).font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center) }.padding()
             } else {
                 TextEditor(text: $text)
                     .font(.footnote.monospaced())
@@ -54,7 +57,7 @@ struct ConfigDocumentView: View {
                     Button("保存") { Task { await save() } }.fontWeight(.semibold).disabled(saving)
                 }
             } else {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     ShareLink(item: file)
                 }
             }
@@ -80,7 +83,8 @@ struct ConfigDocumentView: View {
             }
         }
         .task { load() }
-    }
+    
+        }}
 
     private func load() {
         do {

@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One plugin of a market: what it does, whether this DSH accepts it, and where it comes from.
 struct StoreEntryDetail: View {
     @Environment(AppModel.self) private var app
@@ -52,6 +53,8 @@ struct StoreEntryDetail: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header.padding(.horizontal, 20).padding(.top, 12)
@@ -75,7 +78,8 @@ struct StoreEntryDetail: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $reporting) { PluginReportSheet(entry: entry, market: model.market.url) }
-    }
+    
+        }}
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -171,9 +175,9 @@ struct StoreEntryDetail: View {
                     Text(runState.text).font(.footnote).foregroundStyle(runState.problem ? Palette.removed : Palette.secondary)
                 }
             }
-            .animation(.snappy(duration: 0.25), value: updatingThis)
-            .animation(.snappy(duration: 0.25), value: update == nil)
-            .onChange(of: updated) { _, version in if let version { refreshListing(until: version) } }
+            .animation(.spring(response: 0.25, dampingFraction: 0.82), value: updatingThis)
+            .animation(.spring(response: 0.25, dampingFraction: 0.82), value: update == nil)
+            .onChangeCompat(of: updated) { _, version in if let version { refreshListing(until: version) } }
         } else if entry.installable, !removed, let version = entry.version {
             Button("安装 \(entry.versionNumber)") { install(MarketChoice(entry: entry.json, version: version)) }
                 .buttonStyle(.capsule(height: 48))
@@ -351,13 +355,16 @@ private struct StoreCaption: View {
     init(_ title: LocalizedStringKey) { self.title = title }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Text(title)
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Palette.secondary)
             .padding(.horizontal, 34)
             .padding(.top, 22)
             .padding(.bottom, 7)
-    }
+    
+        }}
 }
 
 /// The package's long description, as the Host reads it from the version's source.
@@ -370,19 +377,25 @@ private struct StoreReadmePage: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let markdown {
                 ScrollView {
                     MarkdownView(text: markdown).padding(20).readableWidth()
                 }
             } else if missing {
-                ContentUnavailableView("没有说明文档", systemImage: "doc.text")
+                VStack(spacing: 10) {
+                    Image(systemName: "doc.text").font(.largeTitle).foregroundStyle(Palette.secondary)
+                    Text("没有说明文档").font(.headline).foregroundStyle(Palette.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if failed {
-                ContentUnavailableView {
+                VStack(spacing: 12) {
                     Label("无法读取说明文档", systemImage: "exclamationmark.triangle")
-                } actions: {
-                    Button("重试") { Task { await load() } }.buttonStyle(.capsule(.outline, height: 44, fill: false))
-                }
+                        .foregroundStyle(Palette.secondary)
+                    Button("重试") { Task { await load() } }
+                        .buttonStyle(.capsule(.outline, height: 44, fill: false))
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -391,7 +404,8 @@ private struct StoreReadmePage: View {
         .navigationTitle(entry.shortName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-    }
+    
+        }}
 
     /// Many READMEs lay themselves out in HTML, which reads as noise here: the words stay, the
     /// tags go, as they do in the web client. Code keeps its angle brackets.
@@ -451,6 +465,8 @@ struct StoreInstallConfirm: View {
     private var entry: StoreEntry { StoreEntry(json: choice.entry) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let number = choice.version["version"].string ?? ""
         let source = choice.version["source"]
         let pinned = PluginPins.note(package: entry.name, version: number)
@@ -499,12 +515,13 @@ struct StoreInstallConfirm: View {
         }
         .padding(20)
         .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Palette.background)
         .presentationDetents([.height(height)])
         .tint(Palette.ink)
-    }
+    
+        }}
 
     private func line(_ title: LocalizedStringKey, _ value: Text) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -522,6 +539,8 @@ struct StoreWebUINote: View {
     @State private var showWeb = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: compact ? .center : .top, spacing: 10) {
             Image(systemName: "info.circle").font(.subheadline).foregroundStyle(Palette.secondary)
             if compact {
@@ -551,7 +570,8 @@ struct StoreWebUINote: View {
         .padding(.vertical, compact ? 10 : 14)
         .background(Palette.grouped, in: RoundedRectangle(cornerRadius: compact ? 16 : 20, style: .continuous))
         .fullScreenCover(isPresented: $showWeb) { WebFallbackView() }
-    }
+    
+        }}
 }
 
 /// 询问 AI: leaves for a new conversation that already holds the plugin and its install.
@@ -561,6 +581,8 @@ struct PluginAskRow: View {
     let question: () -> String
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button {
             Haptics.tap()
             app.ask(question())
@@ -580,7 +602,8 @@ struct PluginAskRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
+    
+        }}
 }
 
 /// A web version button for pages that show one plugin, so its interface is a tap away.
@@ -590,7 +613,7 @@ private struct StoreWebButton: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showWeb = true } label: { Label("网页版", systemImage: "globe") }
                 }
             }

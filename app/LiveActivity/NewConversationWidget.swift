@@ -29,11 +29,11 @@ private struct NewConversationView: View {
             }
             .accessibilityLabel(Text("新对话"))
             .widgetAccentable()
-            .containerBackground(for: .widget) { Color.clear }
+            .background(Color.clear)
         case .systemMedium:
-            medium.containerBackground(WidgetPalette.background, for: .widget)
+            medium.background(WidgetPalette.background)
         default:
-            small.containerBackground(WidgetPalette.background, for: .widget)
+            small.background(WidgetPalette.background)
         }
     }
 

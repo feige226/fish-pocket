@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WebKit
 
 /// One tab of a conversation's browser (S-87): a WKWebView, its address, and what it shows.
@@ -8,7 +9,7 @@ import WebKit
 /// it and take over. That is why a page belongs to its conversation's `BrowserModel` rather than to a view: the
 /// agent can open one before the user ever looks at the workbench.
 @MainActor
-@Observable
+@Perceptible
 final class BrowserPage: NSObject {
     var address = ""
     /// The refused address's reason, shown under the bar.
@@ -32,35 +33,40 @@ final class BrowserPage: NSObject {
     private(set) var notice: String?
 
     /// The conversation this browser belongs to: downloads go to its working directory.
-    @ObservationIgnored let sessionId: String
+    @PerceptionIgnored let sessionId: String
     /// The conversation's browser this page is a tab of: its kept scripts run here too, and its
     /// downloads are listed there.
-    @ObservationIgnored weak var browser: BrowserModel?
+    @PerceptionIgnored weak var browser: BrowserModel?
     /// What the pages wrote to the console, and the requests their scripts made (`logs`).
-    @ObservationIgnored var consoleLog: [[String: Any]] = []
-    @ObservationIgnored var networkLog: [[String: Any]] = []
-    @ObservationIgnored var logSeq = 0
-    @ObservationIgnored var cachedUserAgent: String?
+    @PerceptionIgnored var consoleLog: [[String: Any]] = []
+    @PerceptionIgnored var networkLog: [[String: Any]] = []
+    @PerceptionIgnored var logSeq = 0
+    @PerceptionIgnored var cachedUserAgent: String?
     /// This page's downloads still coming, by their place in the browser's list.
-    @ObservationIgnored var downloadTasks: [ObjectIdentifier: Int] = [:]
-    @ObservationIgnored private var noticeTimer: Task<Void, Never>?
+    @PerceptionIgnored var downloadTasks: [ObjectIdentifier: Int] = [:]
+    @PerceptionIgnored private var noticeTimer: Task<Void, Never>?
 
-    @ObservationIgnored let webView: WKWebView
-    @ObservationIgnored let origin: URL
-    @ObservationIgnored private var observations: [NSKeyValueObservation] = []
+    @PerceptionIgnored let webView: WKWebView
+    @PerceptionIgnored let origin: URL
+    @PerceptionIgnored private var observations: [NSKeyValueObservation] = []
     /// Why the last load failed, as WebKit said it, for the agent; `failure` is the user's sentence.
-    @ObservationIgnored private(set) var loadFailure: NSError?
+    @PerceptionIgnored private(set) var loadFailure: NSError?
     /// The agent's operations, one after another: two at once would read a page the other is changing.
-    @ObservationIgnored private var tail: Task<Void, Never>?
+    @PerceptionIgnored private var tail: Task<Void, Never>?
     /// The agent at work on this page, drawn over it in the workbench.
-    @ObservationIgnored let presence = BrowserPresence()
+    @PerceptionIgnored let presence = BrowserPresence()
     /// The address or title changed: the tab set is kept again.
-    @ObservationIgnored var changed: (() -> Void)?
+    @PerceptionIgnored var changed: (() -> Void)?
 
     /// Every tab of every conversation's browser shares one store of its own, kept across launches, so a site
     /// signed in to once stays signed in, for the user and for the agent. It is apart from the default store,
     /// where the engine's web view keeps its session cookie, and from Safari, which no app can read.
-    static let store = WKWebsiteDataStore(forIdentifier: UUID(uuidString: "8E4C2D1A-5B7F-4A3E-9C6D-2F1B0A9E7D45")!)
+    static let store: WKWebsiteDataStore = {
+        if #available(iOS 17.0, *) {
+            return WKWebsiteDataStore(forIdentifier: UUID(uuidString: "8E4C2D1A-5B7F-4A3E-9C6D-2F1B0A9E7D45")!)
+        }
+        return .default()
+    }()
 
     /// Sign out of every site: cookies, storage and caches of all the conversations' browsers.
     static func clearWebsiteData() async {
@@ -178,7 +184,7 @@ final class BrowserPage: NSObject {
     }
 
     /// The effects as last asked for; a page that loads afresh gets them again.
-    @ObservationIgnored private var effects = PageEffects(shown: false, action: nil, done: true)
+    @PerceptionIgnored private var effects = PageEffects(shown: false, action: nil, done: true)
 
     func showEffects(_ effects: PageEffects) {
         self.effects = effects
@@ -411,6 +417,7 @@ struct WorkbenchBrowser: View {
     let model: BrowserModel
 
     var body: some View {
+        WithPerceptionTracking {
         Group {
             if let tab = model.selected, let page = tab.page {
                 BrowserPageView(model: model, page: page).id(tab.id)
@@ -419,14 +426,15 @@ struct WorkbenchBrowser: View {
                 Palette.background.onAppear { model.reviveSelected() }
             }
         }
-        .onChange(of: model.selectedId) { _, _ in model.reviveSelected() }
-    }
+        .onChangeCompat(of: model.selectedId) { _, _ in model.reviveSelected() }
+    
+        }}
 }
 
 /// One tab on screen: its page (or where to start), and the bar under it.
 private struct BrowserPageView: View {
     let model: BrowserModel
-    @Bindable var page: BrowserPage
+    @Perception.Bindable var page: BrowserPage
     @FocusState private var editing: Bool
     @State private var confirmingClear = false
     @State private var showingTabs = false
@@ -435,6 +443,7 @@ private struct BrowserPageView: View {
     private static let commonPorts = [3000, 5173, 8000, 8080]
 
     var body: some View {
+        WithPerceptionTracking {
         VStack(spacing: 0) {
             ZStack {
                 BrowserWebView(webView: page.webView)
@@ -460,8 +469,9 @@ private struct BrowserPageView: View {
         }
         .sheet(isPresented: $showingTabs) { BrowserTabsSheet(model: model) }
         .onAppear(perform: takeFocus)
-        .onChange(of: showingTabs) { _, showing in if !showing { takeFocus() } }
-    }
+        .onChangeCompat(of: showingTabs) { _, showing in if !showing { takeFocus() } }
+    
+        }}
 
     /// A blank tab the user just opened: the cursor goes to its address bar, once nothing covers it.
     private func takeFocus() {
@@ -626,13 +636,15 @@ private struct TabCount: View {
     let count: Int
 
     var body: some View {
+        WithPerceptionTracking {
         Text(verbatim: count > 99 ? ":)" : "\(count)")
             .font(.system(size: count > 9 ? 10 : 12, weight: .semibold, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(Palette.ink)
             .frame(width: 21, height: 21)
             .overlay { RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Palette.ink, lineWidth: 1.6) }
-    }
+    
+        }}
 }
 
 /// The browser opened from the chat (full screen, or as a sheet for a link in a reply): the page alone, without the workbench's other tabs.
@@ -641,6 +653,7 @@ struct FullScreenBrowser: View {
     let close: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
         NavigationStack {
             WorkbenchBrowser(model: model)
                 .navigationTitle(Self.site(model.url) ?? String(localized: "浏览器"))
@@ -648,7 +661,8 @@ struct FullScreenBrowser: View {
                 .toolbar(.visible, for: .navigationBar)
                 .closeButton(action: close)
         }
-    }
+    
+        }}
 
     /// `www.` says nothing; the rest of the host is the site.
     static func site(_ url: URL?) -> String? {

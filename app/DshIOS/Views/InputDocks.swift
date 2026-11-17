@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One line above the composer for what the session has going: 「任务 2/5 · 编译中 ·
 /// 排队 2」, this client's messages on their way, a full context and a deferred
 /// approval. Everything behind it opens in a sheet. With the keyboard up the timeline
@@ -22,6 +23,8 @@ struct ComposerStatusBar: View {
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let summary = summary
         let tail = tail
         let hasStatus = !summary.characters.isEmpty || !tail.isEmpty
@@ -32,8 +35,8 @@ struct ComposerStatusBar: View {
                     .transition(.opacity)
             }
         }
-        .animation(.snappy, value: hasStatus)
-        .animation(.snappy, value: waiting)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: hasStatus)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: waiting)
         // Whether the goal continues on its own: re-read on goal changes, run edges and `goal/activation-changed`.
         .task(id: "\(composer.goal?.id ?? "")-\(composer.goal?.revision ?? 0)-\(model.running)-\(app.revision("goal/activation-changed"))") {
             await composer.refreshGoalActivation()
@@ -44,10 +47,11 @@ struct ComposerStatusBar: View {
         }) {
             ComposerStatusSheet(model: model, waiting: waiting, reveal: reveal)
         }
-        .onChange(of: interactionArrived) { _, arrived in
+        .onChangeCompat(of: interactionArrived) { _, arrived in
             if arrived { showSheet = false }
         }
-    }
+    
+        }}
 
     private func bar(summary: AttributedString, tail: String, hasStatus: Bool) -> some View {
         HStack(spacing: 0) {
@@ -208,6 +212,8 @@ struct ComposerStatusSheet: View {
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 attention
@@ -231,13 +237,14 @@ struct ComposerStatusSheet: View {
             // 「插话」 on the last queued row (or 「全部插话」, a delete, the agent picking
             // the queue up) leaves nothing to show: close, so the conversation behind
             // shows where the message went instead of a blank panel.
-            .onChange(of: hasContent) { _, has in
+            .onChangeCompat(of: hasContent) { _, has in
                 if !has { dismiss() }
             }
         }
         .presentationDetents([.medium, .large])
         .sheetNotices()
-    }
+    
+        }}
 
     /// Whether any section still has something in it. The status bar hides on the same
     /// terms, so an empty sheet has no bar left to have opened it either.
@@ -305,6 +312,8 @@ private struct GoalSection: View {
     @State private var confirmingClear = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         if let goal = composer.visibleGoal {
             let armed = composer.armed(goal)
             Section("目标") {
@@ -333,7 +342,8 @@ private struct GoalSection: View {
                 Button("清除目标", role: .destructive) { run(.clear) }
             }
         }
-    }
+    
+        }}
 
     private func actions(_ goal: GoalInfo, armed: Bool?) -> some View {
         Menu {
@@ -408,6 +418,8 @@ private struct QueueSection: View {
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let rows = composer.queueRows
         let sending = composer.visiblePending
         if !rows.isEmpty || !sending.isEmpty {
@@ -428,7 +440,8 @@ private struct QueueSection: View {
             }
             .groupedRow()
         }
-    }
+    
+        }}
 
     private func header(rows: [QueueRow], sending: [PendingSubmission]) -> some View {
         let queued = rows.count + sending.filter { $0.placement == .queued }.count

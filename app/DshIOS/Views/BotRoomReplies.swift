@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A group round: what each member said, under its name and mark, with the lines in
 /// between that say what else happened (someone stopped, did not answer, waits for the user).
 struct RoomRelayView: View {
@@ -30,6 +31,8 @@ struct RoomRelayView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         // Until the round settles its replies come from its progress, one as each member speaks.
         let live = relay.settled ? nil : team.round(relay.call.id)
@@ -76,7 +79,8 @@ struct RoomRelayView: View {
         // While the round runs, a reply rises in where its member was typing.
         .animation(live == nil ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: replies.count)
         .animation(live == nil ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: speaking.map(\.id))
-    }
+    
+        }}
 
     /// What a reply that is not a message says (ds-bot's group round kinds).
     private static func event(_ reply: JSON, name: String) -> (symbol: String, text: String, failed: Bool)? {
@@ -128,13 +132,16 @@ struct RoomEventLine: View {
     var bot: BotInfo?
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: symbol).font(.footnote).foregroundStyle(tone).frame(width: 18)
             Text(text).font(.footnote).foregroundStyle(tone).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, 2)
-    }
+    
+        }}
 }
 
 /// One member's message in a group: its mark opens its own chat; a long press has the same
@@ -155,6 +162,8 @@ struct RoomMessage: View {
     private var text: String { whole ?? texts.map(BotEarlierParts.withoutLongNote).joined(separator: "\n\n") }
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .top, spacing: 10) {
             Button {
                 guard let bot else { return }
@@ -211,7 +220,8 @@ struct RoomMessage: View {
                 Button { app.botTeam.openRequest = BotOpenRequest(route: .bot(bot.id), push: true) } label: { Label("打开\(bot.name)的私聊", systemImage: "bubble.left") }
             }
         }
-    }
+    
+        }}
 }
 
 /// A Bot's post into the group from outside a round (it was asked to post, or reports back).
@@ -221,12 +231,15 @@ struct RoomPostView: View {
     let trigger: TurnTrigger
 
     var body: some View {
+        WithPerceptionTracking {
+
         let bot = trigger.senderId.flatMap(app.botTeam.bot)
         RoomMessage(bot: bot, name: bot?.name ?? trigger.senderName ?? String(localized: "有个 Bot"),
                     texts: [Self.withoutHeader(trigger.body)],
                     reactionKey: timeline.map { BotReactions.key(session: $0.sessionId, call: "post", index: trigger.seq) },
                     file: trigger.file, length: trigger.length)
-    }
+    
+        }}
 
     /// A delivered message starts with a bracketed line saying who it is from.
     static func withoutHeader(_ text: String) -> String {

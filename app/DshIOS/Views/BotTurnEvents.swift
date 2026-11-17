@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What a Bot did in a reply beyond its words, drawn where the reply is: who it messaged or
 /// stopped, a Bot or group it made, what it remembered, a chart it showed, a question that
 /// closed unanswered. The calls themselves stay in the folded steps like any tool call.
@@ -10,6 +11,8 @@ struct BotTurnEvents: View {
     @State private var exchange: BotExchangePair?
 
     var body: some View {
+        WithPerceptionTracking {
+
         if case .bot(let botId)? = composer, let own = app.botTeam.bot(botId) {
             let closed = app.botTeam.team["closedCards"][own.sessionId]
             let calls = blocks.compactMap { block -> ToolCall? in
@@ -26,7 +29,8 @@ struct BotTurnEvents: View {
                 .sheet(item: $exchange) { BotExchangeSheet(pair: $0) }
             }
         }
-    }
+    
+        }}
 
     /// The calls a Bot ends a turn on: a card for the user, after what it said.
     static let cards: Set<String> = ["ask_user", "show_view", "request_secret", "request_connector", "mail_send"]
@@ -176,6 +180,8 @@ struct BotEventLine: View {
     var action: (() -> Void)?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let label = HStack(spacing: 8) {
             if let bot { BotAvatar(bot: bot, size: 20) } else { Image(systemName: symbol).font(.footnote).foregroundStyle(tone).frame(width: 20) }
             Text(text).font(.footnote).foregroundStyle(tone).lineLimit(2).multilineTextAlignment(.leading)
@@ -190,7 +196,8 @@ struct BotEventLine: View {
         } else {
             label
         }
-    }
+    
+        }}
 }
 
 /// A question card that closed without an answer on the card: it stays where it was asked.
@@ -199,6 +206,8 @@ private struct BotClosedQuestion: View {
     let outcome: String
 
     var body: some View {
+        WithPerceptionTracking {
+
         BotCard {
             Text(question["question"].string ?? "").font(.subheadline.weight(.semibold))
             if let detail = question["detail"].string, !detail.isEmpty { Text(detail).font(.footnote).foregroundStyle(Palette.secondary) }
@@ -210,7 +219,8 @@ private struct BotClosedQuestion: View {
                 .font(.caption).foregroundStyle(Palette.secondary)
         }
         .opacity(0.8)
-    }
+    
+        }}
 }
 
 // MARK: - Bot to Bot
@@ -234,6 +244,8 @@ struct BotExchangeSheet: View {
     @State private var loadingWhole: Set<String> = []
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let a = team.bot(pair.a), b = team.bot(pair.b)
         NavigationStack {
@@ -250,7 +262,7 @@ struct BotExchangeSheet: View {
                     .padding(20)
                     .modifier(LinkOpening())
                 }
-                .onChange(of: entries.count) { _, _ in proxy.scrollTo("end") }
+                .onChangeCompat(of: entries.count) { _, _ in proxy.scrollTo("end") }
             }
             .background(Palette.background)
             .navigationTitle([a?.name, b?.name].compactMap { $0 }.joined(separator: " ⇄ "))
@@ -264,7 +276,8 @@ struct BotExchangeSheet: View {
             }
             loaded = true
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func row(_ entry: JSON) -> some View {

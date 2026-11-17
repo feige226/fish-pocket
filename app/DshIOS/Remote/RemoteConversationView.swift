@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A session on one of the user's computers. It reads like a local conversation (the same
 /// turns, tool rows and sheets) and says in its title whose it is: the agent and the machine.
 /// What it can do follows the computer: offline it shows the history it has, and a session
@@ -28,12 +29,14 @@ struct RemoteConversationView: View {
     private static let bottomId = "remote-timeline-bottom"
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let model {
                 content(model)
             } else {
                 ConversationLoading().background(Palette.background)
-                    .toolbar { if let openDrawer { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) } } }
+                    .toolbar { if let openDrawer { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) } } }
             }
         }
         .task(id: app.remote.signedIn) {
@@ -46,12 +49,13 @@ struct RemoteConversationView: View {
             model = nil
             app.remote.release(sessionId)
         }
-    }
+    
+        }}
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
         Task { @MainActor in
             if animated {
-                withAnimation(.snappy(duration: 0.2)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
             } else {
                 proxy.scrollTo(Self.bottomId, anchor: .bottom)
             }
@@ -72,16 +76,16 @@ struct RemoteConversationView: View {
                     proxy.scrollTo(id, anchor: .top)
                 }
             }, top: timelineTop))
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { timelineTop = $0 }
+            .onGeometryChangeCompat(for: CGFloat.self) { $0.frame(in: .global).minY } action: { timelineTop = $0 }
             .modifier(TimelineAnchor())
             .modifier(BottomFollow(atBottom: $atBottom) { scrollToBottom(proxy, animated: false) })
             .scrollDismissesKeyboard(.immediately)
             .scrollBounceBehavior(.always)
             .simultaneousGesture(TapGesture().onEnded { dismissKeyboard() })
-            .onChange(of: model.rows.last?.id) { _, _ in
+            .onChangeCompat(of: model.rows.last?.id) { _, _ in
                 if case .user? = model.rows.last { atBottom = true; scrollToBottom(proxy) }
             }
-            .onChange(of: model.busy) { _, busy in if busy, atBottom { scrollToBottom(proxy) } }
+            .onChangeCompat(of: model.busy) { _, busy in if busy, atBottom { scrollToBottom(proxy) } }
             .overlay(alignment: .bottomTrailing) {
                 ZStack {
                     if !atBottom, !model.rows.isEmpty {
@@ -94,7 +98,7 @@ struct RemoteConversationView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
                 }
-                .animation(.snappy(duration: 0.18), value: atBottom)
+                .animation(.spring(response: 0.18, dampingFraction: 0.82), value: atBottom)
             }
         }
         .background(Palette.background)
@@ -105,7 +109,7 @@ struct RemoteConversationView: View {
                 .padding(.top, 6)
                 .padding(.bottom, 8)
                 .readableWidth()
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { app.composerHeight = $0 }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { app.composerHeight = $0 }
         }
         .navigationTitle(model.meta?.displayTitle ?? "")
         .navigationBarTitleDisplayMode(.inline)
@@ -113,10 +117,10 @@ struct RemoteConversationView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if let openDrawer {
-                ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) }
+                ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) }
             }
             if let meta = model.meta {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         Haptics.tap()
                         app.remoteSessionRequest = RemoteSessionTarget(deviceId: meta.deviceId, agentId: meta.agentId, projectId: meta.projectId)
@@ -127,7 +131,7 @@ struct RemoteConversationView: View {
                 }
             }
             ToolbarItem(placement: .principal) { RemoteTitleMenu(model: model) }
-            ToolbarItem(placement: .topBarTrailing) { moreMenu(model) }
+            ToolbarItem(placement: .navigationBarTrailing) { moreMenu(model) }
         }
         .environment(\.conversationActions, ConversationActions(
             openChanges: { panel = .changes },
@@ -137,13 +141,13 @@ struct RemoteConversationView: View {
                 detail = item
             }
         ))
-        .onChange(of: presented(model)?.id) { _, id in if id != nil { dismissKeyboard() } }
-        .onChange(of: waiting(model)?.id) { old, new in if let new, new != old { Haptics.warning() } }
-        .onChange(of: model.optionsRequest) { panel = .options }
+        .onChangeCompat(of: presented(model)?.id) { _, id in if id != nil { dismissKeyboard() } }
+        .onChangeCompat(of: waiting(model)?.id) { old, new in if let new, new != old { Haptics.warning() } }
+        .onChangeCompat(of: model.optionsRequest) { _, _ in panel = .options }
         // Archived from here or from another device: the main view moves on, as with a local session.
-        .onChange(of: model.meta?.archived) { _, archived in if archived == true { selection = nil } }
+        .onChangeCompat(of: model.meta?.archived) { _, archived in if archived == true { selection = nil } }
         // Read once it is on screen, and again when a turn ends while it is.
-        .onChange(of: "\(model.meta?.unread == true)-\(scenePhase == .active)", initial: true) {
+        .onChangeCompat(of: "\(model.meta?.unread == true)-\(scenePhase == .active)", initial: true) {
             if scenePhase == .active { app.remote.markRead(sessionId) }
         }
         .sheet(item: interactionBinding(model)) { sheet(for: $0, model) }
@@ -166,7 +170,7 @@ struct RemoteConversationView: View {
         } message: { enable in
             Text(takeoverMessage(enable, model))
         }
-        .onChange(of: model.notice) { _, text in
+        .onChangeCompat(of: model.notice) { _, text in
             guard let text else { return }
             model.notice = nil
             app.showToast(text, tone: .warning)
@@ -174,7 +178,8 @@ struct RemoteConversationView: View {
         .alert("出错了", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("好", role: .cancel) {}
         } message: {
-            Text(model.error ?? "")
+            let errorMessage = model.error ?? ""
+            Text(errorMessage)
         }
     }
 
@@ -353,6 +358,8 @@ private struct RemoteTitleMenu: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let meta = model.meta
         Menu {
             if let meta {
@@ -385,7 +392,8 @@ private struct RemoteTitleMenu: View {
         }
         .accessibilityLabel(Text("会话：\(meta?.displayTitle ?? "")，\(subtitle)"))
         .accessibilityHint("打开会话菜单")
-    }
+    
+        }}
 
     private func change(_ work: @escaping () async -> String?) {
         Task {
@@ -399,6 +407,8 @@ private struct RemoteTimelineList: View {
     let model: RemoteSessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         let turnOpen: Bool = if case .turn(let turn)? = model.rows.last { turn.inProgress } else { false }
         VStack(alignment: .leading, spacing: 20) {
             if model.hasOlder { RemoteLoadOlder(model: model) }
@@ -414,7 +424,8 @@ private struct RemoteTimelineList: View {
         .padding(.top, 20)
         .padding(.bottom, 12)
         .readableWidth()
-    }
+    
+        }}
 }
 
 private struct RemoteRowView: View, Equatable {
@@ -424,6 +435,8 @@ private struct RemoteRowView: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.row == rhs.row && lhs.model === rhs.model }
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch row {
         case .user(let id, let text, let attachments, let delivery):
             RemoteUserBubble(id: id, text: text, attachments: attachments, delivery: delivery, model: model)
@@ -439,7 +452,8 @@ private struct RemoteRowView: View, Equatable {
                 .foregroundStyle(isError ? Palette.removed : Palette.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
-    }
+    
+        }}
 }
 
 /// Older records load when the top of the timeline comes into view, as in a local conversation.
@@ -449,10 +463,12 @@ private struct RemoteLoadOlder: View {
     @State private var inView = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         ProgressView()
             .controlSize(.small)
             .frame(maxWidth: .infinity, minHeight: 36)
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { inView = $0 > scroll.top }
+            .onGeometryChangeCompat(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { inView = $0 > scroll.top }
             .task(id: "\(inView)-\(model.rows.first?.id ?? "")") {
                 guard inView else { return }
                 try? await Task.sleep(for: .milliseconds(300))
@@ -464,7 +480,8 @@ private struct RemoteLoadOlder: View {
                 }
             }
             .accessibilityLabel("正在加载更早的消息")
-    }
+    
+        }}
 }
 
 private struct RemoteUserBubble: View {
@@ -476,6 +493,8 @@ private struct RemoteUserBubble: View {
     @Environment(\.conversationActions) private var actions
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .trailing, spacing: 6) {
             let images = attachments.filter(\.isImage)
             if !images.isEmpty {
@@ -515,7 +534,8 @@ private struct RemoteUserBubble: View {
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.leading, 60)
-    }
+    
+        }}
 }
 
 /// A picture a message carries: fetched from the account's server, opened full screen on a tap.
@@ -527,6 +547,8 @@ private struct RemoteImageThumb: View {
     @State private var viewing = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let image {
                 Button { viewing = true } label: {
@@ -552,7 +574,8 @@ private struct RemoteImageThumb: View {
         .fullScreenCover(isPresented: $viewing) {
             if let image { ImageViewer(image: image, name: attachment.name) }
         }
-    }
+    
+        }}
 }
 
 /// In the composer's place while nothing can be sent: why, and the one thing to do about it.
@@ -561,6 +584,8 @@ private struct RemoteBlockBar: View {
     var action: (title: LocalizedStringKey, perform: () -> Void)?
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 10) {
             Text(text).font(.subheadline).foregroundStyle(Palette.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -573,7 +598,8 @@ private struct RemoteBlockBar: View {
         .padding(.trailing, 9)
         .frame(minHeight: 54)
         .background(Palette.field, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-    }
+    
+        }}
 }
 
 /// A note from the agent that asks for nothing; its own actions (dismiss…) are one tap away.
@@ -582,6 +608,8 @@ private struct RemoteNoticeLine: View {
     let model: RemoteSessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: notice.severity == "error" ? "exclamationmark.triangle" : "info.circle")
                 .foregroundStyle(notice.severity == "error" ? Palette.removed : Palette.secondary)
@@ -603,5 +631,6 @@ private struct RemoteNoticeLine: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.grouped, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
+    
+        }}
 }

@@ -16,7 +16,7 @@ import SwiftUI
 /// 的事做掉，以及如实回答当前的授权状态。
 ///
 /// 下面每个 `@objc` 方法都只做一件事：分版本。AlarmKit 要 iOS 26，而 App 的部署
-/// 目标是 17，所以真正用到框架的代码全在底下那个 `@available(iOS 26.0, *)` 的
+/// 目标是 16.4，所以真正用到框架的代码全在底下那个 `@available(iOS 26.0, *)` 的
 /// extension 里，老系统上一句都碰不到。
 @objc final class AlarmProvider: NSObject {
     @objc static let shared = AlarmProvider()

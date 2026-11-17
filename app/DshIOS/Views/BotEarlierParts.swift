@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The earlier parts of a Bot's chat or a group, above the current one. ds-bot moves a long
 /// conversation to a fresh session and keeps the old ones; `earlier` pages through them,
 /// newest page first, each page oldest to newest.
@@ -13,6 +14,8 @@ struct BotEarlierParts: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 16) {
             if !opened || !cursor.isNull {
                 Button { Task { await load() } } label: {
@@ -31,7 +34,8 @@ struct BotEarlierParts: View {
             ForEach(Array(merged.enumerated()), id: \.offset) { _, item in row(item) }
             if opened && !items.isEmpty { divider(String(localized: "以下是现在的对话")) }
         }
-    }
+    
+        }}
 
     /// Consecutive reply blocks of one turn read as one reply.
     private var merged: [JSON] {

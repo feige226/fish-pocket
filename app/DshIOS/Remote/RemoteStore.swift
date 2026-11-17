@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import UIKit
 
 /// The login a QR code on Agents Anywhere's web or desktop app carries.
@@ -30,7 +30,7 @@ struct RemoteLoginCode: Hashable {
 /// One for the app: it does not depend on the phone's own engine, so an engine restart (which
 /// brings a new `AppModel`) leaves the account, its connection and the open sessions as they are.
 @MainActor
-@Observable
+@Perceptible
 final class RemoteStore {
     static let shared = RemoteStore()
 
@@ -77,16 +77,16 @@ final class RemoteStore {
     /// The server ended the sign-in; shown once, then cleared.
     var expired = false
 
-    @ObservationIgnored private(set) var client: RemoteClient?
-    @ObservationIgnored private var follow: Task<Void, Never>?
+    @PerceptionIgnored private(set) var client: RemoteClient?
+    @PerceptionIgnored private var follow: Task<Void, Never>?
     /// The sessions that have been opened (`SessionKeeper`, as for local conversations): opened
     /// again, one shows at once what it held and only has to catch up.
-    @ObservationIgnored private let kept = SessionKeeper<RemoteSessionModel>()
-    @ObservationIgnored private var inFront = true
+    @PerceptionIgnored private let kept = SessionKeeper<RemoteSessionModel>()
+    @PerceptionIgnored private var inFront = true
     /// The state of the session each request was read at; a later one is read again.
-    @ObservationIgnored private var requestSeq: [String: Int] = [:]
-    @ObservationIgnored private var requestReads: Set<String> = []
-    @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @PerceptionIgnored private var requestSeq: [String: Int] = [:]
+    @PerceptionIgnored private var requestReads: Set<String> = []
+    @PerceptionIgnored private var observers: [NSObjectProtocol] = []
 
     var signedIn: Bool { account != nil }
 

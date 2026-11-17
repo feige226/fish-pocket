@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 
 @main
 struct DshIOSApp: App {
@@ -24,7 +25,7 @@ struct DshIOSApp: App {
                 .onAppear { engine.start() }
         }
         .commands { ShellCommands() }
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase) { phase in
             // Shared from another app, but the link did not bring the app up: it is taken now.
             if phase == .active, let id = ShareInbox.waiting().first {
                 LinkInbox.shared.request = LinkRequest(link: .share(id))
@@ -45,7 +46,7 @@ struct LinkRequest: Equatable {
 
 /// A link from an App Intent, which has no window of its own: the first window to see it takes it.
 @MainActor
-@Observable
+@Perceptible
 final class LinkInbox {
     static let shared = LinkInbox()
     var request: LinkRequest?
@@ -62,13 +63,13 @@ struct SessionWindow: Codable, Hashable {
 /// the same sessions, and the Live Activity and background work follow one model.
 /// Each engine generation (a new listening URL after a restart) gets a fresh one.
 @MainActor
-@Observable
+@Perceptible
 final class EngineConnection {
     static let shared = EngineConnection()
 
     private(set) var app: AppModel?
     /// The generation being connected or connected; windows that arrive during it just wait.
-    @ObservationIgnored private var generation: Int?
+    @PerceptionIgnored private var generation: Int?
 
     func connect(to url: URL, generation current: Int) async {
         guard current != generation else { return }
@@ -98,13 +99,13 @@ struct RootView: View {
             .onOpenURL { url in
                 if let parsed = DshLink(url: url) { follow(LinkRequest(link: parsed)) }
             }
-            .onChange(of: inbox.request?.token, initial: true) {
+            .onChangeCompat(of: inbox.request?.token, initial: true) {
                 guard let request = inbox.request else { return }
                 inbox.request = nil
                 follow(request)
             }
             // A widget or Shortcuts may offer an app the agent made since the list was last written.
-            .onChange(of: scenePhase) { _, phase in
+            .onChangeCompat(of: scenePhase) { _, phase in
                 if phase == .background { MiniAppStore.shared.refresh() }
             }
             // A `dsh://` link goes to a window that is already open. Any window may also take a plain
@@ -210,7 +211,7 @@ private struct EngineTrouble: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
             }
-            .defaultScrollAnchor(.bottom)
+            .defaultScrollAnchorCompat(.bottom)
             .background(Palette.grouped, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             if let safeMode {

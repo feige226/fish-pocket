@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The left drawer (the iPad sidebar) is for finding a session. One list: the feature rows
 /// (插件 … 远程控制), the sessions under a header that carries the view menu (by time, by
 /// workspace, by device), and 「已归档」 at the end. The app's name and the search button float
@@ -83,6 +84,8 @@ struct DrawerView: View {
     private static let searchLimit = 20
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             switch style {
             case .sidebar: sidebar
@@ -91,9 +94,9 @@ struct DrawerView: View {
             }
         }
         .task(id: search) { await searchRemote() }
-        .onChange(of: groupBy) { Haptics.select() }
-        .onChange(of: selection) { revealSelection() }
-        .onChange(of: selectionRowGroupId) { revealSelection() }
+        .onChangeCompat(of: groupBy) { _, _ in Haptics.select() }
+        .onChangeCompat(of: selection) { _, _ in revealSelection() }
+        .onChangeCompat(of: selectionRowGroupId) { _, _ in revealSelection() }
         .confirmationDialog("删除「\(removingWorkspace?.displayTitle ?? "")」？", isPresented: Binding(get: { removingWorkspace != nil }, set: { if !$0 { removingWorkspace = nil } }), titleVisibility: .visible) {
             Button("删除工作区", role: .destructive) {
                 if let workspace = removingWorkspace {
@@ -104,7 +107,8 @@ struct DrawerView: View {
             Text("文件夹和会话都会保留，会话移到「未分组」。")
         }
         .sheet(isPresented: $showNewWorkspace) { NewWorkspaceView() }
-    }
+    
+        }}
 
     private var sidebar: some View {
         NavigationStack {
@@ -134,7 +138,7 @@ struct DrawerView: View {
             .background(Palette.background)
             // 操控手机's row says whether iCTRL runs; it changes while the user is in iCTRL.
             .task { await phoneControl.refresh() }
-            .onChange(of: scenePhase) { _, phase in
+            .onChangeCompat(of: scenePhase) { _, phase in
                 if phase == .active {
                     Task { await phoneControl.refresh() }
                     miniApps.refresh()
@@ -143,7 +147,7 @@ struct DrawerView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Route.self) { _ in archivedPage }
         }
-        .onChange(of: searchRequest) { openSearch() }
+        .onChangeCompat(of: searchRequest) { _, _ in openSearch() }
         .fullScreenCover(isPresented: $searchOpen) { searchPage }
     }
 
@@ -186,14 +190,14 @@ struct DrawerView: View {
         .navigationBarTitleDisplayMode(.large)
         // Always in view, by choice: from iOS 27 the large title then starts folded into the bar
         // (pulling down unfolds it). The other placement keeps the large title but hides the field.
-        .searchable(text: $search, isPresented: $searchActive, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索会话")
+        .searchable(text: $search, prompt: "搜索会话")
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         // ⌘F and the like: the field of this tab.
-        .onChange(of: searchRequest) { searchActive = true }
+        .onChangeCompat(of: searchRequest) { _, _ in searchActive = true }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { viewMenu(compact: true) }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) { viewMenu(compact: true) }
+            ToolbarItem(placement: .navigationBarTrailing) {
                 newConversationControl {
                     Image(systemName: "square.and.pencil")
                 }
@@ -255,7 +259,7 @@ struct DrawerView: View {
             }
             .background(Palette.background)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, isPresented: $searchActive, prompt: "搜索会话")
+            .searchable(text: $search, prompt: "搜索会话")
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .searchFieldAtBottom()
@@ -266,7 +270,7 @@ struct DrawerView: View {
         .presentationBackground(.clear)
         .onAppear { withAnimation(.easeOut(duration: 0.2)) { searchShown = true } }
         // The field's own ✕ (取消 before iOS 26) is the way out.
-        .onChange(of: searchActive) { if !searchActive { closeSearch() } }
+        .onChangeCompat(of: searchActive) { _, active in if !active { closeSearch() } }
     }
 
     private func openSearch() {
@@ -278,7 +282,8 @@ struct DrawerView: View {
     private func closeSearch() {
         guard searchOpen, searchShown else { return }
         searchActive = false
-        withAnimation(.easeIn(duration: 0.15)) { searchShown = false } completion: {
+        withAnimation(.easeIn(duration: 0.15)) { searchShown = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
             search = ""
             withoutAnimation { searchOpen = false }
         }
@@ -757,7 +762,7 @@ struct DrawerView: View {
         let offline = group.device?.online == false
         return Button {
             Haptics.select()
-            withAnimation(.snappy(duration: 0.2)) { setExpanded(group, !open) }
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { setExpanded(group, !open) }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: group.symbol == "folder" ? (open ? "folder" : "folder.fill") : group.symbol)
@@ -819,7 +824,7 @@ struct DrawerView: View {
     private func moreRow(_ group: SessionGroup, shown: Int) -> some View {
         let hidden = group.rows.count - shown
         return Button {
-            withAnimation(.snappy(duration: 0.2)) {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) {
                 if hidden > 0 {
                     watermark[group.id] = hidden <= Self.baseRows ? group.rows.count : shown + Self.baseRows
                 } else {
@@ -1326,6 +1331,8 @@ struct MachineTag: View {
     var dimmed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 3) {
             Image(systemName: symbol).font(.system(size: 9, weight: .semibold))
             Text(name).font(.caption2.weight(.semibold)).lineLimit(1)
@@ -1335,7 +1342,8 @@ struct MachineTag: View {
         .padding(.vertical, 2)
         .background(Palette.control, in: Capsule())
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// The way out of the search page on iPad from iOS 26: there the system puts the field in the
@@ -1347,7 +1355,7 @@ private struct SearchPageClose: ViewModifier {
     func body(content: Content) -> some View {
         content.toolbar {
             if #available(iOS 26.0, *), UIDevice.current.userInterfaceIdiom == .pad, sizeClass == .regular {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: action) { Image(systemName: "xmark") }
                         .accessibilityLabel("关闭")
                 }
@@ -1369,6 +1377,8 @@ private struct RemoteRowLabel: View, Equatable {
     let asks: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         let live = session.deviceOnline && !session.archived
         HStack(alignment: .top, spacing: 8) {
             Group {
@@ -1412,7 +1422,8 @@ private struct RemoteRowLabel: View, Equatable {
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .opacity(live ? 1 : 0.55)
         .contentShape(Rectangle())
-    }
+    
+        }}
 }
 
 /// Where the drawer's session rows are in the window: a horizontal swipe
@@ -1486,7 +1497,7 @@ private extension View {
     }
 
     func reportsFrame(_ id: String, to frames: DrawerRowFrames) -> some View {
-        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.set($0, of: id) }
+        onGeometryChangeCompat(for: CGRect.self) { $0.frame(in: .global) } action: { frames.set($0, of: id) }
             .onAppear { frames.setShown(id, true) }
             .onDisappear { frames.setShown(id, false) }
     }

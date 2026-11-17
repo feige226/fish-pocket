@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 /// A bonus the Platform has credited but the user has not been shown yet.
@@ -23,13 +23,13 @@ struct BonusNotice: Identifiable, Hashable {
 /// Platform password or web cookies: sign-in happens on Platform's own page
 /// in a browser this app cannot read.
 @MainActor
-@Observable
+@Perceptible
 final class AccountModel {
     /// The engine build this client speaks for; account methods require it in `client`.
     static let clientVersion = "0.2.2-rc.1"
 
-    @ObservationIgnored private let client: EngineClient
-    @ObservationIgnored private let mux: StreamMux
+    @PerceptionIgnored private let client: EngineClient
+    @PerceptionIgnored private let mux: StreamMux
 
     /// The latest `AccountView`: `status`, `links`, `attempt`.
     private(set) var view: JSON?
@@ -42,10 +42,10 @@ final class AccountModel {
     var toast: String?
     var quotaPrompt = false
 
-    @ObservationIgnored private var watchTask: Task<Void, Never>?
-    @ObservationIgnored private var detailsGeneration = 0
-    @ObservationIgnored private var initializedAttempt: String?
-    @ObservationIgnored private var acked: Set<String> = []
+    @PerceptionIgnored private var watchTask: Task<Void, Never>?
+    @PerceptionIgnored private var detailsGeneration = 0
+    @PerceptionIgnored private var initializedAttempt: String?
+    @PerceptionIgnored private var acked: Set<String> = []
 
     init(client: EngineClient, mux: StreamMux) {
         self.client = client

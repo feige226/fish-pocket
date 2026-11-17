@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 插件: browse a market and manage what is installed. It reads the same market and plugin models
 /// as 设置 → 插件, which stays as it is until this page replaces it.
 struct PluginStoreView: View {
@@ -15,6 +16,8 @@ struct PluginStoreView: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 0) {
             if !searching { tabs }
             if tab == "discover" {
@@ -24,12 +27,12 @@ struct PluginStoreView: View {
             }
         }
         .background(Palette.background)
-        .animation(.snappy(duration: 0.2), value: searching)
+        .animation(.spring(response: 0.2, dampingFraction: 0.82), value: searching)
         .navigationTitle("插件")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let openSidebar { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openSidebar) } }
-            ToolbarItem(placement: .topBarTrailing) { menu }
+            if let openSidebar { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openSidebar) } }
+            ToolbarItem(placement: .navigationBarTrailing) { menu }
         }
         .sheet(isPresented: $managing) { StoreSourcesSheet(model: model) }
         .sheet(isPresented: $showReports) { PluginReportsPage() }
@@ -46,9 +49,10 @@ struct PluginStoreView: View {
             guard model.readiness == .ready else { return }
             await model.market.loadIndexes(app)
         }
-        .onChange(of: manager.marketEnabled) { _, enabled in if !enabled { model.marketTurnedOff() } }
+        .onChangeCompat(of: manager.marketEnabled) { _, enabled in if !enabled { model.marketTurnedOff() } }
         .followSettings()
-    }
+    
+        }}
 
     private var tabs: some View {
         HStack(spacing: 2) {
@@ -138,6 +142,8 @@ private struct StoreDiscoverPage: View {
     private var unfiltered: Bool { !hasText && market.query.category == nil && market.query.labels.isEmpty }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             switch model.readiness {
             case .checking where model.hasList:
@@ -147,23 +153,19 @@ private struct StoreDiscoverPage: View {
                     .font(.footnote)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .unavailable:
-                ContentUnavailableView("无法管理插件", systemImage: "puzzlepiece.extension", description: Text("当前无法安装或启停插件。"))
+                placeholder("无法管理插件", systemImage: "puzzlepiece.extension", description: "当前无法安装或启停插件。") { EmptyView() }
             case .off:
-                ContentUnavailableView {
-                    Label("插件市场已关闭", systemImage: "storefront")
-                } description: {
-                    Text("它的开关在「设置 → 插件 → 实验性插件」")
-                } actions: {
+                placeholder("插件市场已关闭", systemImage: "storefront", description: "它的开关在「设置 → 插件 → 实验性插件」") {
                     Button("开启") { Task { await model.enable(app) } }.buttonStyle(.capsule(height: 44, fill: false))
                 }
             case .ready:
                 ready
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .sheet(item: $choice) { StoreInstallConfirm(choice: $0, marketTitle: localized(market.result?["title"] ?? .null)) }
-        .onChange(of: searchFocused) { updateSearching() }
-        .onChange(of: search) { updateSearching() }
+        .onChangeCompat(of: searchFocused) { _, _ in updateSearching() }
+        .onChangeCompat(of: search) { _, _ in updateSearching() }
         // Keystrokes settle for 250 ms before a read.
         .task(id: search) {
             guard search != market.query.text else { return }
@@ -172,7 +174,8 @@ private struct StoreDiscoverPage: View {
             market.setText(search)
             await market.reload(app)
         }
-    }
+    
+        }}
 
     private func updateSearching() {
         searching = searchFocused || !search.isEmpty
@@ -190,23 +193,45 @@ private struct StoreDiscoverPage: View {
     }
 
     private var noMarket: some View {
-        ContentUnavailableView {
-            Label("还没有插件市场", systemImage: "storefront")
-        } description: {
-            Text("恢复预置市场，或添加其他索引。")
-        } actions: {
+        placeholder("还没有插件市场", systemImage: "storefront", description: "恢复预置市场，或添加其他索引。") {
             Button("恢复预置市场") { Task { await model.restorePreset(app) } }.buttonStyle(.capsule(height: 44, fill: false))
             Button("添加索引源", action: manage).font(.subheadline.weight(.medium)).foregroundStyle(Palette.secondary).hitTarget()
         }
     }
 
     private func failure(_ retry: @escaping () async -> Void) -> some View {
-        ContentUnavailableView {
-            Text("无法读取插件市场").font(.title3.weight(.semibold))
-        } description: {
-            Text("检查网络后再试一次。已经安装的插件不受影响。")
-        } actions: {
+        placeholder("无法读取插件市场", systemImage: "wifi.exclamationmark", description: "检查网络后再试一次。已经安装的插件不受影响。") {
             Button("重试") { Task { await retry() } }.buttonStyle(.capsule(.outline, height: 44, fill: false))
+        }
+    }
+
+    @ViewBuilder
+    private func placeholder<Actions: View>(
+        _ title: String,
+        systemImage: String,
+        description: String,
+        @ViewBuilder actions: () -> Actions
+    ) -> some View {
+        if #available(iOS 17.0, *) {
+            ContentUnavailableView {
+                Label(title, systemImage: systemImage)
+            } description: {
+                Text(description)
+            } actions: {
+                actions()
+            }
+        } else {
+            VStack(spacing: 12) {
+                Label(title, systemImage: systemImage)
+                    .font(.title3.weight(.semibold))
+                Text(description)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.secondary)
+                    .multilineTextAlignment(.center)
+                actions()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
         }
     }
 
@@ -446,6 +471,8 @@ struct StoreArt: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         if let icon {
             PluginIcon(source: icon, size: size - 12)
         } else {
@@ -456,7 +483,8 @@ struct StoreArt: View {
                 .background(Palette.bubble, in: RoundedRectangle(cornerRadius: size * 0.23, style: .continuous))
                 .accessibilityHidden(true)
         }
-    }
+    
+        }}
 }
 
 private struct StoreRow: View {
@@ -469,6 +497,8 @@ private struct StoreRow: View {
     private var metadata: JSON { model.market.result?["metadata"] ?? .null }
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 10) {
             NavigationLink {
                 StoreEntryDetail(listing: entry, model: model, install: install)
@@ -497,7 +527,8 @@ private struct StoreRow: View {
         .padding(.leading, 14)
         .padding(.trailing, 12)
         .frame(minHeight: wide ? 86 : 74)
-    }
+    
+        }}
 
     private var meta: String {
         [entry.versionNumber, entry.author, entry.date].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
@@ -557,6 +588,8 @@ private struct StoreInstalledPage: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if manager.status == .unavailable {
                 Text("当前无法安装或启停插件。").font(.footnote).foregroundStyle(Palette.secondary).groupedRow()
@@ -575,7 +608,8 @@ private struct StoreInstalledPage: View {
         }
         .groupedList()
         .refreshable { await manager.manualRefresh() }
-    }
+    
+        }}
 
     private var installed: some View {
         Section("已安装插件") {
@@ -637,13 +671,16 @@ private struct StoreAllExtensions: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section { ForEach(app.plugins.allExtensions) { StorePackageRow(package: $0) } }.groupedRow()
         }
         .groupedList()
         .navigationTitle("实验性插件")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 /// An installed or official package; its switch and removal are on the detail page it opens.
@@ -652,6 +689,8 @@ private struct StorePackageRow: View {
     let package: PluginPackage
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationLink {
             PluginDetailView(name: package.name).storeWebButton()
         } label: {
@@ -684,7 +723,8 @@ private struct StorePackageRow: View {
             }
             .padding(.vertical, 3)
         }
-    }
+    
+        }}
 
     private var state: String? {
         guard package.availability != "missing" else { return nil }
@@ -707,6 +747,8 @@ struct StoreSourcesSheet: View {
     private var urls: [String] { (market.indexes ?? []).compactMap { $0["url"].string } }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -743,7 +785,7 @@ struct StoreSourcesSheet: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .onChange(of: draft) { _, _ in market.clearSourceFailure() }
+                        .onChangeCompat(of: draft) { _, _ in market.clearSourceFailure() }
                     if let failure = failureText { Text(failure).font(.caption).foregroundStyle(Palette.removed) }
                     Button("添加") {
                         let url = draft.trimmingCharacters(in: .whitespaces)
@@ -765,7 +807,8 @@ struct StoreSourcesSheet: View {
             .closeButton(dismiss)
         }
         .tint(Palette.ink)
-    }
+    
+        }}
 
     /// A source lists its host until it is read; the market on screen has been.
     private func title(_ index: JSON) -> String {

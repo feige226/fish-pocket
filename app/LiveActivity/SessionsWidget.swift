@@ -22,21 +22,27 @@ private struct SessionsWidgetView: View {
     var body: some View {
         switch family {
         case .accessoryCircular:
-            CircularSessions(entry: entry).containerBackground(for: .widget) { Color.clear }
+            CircularSessions(entry: entry)
         case .accessoryRectangular:
-            RectangularSessions(entry: entry).containerBackground(for: .widget) { Color.clear }
+            RectangularSessions(entry: entry)
         case .accessoryInline:
-            InlineSessions(entry: entry).containerBackground(for: .widget) { Color.clear }
+            InlineSessions(entry: entry)
         case .systemMedium:
-            SessionList(entry: entry, rows: 3, details: false)
-                .containerBackground(WidgetPalette.background, for: .widget)
+            widgetBackground(SessionList(entry: entry, rows: 3, details: false))
         case .systemLarge:
-            SessionList(entry: entry, rows: 6, details: true)
-                .containerBackground(WidgetPalette.background, for: .widget)
+            widgetBackground(SessionList(entry: entry, rows: 6, details: true))
         default:
-            SmallSessions(entry: entry)
-                .containerBackground(WidgetPalette.background, for: .widget)
+            widgetBackground(SmallSessions(entry: entry))
         }
+    }
+}
+
+@ViewBuilder
+private func widgetBackground<Content: View>(_ content: Content) -> some View {
+    if #available(iOSApplicationExtension 17.0, *) {
+        content.containerBackground(WidgetPalette.background, for: .widget)
+    } else {
+        content.background(WidgetPalette.background)
     }
 }
 

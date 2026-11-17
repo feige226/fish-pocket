@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Where the Bot pages go: the list, a Bot's own chat, a group chat.
 enum BotRoute: Hashable {
     case bot(String)
@@ -23,6 +24,8 @@ struct BotAvatar: View {
     var outline: Color?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let mood = mood ?? (live ? bot.map { team.mood($0.id) } : nil) ?? .idle
         Group {
@@ -42,7 +45,8 @@ struct BotAvatar: View {
             }
         }
         .accessibilityHidden(true)
-    }
+    
+        }}
 
     private func picture(_ image: Image, mood: BotMood) -> some View {
         image.resizable().scaledToFill()
@@ -91,6 +95,8 @@ struct RoomAvatar: View {
     var size: CGFloat = 40
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let members = room.members.compactMap(team.bot).prefix(2)
         ZStack(alignment: .topLeading) {
@@ -106,7 +112,8 @@ struct RoomAvatar: View {
         }
         .frame(width: size, height: size, alignment: .topLeading)
         .accessibilityHidden(true)
-    }
+    
+        }}
 }
 
 // MARK: - Drawer entry
@@ -118,6 +125,8 @@ struct BotDrawerEntry: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         Button {
             Haptics.tap()
@@ -138,7 +147,8 @@ struct BotDrawerEntry: View {
         .padding(.bottom, 2)
         .accessibilityElement(children: .combine)
         .accessibilityHint("打开 Bot 列表")
-    }
+    
+        }}
 
     /// The main Bot in front, up to two more tucked behind it, where the rows under it have
     /// their icon; wider than that icon, so the title sits further in than theirs. Behind it
@@ -233,6 +243,8 @@ struct BotRowText: View {
     var compact = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Text(title).font(compact ? .subheadline.weight(.semibold) : .body.weight(.semibold)).foregroundStyle(Palette.ink).lineLimit(1)
@@ -252,7 +264,8 @@ struct BotRowText: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    
+        }}
 }
 
 extension BotModel {
@@ -301,6 +314,8 @@ struct BotHomeView: View {
     enum CreateKind: String, Identifiable { case bot, room; var id: String { rawValue } }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         Group {
             if team.status == .ready {
@@ -313,9 +328,9 @@ struct BotHomeView: View {
         .navigationTitle("Bot")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let openDrawer { ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) } }
+            if let openDrawer { ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) } }
             if team.status == .ready {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button { creating = .bot } label: { Label("新建 Bot", systemImage: "person.badge.plus") }
                         Button { creating = .room } label: { Label("新建群聊", systemImage: "person.2") }
@@ -347,7 +362,8 @@ struct BotHomeView: View {
             _ = try? await team.call("models")
             await team.refreshState()
         }
-    }
+    
+        }}
 
     private var needle: String { query.trimmingCharacters(in: .whitespaces).lowercased() }
 
@@ -499,7 +515,7 @@ struct BotHomeView: View {
             if hiddenCount > 0 && needle.isEmpty {
                 Section {
                     Button(showHidden ? String(localized: "收起已隐藏的") : String(localized: "显示 \(hiddenCount) 个已隐藏的")) {
-                        withAnimation(.snappy) { showHidden.toggle() }
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { showHidden.toggle() }
                     }
                     .font(.footnote)
                     .foregroundStyle(Palette.secondary)
@@ -550,6 +566,8 @@ struct BotSetupView: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         ScrollView {
             VStack(spacing: 28) {
@@ -576,8 +594,9 @@ struct BotSetupView: View {
             .readableWidth()
         }
         .safeAreaInset(edge: .bottom) { action.padding(.horizontal, 20).padding(.bottom, 12).background(Palette.background) }
-        .onChange(of: team.status) { _, status in if status == .ready { Haptics.success() } }
-    }
+        .onChangeCompat(of: team.status) { _, status in if status == .ready { Haptics.success() } }
+    
+        }}
 
     @ViewBuilder
     private var action: some View {
@@ -630,6 +649,8 @@ struct BotLookPicker: View {
     @Binding var color: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let ink = BotInk.color(color) ?? Palette.secondary
         VStack(spacing: 16) {
@@ -663,7 +684,8 @@ struct BotLookPicker: View {
             }
         }
         .padding(.vertical, 6)
-    }
+    
+        }}
 }
 
 /// The look being picked, large: it pops as the look changes, and spins when poked.
@@ -674,21 +696,22 @@ struct BotLookPreview: View {
     @State private var poke = 0
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button { Haptics.tap(); poke += 1 } label: {
             BotMark(character: BotCharacter.named(shape) ?? BotCharacter.all[0], color: BotInk.color(color) ?? Palette.secondary, size: 104,
                     mood: mood, lively: true, seed: shape ?? "", poke: poke)
-                .phaseAnimator([false, true], trigger: [shape, color]) { mark, popped in
-                    mark.scaleEffect(popped ? 1.14 : 1).rotationEffect(.degrees(popped ? -9 : 0))
-                } animation: { popped in
-                    popped ? .spring(response: 0.16, dampingFraction: 0.7) : .spring(response: 0.42, dampingFraction: 0.42)
-                }
+                .scaleEffect(poke.isMultiple(of: 2) ? 1 : 1.14)
+                .rotationEffect(.degrees(poke.isMultiple(of: 2) ? 0 : -9))
+                .animation(.spring(response: 0.16, dampingFraction: 0.7), value: poke)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityHidden(true)
-    }
+    
+        }}
 }
 
 struct BotCreateSheet: View {
@@ -704,6 +727,8 @@ struct BotCreateSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let fallback = team.prefs["defaultBotModel"].string ?? team.team["defaultModel"].string
         NavigationStack {
@@ -741,7 +766,8 @@ struct BotCreateSheet: View {
             .saveToolbar(canSave: !name.trimmingCharacters(in: .whitespaces).isEmpty, saving: saving, cancel: { dismiss() }) { create() }
             .onAppear { if color == nil { color = team.colorKeys.filter { !["charcoal", "graphite", "black", "gray", "brown"].contains($0) }.randomElement() } }
         }
-    }
+    
+        }}
 
     private func create() {
         let team = app.botTeam
@@ -779,6 +805,8 @@ struct RoomCreateSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack {
             Form {
@@ -819,7 +847,8 @@ struct RoomCreateSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .saveToolbar(canSave: (2...12).contains(members.count), saving: saving, cancel: { dismiss() }) { create() }
         }
-    }
+    
+        }}
 
     private func create() {
         let team = app.botTeam

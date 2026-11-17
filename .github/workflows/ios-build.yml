@@ -11,7 +11,7 @@ on:
     branches: [main, release]
     paths-ignore: ["docs/**", "**/*.md"]
   push:
-    branches: [main]
+    branches: [main, ios16.4.1-compat]
     paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 
@@ -28,7 +28,7 @@ jobs:
     # Xcode 27, and an older compiler here fails code they accept (it gave up type-checking a
     # long SwiftUI body). `xcode-27` is GitHub's macOS 27 image, a preview for now.
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -115,8 +115,42 @@ jobs:
       - name: Compile (iOS simulator)
         working-directory: app
         run: |
+          # CI runners may not have Xcode's local trust record for SwiftPM macro plugins.
+          # Skip macro fingerprint validation; keep package plugin validation skipped as above.
           xcodebuild -project DshIOS.xcodeproj -scheme DshIOS \
             -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/DerivedData -skipPackagePluginValidation \
+            -derivedDataPath build/DerivedData -skipPackagePluginValidation -skipMacroValidation \
             ARCHS=arm64 CODE_SIGNING_ALLOWED=NO \
             build -quiet
+
+      
+      # Build the physical-device variant without a personal signing identity.
+      # The resulting IPA is intended for TrollStore-style installation, not App Store/ESign.
+      - name: Compile (iOS device, unsigned)
+        working-directory: app
+        run: |
+          xcodebuild -project DshIOS.xcodeproj -scheme DshIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DeviceDerivedData -skipPackagePluginValidation -skipMacroValidation \
+            ARCHS=arm64 CODE_SIGNING_ALLOWED=NO \
+            build -quiet
+
+      - name: Package unsigned IPA
+        working-directory: app
+        run: |
+          APP_PATH="build/DeviceDerivedData/Build/Products/Release-iphoneos/DshIOS.app"
+          test -d "$APP_PATH"
+          rm -rf build/ipa/Payload
+          mkdir -p build/ipa/Payload
+          cp -R "$APP_PATH" build/ipa/Payload/DshIOS.app
+          (cd build/ipa && /usr/bin/zip -qry "$GITHUB_WORKSPACE/FishPocket-iOS16.4.1-unsigned.ipa" Payload)
+          test -s "$GITHUB_WORKSPACE/FishPocket-iOS16.4.1-unsigned.ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v5
+        with:
+          name: FishPocket-iOS16.4.1-unsigned-IPA
+          path: FishPocket-iOS16.4.1-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7

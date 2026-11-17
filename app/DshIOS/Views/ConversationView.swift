@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One conversation: its title and session menu in the top bar, the workbench on
 /// the right, the timeline, and the composer. A blank session shows the
 /// new-conversation state (model picker on top, headline, workspace chip,
@@ -61,6 +62,8 @@ struct ConversationView: View {
     #endif
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let model {
                 content(model)
@@ -127,7 +130,8 @@ struct ConversationView: View {
             if let model { QuestionSheet(model: model, question: question) }
         }
         #endif
-    }
+    
+        }}
 
     private static let bottomId = "timeline-bottom"
 
@@ -135,7 +139,7 @@ struct ConversationView: View {
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
         Task { @MainActor in
             if animated {
-                withAnimation(.snappy(duration: 0.2)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { proxy.scrollTo(Self.bottomId, anchor: .bottom) }
             } else {
                 proxy.scrollTo(Self.bottomId, anchor: .bottom)
             }
@@ -170,7 +174,7 @@ struct ConversationView: View {
                 .animation(.easeOut(duration: 0.2), value: model.loaded)
             }
             // The first read in: open at the last message.
-            .onChange(of: model.loaded) { _, loaded in
+            .onChangeCompat(of: model.loaded) { _, loaded in
                 if loaded { atBottom = true; scrollToBottom(proxy, animated: false) }
             }
             .environment(\.timelineScroll, TimelineScroll(keep: { id in
@@ -180,7 +184,7 @@ struct ConversationView: View {
                     proxy.scrollTo(id, anchor: .top)
                 }
             }, top: timelineTop))
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { timelineTop = $0 }
+            .onGeometryChangeCompat(for: CGFloat.self) { $0.frame(in: .global).minY } action: { timelineTop = $0 }
             .modifier(TimelineAnchor())
             .modifier(BottomFollow(atBottom: $atBottom) { scrollToBottom(proxy, animated: false) })
             // Any drag on the timeline hides the keyboard (`.interactively` only does when the finger reaches it),
@@ -193,10 +197,10 @@ struct ConversationView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { dismissKeyboard() }
             })
             // The bottom anchor only holds for the first layout; follow the user's own message and the start of a turn.
-            .onChange(of: model.items.last?.id) { _, _ in
+            .onChangeCompat(of: model.items.last?.id) { _, _ in
                 if case .user? = model.items.last { atBottom = true; scrollToBottom(proxy) }
             }
-            .onChange(of: model.running) { _, running in if running, atBottom { scrollToBottom(proxy) } }
+            .onChangeCompat(of: model.running) { _, running in if running, atBottom { scrollToBottom(proxy) } }
             .overlay(alignment: .bottomTrailing) {
                 // Animated here, not on the scroll view: its rows must not animate with the buttons.
                 ZStack {
@@ -216,7 +220,7 @@ struct ConversationView: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
                 }
-                .animation(.snappy(duration: 0.18), value: atBottom)
+                .animation(.spring(response: 0.18, dampingFraction: 0.82), value: atBottom)
             }
             // Opposite the scroll buttons: the agent's page and its background jobs, one tap from the chat.
             .overlay(alignment: .bottomLeading) {
@@ -304,7 +308,7 @@ struct ConversationView: View {
             // safe area beside it: the status bar's column on iPhone Duo unfolded, the notch's side
             // in landscape. Cut at the sides only: under the input sits the AI label.
             .mask { Rectangle().padding(.vertical, -200) }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { app.composerHeight = $0 }
+            .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { app.composerHeight = $0 }
         }
         .modifier(ComposerDrop(composer: model.composer, enabled: model.subagentReadOnly(parentAvailable: parentAvailable(model)) == nil))
         // Under the toolbar: what is inside an inspector's main view does not reach the navigation bar.
@@ -321,7 +325,7 @@ struct ConversationView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             if let openDrawer = openDrawer ?? splitSidebar.toggle {
-                ToolbarItem(placement: .topBarLeading) { DrawerButton(action: openDrawer) }
+                ToolbarItem(placement: .navigationBarLeading) { DrawerButton(action: openDrawer) }
             }
             if let bot {
                 // Beside the bar's leading buttons the bar gives an item only what it asks for:
@@ -331,7 +335,7 @@ struct ConversationView: View {
             // As the web keeps 新会话 in its sidebar, the bar keeps it one tap away: no drawer
             // first. A blank conversation is already a new one, so it only shows on a started one.
             if started && bot == nil {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         Haptics.tap()
                         app.newSessionRequest = NewSessionRequest(workspaceId: app.workspace(of: sessionId)?.id)
@@ -344,7 +348,7 @@ struct ConversationView: View {
             // A Bot's chat has the Bot's own title instead of the session's.
             if bot == nil {
                 if let parent = app.sessions[sessionId]?.parentId, model.subagentAddress != nil {
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: .navigationBarLeading) {
                         Button { app.open(session: parent) } label: { Image(systemName: "chevron.backward") }
                             .accessibilityLabel("返回父会话")
                     }
@@ -363,7 +367,7 @@ struct ConversationView: View {
                 }
             }
             if !blank {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
                     // A Bot runs no subagents of DSH's, its scheduled tasks are on its own page, and
                     // its background jobs float over the chat's foot.
                     if bot == nil { SessionHeaderActions(sessionId: sessionId) { headerSheet = $0 } }
@@ -405,16 +409,16 @@ struct ConversationView: View {
         .fullScreenCover(isPresented: Binding(get: { fullBrowser != nil }, set: { if !$0 { fullBrowser = nil } })) {
             if let fullBrowser { FullScreenBrowser(model: fullBrowser) { self.fullBrowser = nil } }
         }
-        .onChange(of: workbenchOpen) { _, open in if open, workbenchBeside { splitSidebar.makeRoom() } }
+        .onChangeCompat(of: workbenchOpen) { _, open in if open, workbenchBeside { splitSidebar.makeRoom() } }
         .focusedSceneValue(\.workbenchCommands, WorkbenchCommands(available: !blank && hasTools, toggle: toggleWorkbench, open: openWorkbench))
         // The sheet leaves the background live, so the composer keeps its focus and the
         // keyboard would stay over the sheet; an answer comes first.
-        .onChange(of: presentedInteractionId(model)) { _, id in if id != nil { dismissKeyboard() } }
+        .onChangeCompat(of: presentedInteractionId(model)) { _, id in if id != nil { dismissKeyboard() } }
         // An approval or question arriving: the one alert-like tap (as the web's warning tone).
-        .onChange(of: waitingInteraction(model)?.id) { old, new in
+        .onChangeCompat(of: waitingInteraction(model)?.id) { old, new in
             if let new, new != old { Haptics.warning() }
         }
-        .onChange(of: pendingApprovalIds, initial: true) { _, ids in
+        .onChangeCompat(of: pendingApprovalIds, initial: true) { _, ids in
             if ids.isEmpty { approvalBatch = [] } else { approvalBatch.formUnion(ids) }
         }
         .task(id: app.questionRequests[sessionId]?.map(\.eventId)) { model.syncQuestionWaits() }
@@ -464,7 +468,7 @@ struct ConversationView: View {
 
     /// The bar runs over the workbench too: centred, the title would sit on the column's edge.
     private var titlePlacement: ToolbarItemPlacement {
-        titleBesideWorkbench ? .topBarLeading : .principal
+        titleBesideWorkbench ? .navigationBarLeading : .principal
     }
 
     /// The workbench opens beside the conversation where there is room, over it otherwise.
@@ -569,11 +573,11 @@ struct ConversationView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
         .onTapGesture { dismissKeyboard() }
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
-        .onGeometryChange(for: CGFloat?.self) { proxy in
+        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
+        .onGeometryChangeCompat(for: CGFloat?.self) { proxy in
             proxy.fold.flatMap { $0.width > $0.height ? $0.minY : nil }
         } action: { heroFold = $0 }
-        .animation(.snappy(duration: 0.2), value: showsHeadline)
+        .animation(.spring(response: 0.2, dampingFraction: 0.82), value: showsHeadline)
     }
 
     /// Starter prompts; a tap fills the input, to send as is or to change first.
@@ -608,7 +612,6 @@ struct ConversationView: View {
             }
             .padding(.horizontal, 4)
         }
-        .scrollClipDisabled()
     }
 
     private static var suggestions: [String] {
@@ -704,7 +707,7 @@ struct TimelineAnchor: ViewModifier {
                 .defaultScrollAnchor(.bottom, for: .sizeChanges)
                 .defaultScrollAnchor(.top, for: .alignment)
         } else {
-            content.defaultScrollAnchor(.bottom)
+            content.defaultScrollAnchorCompat(.bottom)
         }
     }
 }
@@ -907,6 +910,8 @@ private struct TimelineList: View {
     @Environment(\.botComposer) private var botChat
 
     var body: some View {
+        WithPerceptionTracking {
+
         // A Bot's chat leaves out the turns that answered another Bot (ds-bot draws none of them).
         let items = bot.map { bot in model.items.filter { !bot.hides($0) } } ?? model.items
         let lastAssistant = items.last { if case .assistant = $0 { true } else { false } }?.id
@@ -958,7 +963,8 @@ private struct TimelineList: View {
         .padding(.top, 20)
         .padding(.bottom, 12)
         .readableWidth()
-    }
+    
+        }}
 
     /// A message sent while the conversation is open rises into place; what a snapshot brought
     /// (opening it, a kept one catching up, a reconnect) is already there.
@@ -991,9 +997,12 @@ private struct ActiveTurn: View {
     @Environment(\.botComposer) private var botChat
 
     var body: some View {
+        WithPerceptionTracking {
+
         let live = shownLive(model.live, botChat: botChat)
         AssistantTurnView(blocks: blocks + live, turn: turn, inProgress: true, liveCount: live.count, startedAt: startedAt, endedAt: nil, info: model.turnInfo[turn])
-    }
+    
+        }}
 }
 
 /// What of the streamed attempt shows. A Bot's own chat reads like a message from a person: its words
@@ -1010,12 +1019,15 @@ private struct LiveSection: View {
     @Environment(\.botComposer) private var botChat
 
     var body: some View {
+        WithPerceptionTracking {
+
         let live = shownLive(model.live, botChat: botChat)
         // In a Bot's own chat the Bot's mark below is the loading line.
         if case .bot? = botChat, live.isEmpty {} else {
             AssistantTurnView(blocks: live, turn: nil, inProgress: true, liveCount: live.count, startedAt: nil, endedAt: nil)
         }
-    }
+    
+        }}
 }
 
 /// Rows compare by value: rebuilding one with an unchanged item is skipped.
@@ -1034,6 +1046,8 @@ private struct TimelineRow: View, Equatable {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch item {
         case .user(_, let text, let attachments, let requestId):
             UserBubble(text: text, attachments: attachments, model: model, via: IMPlatform.via(requestId), arrives: arrives)
@@ -1059,7 +1073,8 @@ private struct TimelineRow: View, Equatable {
         case .retry(let retry):
             RetryNotice(retry: retry)
         }
-    }
+    
+        }}
 }
 
 struct FloatingIcon: View {
@@ -1068,6 +1083,8 @@ struct FloatingIcon: View {
     let action: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button {
             Haptics.tap()
             action()
@@ -1082,7 +1099,8 @@ struct FloatingIcon: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
-    }
+    
+        }}
 }
 
 /// The turns of this session, newest last; tapping one scrolls to it (C-14).
@@ -1092,6 +1110,8 @@ private struct TurnJumpSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             // Newest first: the button shows while reading back, so the way home is on top.
             List(outline.sorted { $0.turn > $1.turn }) { entry in
@@ -1109,7 +1129,8 @@ private struct TurnJumpSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
         }
-    }
+    
+        }}
 }
 
 /// Older messages arrive by themselves when the top of the timeline comes into view (C-11),
@@ -1121,10 +1142,12 @@ private struct LoadOlderTrigger: View {
     @State private var inView = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         ProgressView()
             .controlSize(.small)
             .frame(maxWidth: .infinity, minHeight: 36)
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { inView = $0 > scroll.top }
+            .onGeometryChangeCompat(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { inView = $0 > scroll.top }
             // Again for each page: one that leaves the top in view needs the next.
             .task(id: "\(inView)-\(model.items.first?.id ?? "")") {
                 guard inView else { return }
@@ -1140,7 +1163,8 @@ private struct LoadOlderTrigger: View {
                 }
             }
             .accessibilityLabel("正在加载更早的消息")
-    }
+    
+        }}
 }
 
 /// C-46. The official hint tells the user to send 「继续」; on a phone that is one button.
@@ -1148,6 +1172,8 @@ private struct MaxTokensNotice: View {
     let model: SessionModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 StatusDot(state: .waiting)
@@ -1162,7 +1188,8 @@ private struct MaxTokensNotice: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    
+        }}
 }
 
 private struct UserBubble: View {
@@ -1185,6 +1212,8 @@ private struct UserBubble: View {
     private static let foldedLines = 8
 
     var body: some View {
+        WithPerceptionTracking {
+
         let masked = SecretMask.masked(SessionMention.plain(text))
         let more = fullHeight > foldedHeight + 1
         VStack(alignment: .trailing, spacing: 6) {
@@ -1201,12 +1230,12 @@ private struct UserBubble: View {
                         QuotedText(text: text, lineLimit: open ? nil : Self.foldedLines)
                     }
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !open { foldedHeight = $0 } }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { if !open { foldedHeight = $0 } }
                 .background(alignment: .topLeading) {
                     QuotedText(text: text)
                         .fixedSize(horizontal: false, vertical: true)
                         .hidden()
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
                 }
                 .font(.body)
                 .lineSpacing(3)
@@ -1224,7 +1253,7 @@ private struct UserBubble: View {
                     }
                 }
                 if open || more {
-                    Button { withAnimation(.snappy) { open.toggle() } } label: {
+                    Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { open.toggle() } } label: {
                         Text(open ? "收起" : "全文").font(.footnote.weight(.semibold)).foregroundStyle(Palette.ink).padding(.trailing, 6)
                     }
                     .buttonStyle(.plain)
@@ -1252,7 +1281,8 @@ private struct UserBubble: View {
             await Task.yield()
             withAnimation(.spring(response: 0.42, dampingFraction: 0.74)) { landed = true }
         }
-    }
+    
+        }}
 }
 
 /// One assistant turn. Its work (reasoning and tool calls) sits under one grey line
@@ -1286,6 +1316,8 @@ struct AssistantTurnView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let finalStart = finalAnswerStart
         let finished = !inProgress && endedAt != nil
         let showWork = choice ?? stayOpen
@@ -1352,7 +1384,7 @@ struct AssistantTurnView: View {
                     guard arrives, !landed else { return }
                     // As the user's own bubble does: after the pass that laid the row out.
                     await Task.yield()
-                    withAnimation(.smooth(duration: 0.45)) { landed = true }
+                    withAnimation(.easeInOut(duration: 0.45)) { landed = true }
                 }
             }
             if finished {
@@ -1367,7 +1399,8 @@ struct AssistantTurnView: View {
             }
         }
         .modifier(TurnMenu(enabled: finished, turn: turn, info: info, fallbackText: answerText, regeneratePrompt: regeneratePrompt))
-    }
+    
+        }}
 
     private var mentions: [String: String] {
         FileMentions.make((info?.producedPaths ?? []) + (info?.deliverables.map(\.path) ?? []))
@@ -1444,6 +1477,8 @@ private struct RunningIndicator: View {
     let since: Date?
 
     var body: some View {
+        WithPerceptionTracking {
+
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Group {
                 if let since {
@@ -1457,7 +1492,8 @@ private struct RunningIndicator: View {
             .monospacedDigit()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    
+        }}
 }
 
 /// 「改动了 N 个文件 +a −b」: opens the workbench on 改动. A line like the work above it, not a button to reckon with.
@@ -1466,6 +1502,8 @@ private struct ChangeCapsule: View {
     let open: () -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         Button(action: open) {
             WorkRowLabel(
                 systemImage: "doc",
@@ -1473,7 +1511,8 @@ private struct ChangeCapsule: View {
             )
         }
         .buttonStyle(.plain)
-    }
+    
+        }}
 }
 
 private struct BlockView: View, Equatable {
@@ -1483,6 +1522,8 @@ private struct BlockView: View, Equatable {
     var closing = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         switch block {
         case .reasoning(let id, let text):
             ReasoningView(id: id, text: text, live: live)
@@ -1493,7 +1534,8 @@ private struct BlockView: View, Equatable {
         case .image(_, let attachment):
             ImageGroup(attachments: [attachment])
         }
-    }
+    
+        }}
 }
 
 /// The reasoning's first line as a row, the same as a tool call's (C-25); the whole of it in a sheet.
@@ -1504,6 +1546,8 @@ private struct ReasoningView: View {
     @Environment(\.conversationActions) private var actions
 
     var body: some View {
+        WithPerceptionTracking {
+
         let summary = ReasoningSummary.make(text, live: live)
         Button {
             actions.present(.reasoning(id: id, text: text))
@@ -1520,7 +1564,8 @@ private struct ReasoningView: View {
             }
         }
         .accessibilityLabel(Text("思考：\(summary)"))
-    }
+    
+        }}
 }
 
 /// A reasoning block in full; it keeps growing while the model thinks.
@@ -1539,6 +1584,8 @@ struct ReasoningSheet: View {
     private var latest: String { model?.reasoningText(id) ?? current?(id) ?? text }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let text = latest
         let translated = translation?.setup == nil ? nil : translation
         let shown = translated.map { original || $0.failed ? text : $0.text } ?? text
@@ -1554,7 +1601,7 @@ struct ReasoningSheet: View {
             .navigationTitle("思考")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button { copyToPasteboard(shown) } label: { Image(systemName: "doc.on.doc") }
                         .accessibilityLabel("复制")
                 }
@@ -1569,10 +1616,11 @@ struct ReasoningSheet: View {
             translation.update(latest, running: model.reasoningStreaming(id))
             await translation.prepare()
         }
-        .onChange(of: text) { translation?.update(text, running: model?.reasoningStreaming(id) ?? false) }
-        .onChange(of: model?.reasoningStreaming(id)) { _, streaming in translation?.update(latest, running: streaming ?? false) }
+        .onChangeCompat(of: text) { _, value in translation?.update(value, running: model?.reasoningStreaming(id) ?? false) }
+        .onChangeCompat(of: model?.reasoningStreaming(id)) { _, streaming in translation?.update(latest, running: streaming ?? false) }
         .onDisappear { translation?.cancel() }
-    }
+    
+        }}
 }
 
 /// 「允许运行这条命令？」: the command in full above the two answers, which stay under the
@@ -1586,6 +1634,8 @@ struct ApprovalSheet: View {
     let answer: (Bool) -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         PinnedActionsSheet {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -1609,7 +1659,8 @@ struct ApprovalSheet: View {
             }
             .padding(EdgeInsets(top: 10, leading: 22, bottom: 22, trailing: 22))
         }
-    }
+    
+        }}
 
     private var tool: ToolCall { call ?? ToolCall(id: "", name: approval.toolName, arguments: .null, rawArguments: "") }
 
@@ -1653,20 +1704,22 @@ private struct ApprovalReasonText: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let more = fullHeight > clippedHeight + 1
         Button {
             guard open || more else { return }
-            withAnimation(.snappy) { open.toggle() }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { open.toggle() }
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(text)
                     .lineLimit(open ? nil : 2)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !open { clippedHeight = $0 } }
+                    .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { if !open { clippedHeight = $0 } }
                     .background(alignment: .topLeading) {
                         Text(text)
                             .fixedSize(horizontal: false, vertical: true)
                             .hidden()
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                            .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
                     }
                 if open || more {
                     Text(open ? "收起" : "全文").font(.footnote.weight(.semibold)).foregroundStyle(Palette.ink)
@@ -1679,7 +1732,8 @@ private struct ApprovalReasonText: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
+    
+        }}
 }
 
 /// What is being approved, every character of it: lines wrap, and a long one scrolls in its
@@ -1690,6 +1744,8 @@ private struct CommandBlock: View {
     private let limit: CGFloat = 220
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 6) {
             ScrollView {
                 Text(text)
@@ -1698,17 +1754,17 @@ private struct CommandBlock: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+                    .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             }
             .frame(height: min(height, limit))
             .scrollBounceBehavior(.basedOnSize)
-            .scrollIndicatorsFlash(onAppear: true)
             .background(Palette.field, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             if height > limit {
                 Text("内容较长，滑动查看全部").font(.caption).foregroundStyle(Palette.secondary)
             }
         }
-    }
+    
+        }}
 }
 
 /// What a conversation in the split view's detail can do with the sidebar. Equal while the same
@@ -1750,7 +1806,7 @@ private struct WorkbenchBeside<Page: View>: ViewModifier {
                     .transition(.move(edge: .trailing))
                 }
             }
-            .animation(.snappy(duration: 0.3), value: shown && regular)
+            .animation(.spring(response: 0.3, dampingFraction: 0.82), value: shown && regular)
         }
     }
 }
@@ -1769,9 +1825,12 @@ extension ConversationView {
 /// in a Bot's chat, whose title has a line of its own, in the strip under the input.
 struct AIContentLabel: View {
     var body: some View {
+        WithPerceptionTracking {
+
         Text("内容由 AI 生成")
             .font(.caption2)
             .foregroundStyle(Palette.secondary)
             .lineLimit(1)
-    }
+    
+        }}
 }

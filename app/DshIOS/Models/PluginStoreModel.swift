@@ -1,10 +1,10 @@
 import Foundation
-import Observation
+import Perception
 
 /// The store's own state, around the market reader 发现 under 设置 → 插件 also uses: readying the
 /// market on first use and restoring the preset index.
 @MainActor
-@Observable
+@Perceptible
 final class PluginStoreModel {
     enum Readiness { case checking, preparing, ready, off, unavailable }
 
@@ -13,7 +13,7 @@ final class PluginStoreModel {
 
     let market = PluginMarketModel()
     private(set) var readiness = Readiness.checking
-    @ObservationIgnored private var preparing: Task<Void, Never>?
+    @PerceptionIgnored private var preparing: Task<Void, Never>?
 
     private var seeded: Bool {
         get { UserDefaults.standard.bool(forKey: Self.seededKey) }

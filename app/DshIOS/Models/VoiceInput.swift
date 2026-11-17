@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// Speech to text for hold-to-talk. The recognizer plugs in at `VoiceInput.makeTranscriber`;
 /// the composer only sees the running text, the input level and the final text.
@@ -21,7 +21,7 @@ protocol SpeechTranscriber: AnyObject {
 
 /// Hold-to-talk in the composer: hold the bar to speak, let go to send, move up to cancel.
 @MainActor
-@Observable
+@Perceptible
 final class VoiceInput {
     enum Phase: Equatable {
         case idle
@@ -57,7 +57,7 @@ final class VoiceInput {
 
     /// The service chosen in 设置 → 语音输入: DeepSeek with the models' key, or Volcengine with
     /// the user's own key (nil until one is saved).
-    @ObservationIgnored var makeTranscriber: () -> SpeechTranscriber? = {
+    @PerceptionIgnored var makeTranscriber: () -> SpeechTranscriber? = {
         #if DEBUG
         // Made-up levels and text, to look at the UI without a key or a microphone.
         if ProcessInfo.processInfo.arguments.contains("-dshVoiceDemo") { return DemoTranscriber() }
@@ -80,8 +80,8 @@ final class VoiceInput {
         #endif
         return VoicePreferences.shared.source == .deepseek || VolcSpeech.shared.configured
     }
-    @ObservationIgnored private var transcriber: SpeechTranscriber?
-    @ObservationIgnored private var limit: Task<Void, Never>?
+    @PerceptionIgnored private var transcriber: SpeechTranscriber?
+    @PerceptionIgnored private var limit: Task<Void, Never>?
 
     var holding: Bool { phase == .listening }
 
