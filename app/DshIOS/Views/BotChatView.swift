@@ -39,7 +39,8 @@ struct BotChatView: View {
                 BotSideChatSheet(botId: botId).environment(\.browserLinks, BrowserLinks(sessionId: bot.sessionId, origin: app.client.origin))
             }
             .onChangeCompat(of: team.memoryRequest) { _, request in
-                guard request == botId else { return }
+                guard let requestedBotId = request else { return }
+                if requestedBotId != botId { return }
                 team.memoryRequest = nil
                 detailTab = .memory
                 detailOpen = true
