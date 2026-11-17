@@ -94,9 +94,9 @@ struct DrawerView: View {
             }
         }
         .task(id: search) { await searchRemote() }
-        .onChange(of: groupBy) { Haptics.select() }
-        .onChange(of: selection) { revealSelection() }
-        .onChange(of: selectionRowGroupId) { revealSelection() }
+        .onChangeCompat(of: groupBy) { _, _ in Haptics.select() }
+        .onChangeCompat(of: selection) { _, _ in revealSelection() }
+        .onChangeCompat(of: selectionRowGroupId) { _, _ in revealSelection() }
         .confirmationDialog("删除「\(removingWorkspace?.displayTitle ?? "")」？", isPresented: Binding(get: { removingWorkspace != nil }, set: { if !$0 { removingWorkspace = nil } }), titleVisibility: .visible) {
             Button("删除工作区", role: .destructive) {
                 if let workspace = removingWorkspace {
@@ -147,7 +147,7 @@ struct DrawerView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Route.self) { _ in archivedPage }
         }
-        .onChange(of: searchRequest) { openSearch() }
+        .onChangeCompat(of: searchRequest) { _, _ in openSearch() }
         .fullScreenCover(isPresented: $searchOpen) { searchPage }
     }
 
@@ -190,11 +190,11 @@ struct DrawerView: View {
         .navigationBarTitleDisplayMode(.large)
         // Always in view, by choice: from iOS 27 the large title then starts folded into the bar
         // (pulling down unfolds it). The other placement keeps the large title but hides the field.
-        .searchable(text: $search, isPresented: $searchActive, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索会话")
+        .searchable(text: $search, prompt: "搜索会话")
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         // ⌘F and the like: the field of this tab.
-        .onChange(of: searchRequest) { searchActive = true }
+        .onChangeCompat(of: searchRequest) { _, _ in searchActive = true }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) { viewMenu(compact: true) }
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -259,7 +259,7 @@ struct DrawerView: View {
             }
             .background(Palette.background)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, isPresented: $searchActive, prompt: "搜索会话")
+            .searchable(text: $search, prompt: "搜索会话")
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .searchFieldAtBottom()
@@ -270,7 +270,7 @@ struct DrawerView: View {
         .presentationBackground(.clear)
         .onAppear { withAnimation(.easeOut(duration: 0.2)) { searchShown = true } }
         // The field's own ✕ (取消 before iOS 26) is the way out.
-        .onChange(of: searchActive) { if !searchActive { closeSearch() } }
+        .onChangeCompat(of: searchActive) { _, active in if !active { closeSearch() } }
     }
 
     private func openSearch() {
@@ -282,7 +282,8 @@ struct DrawerView: View {
     private func closeSearch() {
         guard searchOpen, searchShown else { return }
         searchActive = false
-        withAnimation(.easeIn(duration: 0.15)) { searchShown = false } completion: {
+        withAnimation(.easeIn(duration: 0.15)) { searchShown = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
             search = ""
             withoutAnimation { searchOpen = false }
         }
