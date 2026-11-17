@@ -33,7 +33,7 @@ struct ConfigDocumentView: View {
 
         Group {
             if let failure {
-                ContentUnavailableView("无法打开配置文件", systemImage: "doc.badge.ellipsis", description: Text(failure))
+                VStack(spacing: 10) { Image(systemName: "doc.badge.ellipsis").font(.largeTitle); Text("无法打开配置文件").font(.headline); Text(failure).font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center) }.padding()
             } else {
                 TextEditor(text: $text)
                     .font(.footnote.monospaced())
