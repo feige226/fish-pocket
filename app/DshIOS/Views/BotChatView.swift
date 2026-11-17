@@ -54,8 +54,13 @@ struct BotChatView: View {
                 }
             }
             .onChangeCompat(of: team.scheduleRequest) { _, request in
-                guard case let .bot(requestedBotId)? = request else { return }
-                guard requestedBotId == botId else { return }
+                guard let request = request else { return }
+                switch request {
+                case .bot(let requestedBotId):
+                    if requestedBotId != botId { return }
+                default:
+                    return
+                }
                 team.scheduleRequest = nil
                 detailTab = .schedules
                 // After the tray's sheet has gone.
