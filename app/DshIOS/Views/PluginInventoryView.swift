@@ -27,11 +27,12 @@ struct PluginInventoryPage: View {
             if let snapshot {
                 list(snapshot)
             } else if failed {
-                ContentUnavailableView {
-                    Label("暂时无法读取插件。", systemImage: "exclamationmark.triangle")
-                } actions: {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle").font(.largeTitle).foregroundStyle(Palette.secondary)
+                    Text("暂时无法读取插件。").font(.headline)
                     Button("重试") { Task { await load() } }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView()
             }
