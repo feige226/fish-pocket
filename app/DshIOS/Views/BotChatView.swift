@@ -73,7 +73,16 @@ struct BotChatView: View {
             // The app opened on this chat (the page it was last on) before the team answered.
             ConversationLoading().background(Palette.background)
         } else {
-            ContentUnavailableView("这个 Bot 已不在团队里", systemImage: "person.slash")
+            VStack(spacing: 10) {
+                Image(systemName: "person.slash")
+                    .font(.system(size: 30))
+                    .foregroundStyle(Palette.secondary)
+                Text("这个 Bot 已不在团队里")
+                    .font(.headline)
+                    .foregroundStyle(Palette.ink)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Palette.background)
         }
     
         }}
