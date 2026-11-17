@@ -135,7 +135,9 @@ final class MiniAppStore {
         var opened = UserDefaults.standard.dictionary(forKey: Self.openedKey) as? [String: Double] ?? [:]
         opened[app.id] = nil
         UserDefaults.standard.set(opened, forKey: Self.openedKey)
-        try? await WKWebsiteDataStore.remove(forIdentifier: app.dataStoreId)
+        if #available(iOS 17.0, *) {
+            try? await WKWebsiteDataStore.remove(forIdentifier: app.dataStoreId)
+        }
         refresh()
     }
 }
