@@ -59,7 +59,7 @@ struct RemoteComposer: View {
             .padding(5)
             .composerSurface()
         }
-        .onChange(of: model.quoteRequest) { focused = true }
+        .onChangeCompat(of: model.quoteRequest) { _, _ in focused = true }
         // The command list is read the first time a draft could name one.
         .task(id: model.draft.hasPrefix("/") && model.canCommand) {
             if model.draft.hasPrefix("/"), model.commands.isEmpty { await model.loadCommands() }
