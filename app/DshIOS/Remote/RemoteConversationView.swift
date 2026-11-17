@@ -143,7 +143,7 @@ struct RemoteConversationView: View {
         ))
         .onChangeCompat(of: presented(model)?.id) { _, id in if id != nil { dismissKeyboard() } }
         .onChangeCompat(of: waiting(model)?.id) { old, new in if let new, new != old { Haptics.warning() } }
-        .onChange(of: model.optionsRequest) { panel = .options }
+        .onChangeCompat(of: model.optionsRequest) { _, _ in panel = .options }
         // Archived from here or from another device: the main view moves on, as with a local session.
         .onChangeCompat(of: model.meta?.archived) { _, archived in if archived == true { selection = nil } }
         // Read once it is on screen, and again when a turn ends while it is.
@@ -178,7 +178,8 @@ struct RemoteConversationView: View {
         .alert("出错了", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) {
             Button("好", role: .cancel) {}
         } message: {
-            Text(model.error ?? "")
+            let errorMessage = model.error ?? ""
+            Text(errorMessage)
         }
     }
 
