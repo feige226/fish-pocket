@@ -108,7 +108,9 @@ private enum Draw {
     }
 
     static func join(_ first: Path, _ others: Path...) -> Path {
-        others.reduce(first) { $0.union($1) }
+        var result = first
+        for path in others { result.addPath(path) }
+        return result
     }
 
     static func turned(_ path: Path, by degrees: Double, about pivot: (Double, Double)) -> Path {
@@ -378,7 +380,7 @@ struct BotMark: View {
         .allowsHitTesting(false)
         .onAppear { if mood == .alert { act = Act(kind: .hops) } }
         .onChangeCompat(of: mood) { old, new in turned(from: old, to: new) }
-        .onChange(of: poke) { act = Act(kind: .poke) }
+        .onChangeCompat(of: poke) { _, _ in act = Act(kind: .poke) }
         .task(id: act) { await finishAct() }
     }
 
@@ -495,7 +497,7 @@ struct BotPictureMotion: ViewModifier {
                 .offset(y: stance.dy * size / 100)
         }
         .onAppear { if mood == .alert { hopsFrom = .now } }
-        .onChange(of: mood) { hopsFrom = mood == .alert ? .now : nil }
+        .onChangeCompat(of: mood) { _, newMood in hopsFrom = newMood == .alert ? .now : nil }
         .task(id: hopsFrom) {
             guard hopsFrom != nil else { return }
             try? await Task.sleep(for: .seconds(1.1))
