@@ -71,9 +71,9 @@ struct DirectoryView: View {
             if loading {
                 ProgressView()
             } else if entries.isEmpty && error == nil {
-                ContentUnavailableView("空文件夹", systemImage: "folder")
+                VStack(spacing: 8) { Image(systemName: "folder").font(.largeTitle); Text("空文件夹").font(.headline) }.foregroundStyle(Palette.secondary)
             } else if shown.isEmpty && error == nil {
-                ContentUnavailableView.search(text: query)
+                VStack(spacing: 8) { Image(systemName: "magnifyingglass").font(.largeTitle); Text("没有找到匹配的文件").font(.headline); Text(query).font(.footnote).foregroundStyle(Palette.secondary) }
             }
         }
         .navigationTitle(title)
@@ -310,14 +310,12 @@ struct FileContentView: View {
     }
 
     private func failed(_ failure: FileFailure) -> some View {
-        ContentUnavailableView {
-            Label("无法打开文件", systemImage: "doc.questionmark")
-        } description: {
-            Text(failure.message)
-        } actions: {
+        VStack(spacing: 10) {
+            Label("无法打开文件", systemImage: "doc.questionmark").font(.headline)
+            Text(failure.message).font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center)
             if failure.retry { Button("重试") { reload() } }
             if failure.external, let localURL { Button("用快速查看打开") { preview = localURL } }
-        }
+        }.padding()
     }
 
     /// A format with no renderer here, known or not: the file itself, and the ways to take it elsewhere.
@@ -682,7 +680,7 @@ struct ZoomableImage: View {
             if let image {
                 ZoomingImageView(image: image).ignoresSafeArea(edges: .bottom)
             } else if failed {
-                ContentUnavailableView("无法显示这张图片", systemImage: "photo")
+                VStack(spacing: 8) { Image(systemName: "photo").font(.largeTitle); Text("无法显示这张图片") }.foregroundStyle(Palette.secondary)
             } else {
                 ProgressView()
             }
@@ -805,12 +803,12 @@ struct PDFPreview: View {
         Group {
             if let document {
                 if document.isLocked {
-                    ContentUnavailableView("此 PDF 需要密码，暂不支持预览", systemImage: "lock.doc")
+                    VStack(spacing: 8) { Image(systemName: "lock.doc").font(.largeTitle); Text("此 PDF 需要密码，暂不支持预览").multilineTextAlignment(.center) }.foregroundStyle(Palette.secondary)
                 } else {
                     PDFKitView(document: document).ignoresSafeArea(edges: .bottom)
                 }
             } else if failed {
-                ContentUnavailableView("无法显示 PDF", systemImage: "doc.richtext")
+                VStack(spacing: 8) { Image(systemName: "doc.richtext").font(.largeTitle); Text("无法显示 PDF") }.foregroundStyle(Palette.secondary)
             } else {
                 ProgressView()
             }
