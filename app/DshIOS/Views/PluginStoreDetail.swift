@@ -385,13 +385,17 @@ private struct StoreReadmePage: View {
                     MarkdownView(text: markdown).padding(20).readableWidth()
                 }
             } else if missing {
-                ContentUnavailableView("没有说明文档", systemImage: "doc.text")
+                VStack(spacing: 10) {
+                    Image(systemName: "doc.text").font(.largeTitle).foregroundStyle(Palette.secondary)
+                    Text("没有说明文档").font(.headline).foregroundStyle(Palette.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if failed {
-                ContentUnavailableView {
+                VStack(spacing: 12) {
                     Label("无法读取说明文档", systemImage: "exclamationmark.triangle")
-                } actions: {
-                    Button("重试") { Task { await load() } }.buttonStyle(.capsule(.outline, height: 44, fill: false))
-                }
+                        .foregroundStyle(Palette.secondary)
+                    Button("重试") { Task { await load() } }
+                        .buttonStyle(.capsule(.outline, height: 44, fill: false))
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
