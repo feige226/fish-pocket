@@ -61,7 +61,12 @@ final class BrowserPage: NSObject {
     /// Every tab of every conversation's browser shares one store of its own, kept across launches, so a site
     /// signed in to once stays signed in, for the user and for the agent. It is apart from the default store,
     /// where the engine's web view keeps its session cookie, and from Safari, which no app can read.
-    static let store = WKWebsiteDataStore(forIdentifier: UUID(uuidString: "8E4C2D1A-5B7F-4A3E-9C6D-2F1B0A9E7D45")!)
+    static let store: WKWebsiteDataStore = {
+        if #available(iOS 17.0, *) {
+            return WKWebsiteDataStore(forIdentifier: UUID(uuidString: "8E4C2D1A-5B7F-4A3E-9C6D-2F1B0A9E7D45")!)
+        }
+        return .default()
+    }()
 
     /// Sign out of every site: cookies, storage and caches of all the conversations' browsers.
     static func clearWebsiteData() async {
