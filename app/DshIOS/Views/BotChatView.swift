@@ -48,10 +48,8 @@ struct BotChatView: View {
                 guard let requestedBotId = request else { return }
                 if requestedBotId != botId { return }
                 team.sideChatRequest = nil
-                Task { @MainActor in
-                    let delayNanoseconds: UInt64 = 350_000_000
-                    try? await Task.sleep(nanoseconds: delayNanoseconds)
-                    self.sideChatOpen = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    sideChatOpen = true
                 }
             }
             .onChangeCompat(of: team.scheduleRequest) { _, request in
@@ -65,10 +63,8 @@ struct BotChatView: View {
                 team.scheduleRequest = nil
                 detailTab = .schedules
                 // After the tray's sheet has gone.
-                Task { @MainActor in
-                    let delayNanoseconds: UInt64 = 350_000_000
-                    try? await Task.sleep(nanoseconds: delayNanoseconds)
-                    self.detailOpen = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    detailOpen = true
                 }
             }
             .onAppear { app.clearUnread(bot.sessionId); team.visibleChat = bot.id }
