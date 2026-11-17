@@ -229,11 +229,12 @@ struct PluginReportsPage: View {
         NavigationStack {
             Group {
                 if reports.receipts.isEmpty {
-                    ContentUnavailableView {
-                        Label("还没有举报", systemImage: "flag")
-                    } description: {
-                        Text("在插件详情页底部可以举报有问题的插件。")
+                    VStack(spacing: 12) {
+                        Image(systemName: "flag").font(.largeTitle).foregroundStyle(Palette.secondary)
+                        Text("还没有举报").font(.headline)
+                        Text("在插件详情页底部可以举报有问题的插件。").font(.subheadline).foregroundStyle(Palette.secondary).multilineTextAlignment(.center)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
                         Section {
