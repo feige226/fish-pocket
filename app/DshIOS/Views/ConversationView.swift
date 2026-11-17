@@ -1616,7 +1616,7 @@ struct ReasoningSheet: View {
             translation.update(latest, running: model.reasoningStreaming(id))
             await translation.prepare()
         }
-        .onChange(of: text) { translation?.update(text, running: model?.reasoningStreaming(id) ?? false) }
+        .onChangeCompat(of: text) { _, value in translation?.update(value, running: model?.reasoningStreaming(id) ?? false) }
         .onChangeCompat(of: model?.reasoningStreaming(id)) { _, streaming in translation?.update(latest, running: streaming ?? false) }
         .onDisappear { translation?.cancel() }
     
@@ -1758,7 +1758,6 @@ private struct CommandBlock: View {
             }
             .frame(height: min(height, limit))
             .scrollBounceBehavior(.basedOnSize)
-            .scrollIndicatorsFlash(onAppear: true)
             .background(Palette.field, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             if height > limit {
                 Text("内容较长，滑动查看全部").font(.caption).foregroundStyle(Palette.secondary)
