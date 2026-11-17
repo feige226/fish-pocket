@@ -47,9 +47,10 @@ struct BotChatView: View {
             .onChangeCompat(of: team.sideChatRequest) { _, request in
                 guard request == botId else { return }
                 team.sideChatRequest = nil
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    sideChatOpen = true
+                Task { @MainActor in
+                    let delayNanoseconds: UInt64 = 350_000_000
+                    try? await Task.sleep(nanoseconds: delayNanoseconds)
+                    self.sideChatOpen = true
                 }
             }
             .onChangeCompat(of: team.scheduleRequest) { _, request in
