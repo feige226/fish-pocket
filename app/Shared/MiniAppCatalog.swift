@@ -110,13 +110,15 @@ struct OpenMiniAppIntent: AppIntent {
 }
 
 /// Per-widget App Intents configuration is available from iOS 17.
-@available(iOSApplicationExtension 17.0, *)
+@available(iOS 17.0, *)
 struct MiniAppsWidgetIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "小工具"
     static var description = IntentDescription("选择小组件里放哪些小工具。")
 
-    @Parameter(title: "小工具", size: [.systemSmall: 1, .systemMedium: 4])
+    @Parameter(title: "小工具")
     var apps: [MiniAppEntity]?
 
     init() {}
+
+    func perform() async throws -> some IntentResult { .result() }
 }
