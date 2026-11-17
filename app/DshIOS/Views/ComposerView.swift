@@ -56,7 +56,7 @@ struct ModelPicker: View {
         .accessibilityLabel(context.effortName(model).map { Text("模型：\(context.modelName(model))，推理档位 \($0)") } ?? Text("模型：\(context.modelName(model))"))
         .sheet(isPresented: $searching) { ModelSearchSheet(model: model, context: context) }
         // MS-03: a provider's key or adapter changed; the catalog the menu shows follows.
-        .onChange(of: app.revision("llm/adapters-updated", "settings/document-updated", "credentials/record-updated", "credentials/reference-updated")) {
+        .onChangeCompat(of: app.revision("llm/adapters-updated", "settings/document-updated", "credentials/record-updated", "credentials/reference-updated")) {
             Task { await context.loadCatalog(model) }
         }
     
@@ -396,12 +396,7 @@ struct ComposerView: View {
         // A picker closing gives the keyboard back when it was up before: typed into
         // (`/model`, `/file`) or reached from the tray while it was up.
         .onChangeCompat(of: pickerUp) { _, open in
-            if open {
-                refocus = refocus || focused
-            } else {
-                if refocus { focused = true }
-                refocus = false
-            }
+            pickerStateChanged(open)
         }
         // C-99 / C-110 / C-141: catalogs and the preference follow their engine events.
         .onChange(of: app.revision("commands/change", "agent-preset/selected")) { Task { await context.loadCommands(model) } }
@@ -409,6 +404,15 @@ struct ComposerView: View {
         .onChange(of: app.revision("settings/document-updated")) { Task { await context.loadSettings(model) } }
     
         }}
+
+    private func pickerStateChanged(_ open: Bool) {
+        if open {
+            refocus = refocus || focused
+        } else {
+            if refocus { focused = true }
+            refocus = false
+        }
+    }
 
     /// The `/` or `@` token being typed. It needs the keyboard: hiding it folds the panel.
     private var activeTrigger: TriggerHit? {

@@ -32,3 +32,22 @@ struct CompatEmptyState: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+
+/// Backport the numeric text animation while keeping iOS 16 fully supported.
+struct NumericTextTransitionCompat: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 17.0, *) {
+            content.contentTransition(.numericText())
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func numericTextTransitionCompat() -> some View {
+        modifier(NumericTextTransitionCompat())
+    }
+}

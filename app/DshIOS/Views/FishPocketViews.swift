@@ -474,7 +474,7 @@ struct FishPocketBalance: View {
             }
             .font(.system(size: 64, weight: .bold, design: .rounded).monospacedDigit())
             .foregroundStyle(Palette.ink)
-            .contentTransition(.numericText())
+            .numericTextTransitionCompat()
             .lineLimit(1)
             .minimumScaleFactor(0.5)
             if depleted, sells {

@@ -164,7 +164,7 @@ struct BotViewBody: View {
             Text(Self.display(node["label"], scope)).font(.caption).foregroundStyle(Palette.secondary)
             Text(Self.display(node["value"], scope)).font(.title3.weight(.semibold)).monospacedDigit()
                 .foregroundStyle(node["tone"].isNull ? Palette.ink : Self.tone(node["tone"].string))
-                .contentTransition(.numericText())
+                .numericTextTransitionCompat()
             if !node["caption"].isNull { Text(Self.display(node["caption"], scope)).font(.caption2).foregroundStyle(Palette.faint) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -206,13 +206,19 @@ struct BotViewBody: View {
         var body: some View {
             WithPerceptionTracking {
 
-            Chart(points) { point in
-                switch kind {
-                case "line": LineMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
-                case "area": AreaMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
-                case "hbar": BarMark(x: .value("", point.value), y: .value("", point.category)).foregroundStyle(by: .value("", point.series))
-                case "donut": SectorMark(angle: .value("", point.value), innerRadius: .ratio(0.6)).foregroundStyle(by: .value("", point.category))
-                default: BarMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+            if #available(iOS 17.0, *), kind == "donut" {
+                Chart(points) { point in
+                    SectorMark(angle: .value("", point.value), innerRadius: .ratio(0.6))
+                        .foregroundStyle(by: .value("", point.category))
+                }
+            } else {
+                Chart(points) { point in
+                    switch kind {
+                    case "line": LineMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+                    case "area": AreaMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+                    case "hbar": BarMark(x: .value("", point.value), y: .value("", point.category)).foregroundStyle(by: .value("", point.series))
+                    default: BarMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+                    }
                 }
             }
         
