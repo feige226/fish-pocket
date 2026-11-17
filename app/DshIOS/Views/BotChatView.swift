@@ -59,7 +59,11 @@ struct BotChatView: View {
                 team.scheduleRequest = nil
                 detailTab = .schedules
                 // After the tray's sheet has gone.
-                Task { try? await Task.sleep(for: .milliseconds(350)); detailOpen = true }
+                Task { @MainActor in
+                    let delayNanoseconds: UInt64 = 350_000_000
+                    try? await Task.sleep(nanoseconds: delayNanoseconds)
+                    self.detailOpen = true
+                }
             }
             .onAppear { app.clearUnread(bot.sessionId); team.visibleChat = bot.id }
             .onDisappear { app.clearUnread(bot.sessionId); if team.visibleChat == bot.id { team.visibleChat = nil } }
