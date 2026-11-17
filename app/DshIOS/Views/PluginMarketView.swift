@@ -230,29 +230,35 @@ struct PluginMarketPage: View {
         Group {
             if let indexes = model.indexes {
                 if indexes.isEmpty {
-                    ContentUnavailableView {
-                        Label("还没有插件市场", systemImage: "storefront")
-                    } description: {
-                        Text("添加一个插件市场索引，即可在这里浏览和安装其中的插件")
-                    } actions: {
+                    VStack(spacing: 12) {
+                        Image(systemName: "storefront").font(.largeTitle).foregroundStyle(Palette.secondary)
+                        Text("还没有插件市场").font(.headline)
+                        Text("添加一个插件市场索引，即可在这里浏览和安装其中的插件").font(.subheadline).foregroundStyle(Palette.secondary).multilineTextAlignment(.center)
                         Button("添加索引源") { managing = true }.buttonStyle(.capsule(height: 40, fill: false))
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     browser(indexes)
                 }
             } else if model.indexesFailed {
-                ContentUnavailableView {
-                    Label("无法读取索引源", systemImage: "exclamationmark.triangle")
-                } actions: {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle").font(.largeTitle).foregroundStyle(Palette.secondary)
+                    Text("无法读取索引源").font(.headline)
                     Button("重试") { Task { await model.loadIndexes(app) } }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .sheet(isPresented: $managing) { MarketSourcesSheet(model: model) }
         .sheet(item: $choice) { MarketInstallConfirm(choice: $0) }
-        .navigationDestination(item: $route) { PluginDetailView(name: $0.name) }
+        .background(
+            NavigationLink(
+                destination: PluginDetailView(name: route?.name ?? ""),
+                isActive: Binding(get: { route != nil }, set: { if !$0 { route = nil } })
+            ) { EmptyView() }.hidden()
+        )
         .task(id: app.revision("plugin-market/changed")) { await model.loadIndexes(app) }
         .task(id: app.revision("plugin-manager/changed")) { if model.result != nil { await model.reload(app, limit: max(model.entries.count, 50)) } }
         // Keystrokes settle for 250 ms before a read.
@@ -591,7 +597,12 @@ private struct MarketEntryDetail: View {
         .groupedList()
         .navigationTitle(marketTitle(entry))
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $route) { PluginDetailView(name: $0.name) }
+        .background(
+            NavigationLink(
+                destination: PluginDetailView(name: route?.name ?? ""),
+                isActive: Binding(get: { route != nil }, set: { if !$0 { route = nil } })
+            ) { EmptyView() }.hidden()
+        )
     
         }}
 
