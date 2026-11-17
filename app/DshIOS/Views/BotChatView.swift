@@ -77,7 +77,6 @@ struct BotChatView: View {
         }
     
         }}
-    }
 
     private func isMatchingBotRequest(_ request: String?) -> Bool {
         guard let request else { return false }
