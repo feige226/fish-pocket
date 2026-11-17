@@ -4,22 +4,15 @@ import WidgetKit
 /// 我的应用 on the home screen: the apps the user picked (the most recent ones until they pick),
 /// each one tap away. iOS 17 uses per-widget App Intents configuration; iOS 16 shows recent apps.
 struct MiniAppsWidget: Widget {
+    // StaticConfiguration is available on iOS 16 and 17. Keep the widget usable
+    // on the deployment target rather than returning two incompatible opaque types.
     var body: some WidgetConfiguration {
-        if #available(iOSApplicationExtension 17.0, *) {
-            AppIntentConfiguration(kind: MiniAppCatalog.widgetKind, intent: MiniAppsWidgetIntent.self, provider: MiniAppsProvider()) { entry in
-                MiniAppsWidgetView(entry: entry)
-            }
-            .configurationDisplayName("小工具")
-            .description("把你做的小工具和小游戏放到主屏幕上。")
-            .supportedFamilies([.systemSmall, .systemMedium])
-        } else {
-            StaticConfiguration(kind: MiniAppCatalog.widgetKind, provider: MiniAppsLegacyProvider()) { entry in
-                MiniAppsWidgetView(entry: entry)
-            }
-            .configurationDisplayName("小工具")
-            .description("把你做的小工具和小游戏放到主屏幕上。")
-            .supportedFamilies([.systemSmall, .systemMedium])
+        StaticConfiguration(kind: MiniAppCatalog.widgetKind, provider: MiniAppsLegacyProvider()) { entry in
+            MiniAppsWidgetView(entry: entry)
         }
+        .configurationDisplayName("小工具")
+        .description("把你做的小工具和小游戏放到主屏幕上。")
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
