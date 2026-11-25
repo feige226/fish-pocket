@@ -25,44 +25,6 @@ enum DeepSeekSpeech {
         }
     }
 
-    /// What the agent's `speak` tool asks the app to read (`/api/ios-speech/feed`), for as long
-    /// as the connection lives. Each `say` is read like a reply the user asked to hear.
-    @MainActor
-    static func followAgent() {
-        guard agentFeed == nil else { return }
-        agentFeed = Task {
-            while !Task.isCancelled {
-                try? await readAgentFeed()
-                try? await Task.sleep(for: .seconds(2))
-            }
-        }
-    }
-
-    @MainActor private static var agentFeed: Task<Void, Never>?
-
-    @MainActor
-    private static func readAgentFeed() async throws {
-        guard let client else { return }
-        var request = client.request(route("feed"))
-        request.timeoutInterval = 120
-        let (bytes, response) = try await client.session.bytes(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { return }
-        var event = ""
-        for try await line in bytes.lines {
-            if line.hasPrefix("event:") {
-                event = line.dropFirst(6).trimmingCharacters(in: .whitespaces)
-            } else if line.hasPrefix("data:") {
-                let value = (try? JSONDecoder().decode(JSON.self, from: Data(line.dropFirst(5).utf8))) ?? .null
-                switch event {
-                case "say": if let text = value["text"].string { ReadAloud.shared.enqueue(text) }
-                case "stop": ReadAloud.shared.stop()
-                default: break
-                }
-                event = ""
-            }
-        }
-    }
-
     /// Whether the engine has a DeepSeek credential to send. Not whether DeepSeek accepts it.
     static func ready() async -> Bool {
         guard let client else { return false }
@@ -281,10 +243,18 @@ final class VoicePreferences {
     }
 
     private static let sourceKey = "voiceSource"
+    private static let readingSourceKey = "readingSource"
     private static let readingVoiceKey = "readingVoice"
     private var chosen: Source? = UserDefaults.standard.string(forKey: VoicePreferences.sourceKey).flatMap(Source.init(rawValue:))
 
-    /// The voice replies are read in, by the app and by the agent's `speak` tool.
+    /// Which service reads replies aloud, picked by the user: DeepSeek until they pick another,
+    /// never switched for them by which key is saved.
+    var readingSource: Source = UserDefaults.standard.string(forKey: VoicePreferences.readingSourceKey)
+        .flatMap(Source.init(rawValue:)) ?? .deepseek {
+        didSet { UserDefaults.standard.set(readingSource.rawValue, forKey: Self.readingSourceKey) }
+    }
+
+    /// The DeepSeek voice replies are read in.
     var readingVoice: DeepSeekSpeech.Voice = UserDefaults.standard.string(forKey: VoicePreferences.readingVoiceKey)
         .flatMap(DeepSeekSpeech.Voice.init(rawValue:)) ?? .stella {
         didSet { UserDefaults.standard.set(readingVoice.rawValue, forKey: Self.readingVoiceKey) }
@@ -301,8 +271,9 @@ final class VoicePreferences {
 
 // MARK: - Reading aloud
 
-/// Replies read aloud in DeepSeek's voice, one after another. Reading belongs to the conversation
-/// on screen (`scope`): moving to another one stops it.
+/// Replies read aloud, one after another, by the service picked in 设置 → 朗读 (DeepSeek or
+/// Volcengine). Reading belongs to the conversation on screen (`scope`): moving to another one
+/// stops it.
 @MainActor
 @Observable
 final class ReadAloud {
@@ -310,20 +281,29 @@ final class ReadAloud {
 
     /// The session on screen. A change stops what is being read.
     var scope: String? {
-        didSet { if scope != oldValue { stop() } }
+        didSet {
+            if scope != oldValue {
+                stop()
+                VoiceMessagePlayer.shared.stop()
+            }
+        }
     }
     private(set) var speaking = false
     /// Held where it was; `resume()` goes on from there.
     private(set) var paused = false
     /// A failure worded for a toast; the app model shows it.
     @ObservationIgnored var onError: ((String) -> Void)?
+    /// Whose voice reads a conversation (`scope`): its Bot's, else its own. Set by the app model,
+    /// which knows the Bots.
+    @ObservationIgnored var ownerFor: ((String?) -> VoiceOwner?)?
 
-    @ObservationIgnored private var queue: [String] = []
+    @ObservationIgnored private var queue: [(text: String, voice: SynthesisVoice)] = []
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var player: PCMPlayer?
 
-    func toggle(_ text: String) {
-        if speaking { stop() } else { enqueue(text) }
+    /// `owner`: whose voice reads it (a group member's); nil: the conversation's on screen.
+    func toggle(_ text: String, owner: VoiceOwner? = nil) {
+        if speaking { stop() } else { enqueue(text, owner: owner) }
     }
 
     func pause() {
@@ -333,9 +313,28 @@ final class ReadAloud {
     }
 
     func resume() {
-        guard speaking, paused else { return }
+        guard speaking, paused, let player else { return }
         paused = false
-        player?.resume()
+        // A call, Siri or a route change may have stopped the engine meanwhile, and the session
+        // with it: both start again before the player does.
+        Task {
+            do {
+                try await Self.activateSession()
+                guard self.player === player, !paused else { return }
+                try player.resume()
+            } catch {
+                guard self.player === player else { return }
+                onError?(error.localizedDescription)
+                stop()
+            }
+        }
+    }
+
+    /// The system took the audio away mid-read: it holds where it was, as if paused, for 继续.
+    private func halted() {
+        guard speaking, !paused else { return }
+        paused = true
+        player?.pause()
     }
 
     func stop() {
@@ -372,11 +371,26 @@ final class ReadAloud {
         }
     }
 
-    /// Read after whatever is being read now.
-    func enqueue(_ text: String) {
+    /// Read after whatever is being read now, in `owner`'s voice, else the conversation's on screen.
+    func enqueue(_ text: String, owner: VoiceOwner? = nil) {
+        enqueue(text, voice: SynthesisVoice.reading(for: owner ?? ownerFor?(scope)))
+    }
+
+    /// Read after whatever is being read now, in `voice` (one being tried).
+    func enqueue(_ text: String, voice: SynthesisVoice) {
         let plain = Self.plain(text)
         guard !plain.isEmpty else { return }
-        queue.append(plain)
+        // A call holds the audio: reading aloud would take it over.
+        if CallCenter.shared.active {
+            onError?(String(localized: "通话中不能朗读"))
+            return
+        }
+        if case .volcengine(nil, _) = voice {
+            onError?(String(localized: "朗读还没设置好，请在「设置 → 朗读」里选择火山引擎的接入方式"))
+            return
+        }
+        VoiceMessagePlayer.shared.stop()
+        queue.append((plain, voice))
         guard task == nil else { return }
         speaking = true
         task = Task { await run() }
@@ -387,15 +401,19 @@ final class ReadAloud {
             try await Self.activateSession()
             try Task.checkCancellation()
             let player = try PCMPlayer()
+            player.onHalt = { [weak self] in self?.halted() }
             self.player = player
             if paused { player.pause() }
             while true {
                 while !queue.isEmpty {
-                    let text = queue.removeFirst()
-                    // Every piece is fetched as fast as DeepSeek makes it and queued on the player,
-                    // so the next piece is ready before the last one ends.
-                    for piece in Self.pieces(of: text) {
-                        for try await pcm in DeepSeekSpeech.synthesize(piece, voice: VoicePreferences.shared.readingVoice) {
+                    let (text, voice) = queue.removeFirst()
+                    // Every piece is fetched as fast as it is made and queued on the player, so the
+                    // next piece is ready before the last one ends. DeepSeek takes a long reply in
+                    // several requests; Volcengine in one session, fed a sentence or so at a time.
+                    let parts: [String]
+                    if case .deepseek = voice { parts = Self.pieces(of: text) } else { parts = [text] }
+                    for piece in parts {
+                        for try await pcm in voice.stream(piece) {
                             try Task.checkCancellation()
                             player.schedule(pcm)
                         }
@@ -427,7 +445,7 @@ final class ReadAloud {
 
     /// DeepSeek takes at most 10,000 billed characters a request (a Chinese one counts as two):
     /// a long reply goes in pieces, cut between paragraphs, else after a sentence.
-    static func pieces(of text: String, limit: Int = 6_000) -> [String] {
+    nonisolated static func pieces(of text: String, limit: Int = 6_000) -> [String] {
         func cost<S: StringProtocol>(_ s: S) -> Int { s.unicodeScalars.reduce(0) { $0 + ($1.value > 0x2E7F ? 2 : 1) } }
         var pieces: [String] = []
         var current = ""
@@ -467,8 +485,9 @@ final class ReadAloud {
 }
 
 /// 24 kHz mono 16-bit PCM played as it arrives.
+/// 24 kHz mono speech played as it arrives: read-aloud replies and voice messages heard the first time.
 @MainActor
-private final class PCMPlayer {
+final class PCMPlayer {
     private let engine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 24_000, channels: 1)!
@@ -478,12 +497,25 @@ private final class PCMPlayer {
     /// A byte left over from a piece that split a sample.
     private var carry: UInt8?
     private var stopped = false
+    /// The system stopped the engine: an interruption (a call, Siri, an alarm) or a route change.
+    var onHalt: (() -> Void)?
+    private var observers: [NSObjectProtocol] = []
 
     init() throws {
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
         try engine.start()
         node.play()
+        let center = NotificationCenter.default
+        observers = [
+            center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+                let began = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt) == AVAudioSession.InterruptionType.began.rawValue
+                if began { MainActor.assumeIsolated { self?.onHalt?() } }
+            },
+            center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.onHalt?() }
+            },
+        ]
     }
 
     func schedule(_ pcm: Data) {
@@ -507,7 +539,18 @@ private final class PCMPlayer {
 
     func pause() { if !stopped { node.pause() } }
 
-    func resume() { if !stopped { node.play() } }
+    /// Seconds heard so far.
+    var playedSeconds: Double {
+        guard !stopped, let now = node.lastRenderTime, let time = node.playerTime(forNodeTime: now) else { return 0 }
+        return max(0, Double(time.sampleTime) / time.sampleRate)
+    }
+
+    /// Playing on a stopped engine raises (iOS 17), so the engine starts again first.
+    func resume() throws {
+        guard !stopped else { return }
+        if !engine.isRunning { try engine.start() }
+        node.play()
+    }
 
     /// Returns once everything queued has been heard, or the player stops.
     func drained() async {
@@ -518,6 +561,8 @@ private final class PCMPlayer {
     func stop() {
         guard !stopped else { return }
         stopped = true
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
         node.stop()
         engine.stop()
         release()

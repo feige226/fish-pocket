@@ -48,7 +48,7 @@ struct StoreEntryDetail: View {
     }
     /// The plugin list answers first after an install; the market's next read says the same.
     private var onDevice: Bool {
-        app.plugins.package(listing.name)?.installed == true || ["installed", "update-available", "provided"].contains(entry.status ?? "")
+        app.plugins.package(listing.name)?.installed == true || ["installed", "update-available", "provided"].contains(model.status(entry, app) ?? "")
     }
 
     var body: some View {
@@ -100,7 +100,7 @@ struct StoreEntryDetail: View {
 
     /// The market's newer version, when this DSH takes it and the app doesn't pin the plugin elsewhere.
     private var update: JSON? {
-        guard entry.status == "update-available", entry.installable, let version = entry.version,
+        guard model.status(entry, app) == "update-available", entry.installable, let version = entry.version,
               PluginPins.note(package: entry.name, version: entry.versionNumber) == nil else { return nil }
         return version
     }
@@ -119,7 +119,9 @@ struct StoreEntryDetail: View {
         let installed = entry.json["installation"]["installedVersion"].string ?? app.plugins.package(entry.name)?.version ?? ""
         app.pluginInstall.updateTo(
             name: entry.name, title: entry.displayName, from: installed,
-            to: version["version"].string ?? "", registry: version["install"]["registry"].string
+            to: version["version"].string ?? "", registry: version["install"]["registry"].string,
+            // A `github:` install updates from that spec; a registry one must not send it.
+            spec: version["install"]["spec"].string
         )
     }
 
@@ -156,8 +158,8 @@ struct StoreEntryDetail: View {
                             .contentTransition(.opacity)
                         }
                         .buttonStyle(.capsule(height: 48))
-                        .disabled(!updatingThis && (updating || model.market.fromCache))
-                        .opacity(!updatingThis && (updating || model.market.fromCache) ? 0.4 : 1)
+                        .disabled(!updatingThis && (updating || !model.installable(app)))
+                        .opacity(!updatingThis && (updating || !model.installable(app)) ? 0.4 : 1)
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     }
                     NavigationLink {
@@ -177,8 +179,8 @@ struct StoreEntryDetail: View {
         } else if entry.installable, !removed, let version = entry.version {
             Button("安装 \(entry.versionNumber)") { install(MarketChoice(entry: entry.json, version: version)) }
                 .buttonStyle(.capsule(height: 48))
-                .disabled(model.market.fromCache)
-                .opacity(model.market.fromCache ? 0.4 : 1)
+                .disabled(!model.installable(app))
+                .opacity(model.installable(app) ? 1 : 0.4)
         }
     }
 
@@ -319,7 +321,7 @@ struct StoreEntryDetail: View {
                     if installed { PluginTag(text: String(localized: "当前已安装")) }
                     if !allowed { PluginTag(text: String(localized: "不兼容"), tone: Palette.removed) }
                     Spacer(minLength: 0)
-                    if allowed, !installed, !removed, entry.status != "provided" {
+                    if allowed, !installed, !removed, model.status(entry, app) != "provided" {
                         Button("安装") {
                             // An update goes only forward (`updateBundle`), as on the web; an older version
                             // goes through the install sheet, which says what the Host makes of it.
@@ -503,7 +505,7 @@ struct StoreInstallConfirm: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Palette.background)
         .presentationDetents([.height(height)])
-        .tint(Palette.ink)
+        .inkTint()
     }
 
     private func line(_ title: LocalizedStringKey, _ value: Text) -> some View {

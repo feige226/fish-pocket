@@ -1,33 +1,105 @@
 {
-  "originHash" : "54996e4b8e679707e0171d5046ce63875d5d30efec5eb027fe350511961daf11",
-  "pins" : [
+  "originHash": "54996e4b8e679707e0171d5046ce63875d5d30efec5eb027fe350511961daf11",
+  "pins": [
     {
-      "identity" : "swift-argument-parser",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-argument-parser",
-      "state" : {
-        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
-        "version" : "1.8.2"
+      "identity": "swift-argument-parser",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-argument-parser",
+      "state": {
+        "revision": "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version": "1.8.2"
       }
     },
     {
-      "identity" : "swiftmath",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mgriebling/SwiftMath",
-      "state" : {
-        "revision" : "fa8244ed032f4a1ade4cb0571bf87d2f1a9fd2d7",
-        "version" : "1.7.3"
+      "identity": "swift-custom-dump",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-custom-dump",
+      "state": {
+        "revision": "4fb9e7cbb4b8f5a7354005db39447f570d6b3e19",
+        "version": "1.7.3"
       }
     },
     {
-      "identity" : "swiftterm",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/migueldeicaza/SwiftTerm",
-      "state" : {
-        "revision" : "ca6f80ef534248d2f65c1b640656e3c9a270bfeb",
-        "version" : "1.10.0"
+      "identity": "swift-docc-plugin",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-docc-plugin",
+      "state": {
+        "revision": "3e4f133a77e644a5812911a0513aeb7288b07d06",
+        "version": "1.4.5"
+      }
+    },
+    {
+      "identity": "swift-docc-symbolkit",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/swiftlang/swift-docc-symbolkit",
+      "state": {
+        "revision": "b45d1f2ed151d057b54504d653e0da5552844e34",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "identity": "swift-issue-reporting",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-issue-reporting",
+      "state": {
+        "revision": "71c7c9a761d1ca6ed4ccb6ced040fe1c1a39e8e7",
+        "version": "2.1.0"
+      }
+    },
+    {
+      "identity": "swift-macro-testing",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-macro-testing",
+      "state": {
+        "revision": "9ab11325daa51c7c5c10fcf16c92bac906717c7e",
+        "version": "0.6.4"
+      }
+    },
+    {
+      "identity": "swift-perception",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-perception",
+      "state": {
+        "revision": "597afd46249f4a71885b95d26b26cc5b893daf32",
+        "version": "2.0.12"
+      }
+    },
+    {
+      "identity": "swift-snapshot-testing",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/pointfreeco/swift-snapshot-testing",
+      "state": {
+        "revision": "a8b7c5e0ed33d8ab8887d1654d9b59f2cbad529b",
+        "version": "1.18.7"
+      }
+    },
+    {
+      "identity": "swift-syntax",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/swiftlang/swift-syntax",
+      "state": {
+        "revision": "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
+        "version": "601.0.1"
+      }
+    },
+    {
+      "identity": "swiftmath",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/mgriebling/SwiftMath",
+      "state": {
+        "revision": "fa8244ed032f4a1ade4cb0571bf87d2f1a9fd2d7",
+        "version": "1.7.3"
+      }
+    },
+    {
+      "identity": "swiftterm",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/migueldeicaza/SwiftTerm",
+      "state": {
+        "revision": "ca6f80ef534248d2f65c1b640656e3c9a270bfeb",
+        "version": "1.10.0"
       }
     }
   ],
-  "version" : 3
+  "version": 3
 }

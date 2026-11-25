@@ -2,7 +2,7 @@ import Foundation
 import StoreKit
 
 /// Where this copy of the app came from. Only an App Store install can be rated there, so the
-/// rating asks (`SupportPrompt`, 设置 › 给个评分) go to it alone.
+/// rating asks (`SupportPrompt`, 探索 › 给个评分) go to it alone.
 @MainActor
 enum AppDistribution {
     enum Channel: String {

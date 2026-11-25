@@ -24,6 +24,8 @@ extension AppModel {
         case settings
         /// Signing in to Fish Pocket (its credits pay for the `fish-pocket` route).
         case fishPocket
+        /// 设置 → 生图: an image provider's key or sign-in.
+        case imageGen
     }
 
     func requestCredentials(_ step: CredentialStep) {

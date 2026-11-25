@@ -21,7 +21,19 @@ test('a built-in plugin resolves from the engine for code outside it, other pack
   const probe = path.join(dir, 'probe.mjs');
   fs.writeFileSync(probe, "export const bot = import.meta.resolve('ds-bot');\nexport const sub = import.meta.resolve('ds-bot/web-search');\nexport function other() { return import.meta.resolve('yaml'); }\n");
   const { bot, sub, other } = await import(probe);
-  assert.match(bot, /\/engine\/node_modules\/ds-bot\/index\.js$/);
+  // ds-bot's entry file is its own business (0.3.8 renamed index.js to plugin.js).
+  const entry = JSON.parse(fs.readFileSync(new URL('../node_modules/ds-bot/package.json', import.meta.url), 'utf8')).main ?? 'index.js';
+  assert.equal(bot, new URL(`../node_modules/ds-bot/${entry}`, import.meta.url).href);
   assert.match(sub, /\/engine\/node_modules\/ds-bot\/web-search\.js$/);
   assert.throws(other, { code: 'ERR_MODULE_NOT_FOUND' });
+});
+
+test("DSH's own packages resolve from the engine once the profile has no copy of them", async () => {
+  installModuleRedirects();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-ios-profile-'));
+  const probe = path.join(dir, 'probe.mjs');
+  fs.writeFileSync(probe, "export const storage = import.meta.resolve('@deepseek-ai/dsh-storage-domain');\nexport function library() { return import.meta.resolve('@deepseek-ai/schemastery'); }\n");
+  const { storage, library } = await import(probe);
+  assert.match(storage, /\/engine\/node_modules\/@deepseek-ai\/dsh-storage-domain\//);
+  assert.throws(library, { code: 'ERR_MODULE_NOT_FOUND' });
 });

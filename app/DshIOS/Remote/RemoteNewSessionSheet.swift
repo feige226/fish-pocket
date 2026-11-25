@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Where a new remote session should start, as far as the asker knows.
 struct RemoteSessionTarget: Identifiable, Equatable {
     let id = UUID()
@@ -48,6 +49,8 @@ struct RemoteNewSessionSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -130,13 +133,14 @@ struct RemoteNewSessionSheet: View {
                 }
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
         .interactiveDismissDisabled(creating)
         .onAppear(perform: seed)
-        .onChange(of: deviceId) { deviceChanged() }
+        .onChangeCompat(of: deviceId) { _, _ in deviceChanged() }
         .task(id: deviceId) { if !deviceId.isEmpty { await remote.loadAgents(on: deviceId); pickAgent() } }
         .task(id: "\(deviceId)/\(agentId)") { await prepare() }
-    }
+    
+        }}
 
     /// One row per model, or per level of a model that has several.
     private var modelChoices: [(name: String, selection: String)] {

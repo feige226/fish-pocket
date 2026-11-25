@@ -1,8 +1,9 @@
 import SwiftUI
 
+import Perception
 /// What the agent has going on beside the conversation, floating over its foot: the web page it
-/// works in and its background jobs. One tap opens either, without a trip to the top bar. Each shows
-/// only while there is something to see; a running one carries the green dot.
+/// works in, as a small picture of it, and its background jobs. One tap opens either, without a trip
+/// to the top bar. Each shows only while there is something to see; a running one carries the green dot.
 struct ConversationActivity: View {
     let sessionId: String
     let jobs: JobsModel
@@ -19,54 +20,47 @@ struct ConversationActivity: View {
         return model
     }
 
-    /// Whether any chip shows, so the timeline can leave room for them under its last row.
+    /// How much room the timeline leaves under its last row, so what floats here never sits on it.
     @MainActor
-    static func shows(sessionId: String, jobs: JobsModel, browserShown: Bool, in app: AppModel) -> Bool {
-        jobs.visibleCount > 0 || (!browserShown && browser(of: sessionId, in: app) != nil)
+    static func room(sessionId: String, jobs: JobsModel, browserShown: Bool, in app: AppModel) -> CGFloat {
+        if !browserShown, let browser = browser(of: sessionId, in: app) { return browser.thumbnailSize.height + 12 }
+        return jobs.visibleCount > 0 ? 48 : 0
     }
 
     private var browser: BrowserModel? { Self.browser(of: sessionId, in: app) }
 
     var body: some View {
+        WithPerceptionTracking {
+
         // Read here so the chips follow a browser made after this view.
         let browser = browserShown ? nil : browser
-        HStack(spacing: 8) {
+        HStack(alignment: .bottom, spacing: 8) {
             if let browser {
-                chip(
-                    icon: "globe",
-                    text: Text(Self.host(browser.url) ?? String(localized: "浏览器")),
-                    running: browser.agentBusy || browser.selected?.page?.loading == true,
-                    label: Text("浏览器：\(Self.host(browser.url) ?? "")"),
-                    action: openBrowser
-                )
+                // A view of its own: a new picture redraws it alone, and it is the one that watches.
+                BrowserThumbnail(browser: browser, action: openBrowser).id(ObjectIdentifier(browser))
             }
             if jobs.visibleCount > 0 {
                 chip(
-                    icon: "list.bullet.rectangle",
                     text: jobs.live.isEmpty ? Text("\(jobs.visibleCount) 个后台任务") : Text("\(jobs.live.count) 个后台任务运行中"),
                     running: !jobs.live.isEmpty,
-                    label: nil,
                     action: openJobs
                 )
             }
         }
-        .animation(.snappy(duration: 0.18), value: browser == nil)
-        .animation(.snappy(duration: 0.18), value: jobs.visibleCount)
-    }
+        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: browser == nil)
+        .animation(.spring(response: 0.18, dampingFraction: 0.82), value: jobs.visibleCount)
+    
+        }}
 
-    private static func host(_ url: URL?) -> String? { FullScreenBrowser.site(url) }
-
-    private func chip(icon: String, text: Text, running: Bool, label: Text?, action: @escaping () -> Void) -> some View {
+    /// No picture, only the state, as each job's row in the list shows it: a breathing green dot
+    /// while one runs, a grey one when all have ended.
+    private func chip(text: Text, running: Bool, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.tap()
             action()
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.footnote.weight(.semibold))
-                    .overlay(alignment: .topTrailing) {
-                        if running { Circle().fill(Palette.running).frame(width: 7, height: 7).offset(x: 3, y: -3) }
-                    }
+            HStack(spacing: 7) {
+                JobsDot(running: running)
                 text.font(.footnote.weight(.medium)).lineLimit(1)
             }
             .foregroundStyle(Palette.ink)
@@ -77,6 +71,35 @@ struct ConversationActivity: View {
         }
         .buttonStyle(.plain)
         .transition(.opacity.combined(with: .scale(scale: 0.8)))
-        .accessibilityLabel(label ?? text)
+        .accessibilityLabel(text)
+    }
+}
+
+/// The background jobs chip's mark. The halo breathes while a job runs, unless motion is reduced.
+private struct JobsDot: View {
+    let running: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
+
+    var body: some View {
+        let color = running ? Palette.running : Palette.faint
+        ZStack {
+            if running {
+                Circle()
+                    .fill(color.opacity(breathing ? 0.08 : 0.25))
+                    .scaleEffect(breathing ? 1.7 : 1)
+            }
+            Circle().fill(color).frame(width: 7, height: 7)
+        }
+        .frame(width: 12, height: 12)
+        .onAppear { breathe() }
+        .onChange(of: running) { _, _ in breathe() }
+        .accessibilityHidden(true)
+    }
+
+    private func breathe() {
+        breathing = false
+        guard running, !reduceMotion else { return }
+        withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { breathing = true }
     }
 }

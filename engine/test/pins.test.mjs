@@ -14,6 +14,8 @@ const refused = (spec, wanted) => assert.deepEqual(pin(spec), { name: 'ds-bot', 
 test('the shipped pins name a version and a repository', () => {
   assert.match(PINS['ds-bot'].version, /^\d+\.\d+\.\d+$/);
   assert.equal(PINS['ds-bot'].repository, 'Fei2411/DS-Bot');
+  assert.match(PINS['dsh-image-gen'].version, /^\d+\.\d+\.\d+$/);
+  assert.equal(PINS['dsh-image-gen'].repository, 'shanliuling/dsh-image-gen');
 });
 
 test('a registry spec with no version, a tag or a range installs the pinned version, saved exactly', () => {

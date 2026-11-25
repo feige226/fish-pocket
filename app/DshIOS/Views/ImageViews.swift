@@ -124,7 +124,7 @@ struct ReplyImage: View {
             if let image {
                 let size = ImageGroup.singleSize(image.size)
                 Button { viewing = true } label: {
-                    Image(uiImage: image).resizable().scaledToFill()
+                    Picture(image: image)
                         .frame(width: size.width, height: size.height)
                         .clipped()
                 }
@@ -147,8 +147,8 @@ struct ReplyImage: View {
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate?.timeIntervalSince1970 ?? 0
             let key = "\(url.path)#\(modified)" as NSString
             if let hit = Self.cache.object(forKey: key) { image = hit; return }
-            guard let decoded = await Task.detached(priority: .userInitiated, operation: { ZoomableImage.decode(url) }).value else { failed = true; return }
-            Self.cache.setObject(decoded, forKey: key, cost: (decoded.cgImage?.bytesPerRow ?? 0) * (decoded.cgImage?.height ?? 0))
+            guard let decoded = await Task.detached(priority: .userInitiated, operation: { AnimatedPicture.decode(url) ?? ZoomableImage.decode(url) }).value else { failed = true; return }
+            Self.cache.setObject(decoded, forKey: key, cost: max(AnimatedPicture.cost(decoded), (decoded.cgImage?.bytesPerRow ?? 0) * (decoded.cgImage?.height ?? 0)))
             image = decoded
         }
         .fullScreenCover(isPresented: $viewing) {
@@ -188,7 +188,7 @@ struct AttachmentThumb: View {
         Group {
             if let image {
                 Button { viewing = true } label: {
-                    Image(uiImage: image).resizable().scaledToFill()
+                    Picture(image: image)
                         .frame(width: size.width, height: size.height)
                         .clipped()
                 }
@@ -207,6 +207,11 @@ struct AttachmentThumb: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("图片加载失败，轻点重试")
+            } else if let preview = attachment.attachmentId.flatMap({ model?.preview($0) }) {
+                // Just sent: the picture as it was picked, until the stored copy is read.
+                Image(uiImage: preview).resizable().scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
             } else {
                 Palette.field.overlay(ProgressView()).frame(width: size.width, height: size.height)
             }
@@ -223,11 +228,16 @@ struct AttachmentThumb: View {
     }
 }
 
-/// Full-screen image: pinch or double-tap to zoom, drag to pan, share or close.
+/// Full-screen image: pinch or double-tap to zoom, drag to pan, share or close. Opened from a
+/// conversation, 标注 draws on it and puts the marked copy into that conversation's draft.
 struct ImageViewer: View {
     let image: UIImage
     var name: String?
     @Environment(\.dismiss) private var dismiss
+    /// The conversation the picture is in; nil where there is no draft to add to.
+    @Environment(\.sessionModel) private var model
+    @Environment(AppModel.self) private var app: AppModel?
+    @State private var marking = false
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -236,17 +246,15 @@ struct ImageViewer: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
+            Picture(image: image, contentMode: .fit)
                 .scaleEffect(scale)
                 .offset(offset)
                 .gesture(
-                    MagnifyGesture()
-                        .onChanged { scale = max(1, min(6, lastScale * $0.magnification)) }
+                    MagnificationGesture()
+                        .onChanged { value in scale = max(1, min(6, lastScale * value) ) }
                         .onEnded { _ in
                             lastScale = scale
-                            if scale == 1 { withAnimation(.snappy) { offset = .zero }; lastOffset = .zero }
+                            if scale == 1 { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { offset = .zero }; lastOffset = .zero }
                         }
                         .simultaneously(with: DragGesture()
                             .onChanged { value in
@@ -259,14 +267,14 @@ struct ImageViewer: View {
                             }
                             .onEnded { value in
                                 if scale <= 1 {
-                                    if value.translation.height > 120 { dismiss() } else { withAnimation(.snappy) { offset = .zero } }
+                                    if value.translation.height > 120 { dismiss() } else { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { offset = .zero } }
                                 } else {
                                     lastOffset = offset
                                 }
                             })
                 )
                 .onTapGesture(count: 2) {
-                    withAnimation(.snappy) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                         if scale > 1 { scale = 1; offset = .zero } else { scale = 2.5 }
                     }
                     lastScale = scale
@@ -281,7 +289,7 @@ struct ImageViewer: View {
                 }
                 .accessibilityLabel("关闭")
                 Spacer()
-                ShareLink(item: Image(uiImage: image), preview: SharePreview(name ?? String(localized: "图片"), image: Image(uiImage: image))) {
+                ShareLink(item: Image(uiImage: image.still), preview: SharePreview(name ?? String(localized: "图片"), image: Image(uiImage: image.still))) {
                     Image(systemName: "square.and.arrow.up").font(.body.weight(.semibold)).frame(width: 44, height: 44)
                 }
                 .accessibilityLabel("分享")
@@ -289,6 +297,29 @@ struct ImageViewer: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 8)
         }
+        .overlay(alignment: .bottom) {
+            if model != nil {
+                Button { marking = true } label: {
+                    Label("标注", systemImage: "pencil.tip.crop.circle")
+                        .font(.body.weight(.semibold))
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 44)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+                .foregroundStyle(.white)
+                .environment(\.colorScheme, .dark)
+                .padding(.bottom, 12)
+            }
+        }
         .statusBarHidden()
+        .fullScreenCover(isPresented: $marking) {
+            MarkupCanvas(picture: image.still) { marked in
+                if let refusal = model?.composer.addImage(marked, name: String(localized: "标注") + ".jpg") {
+                    app?.showToast(refusal)
+                }
+                // Back to the conversation, where the marked copy now waits in the draft.
+                DispatchQueue.main.async { dismiss() }
+            }
+        }
     }
 }

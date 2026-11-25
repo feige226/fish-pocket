@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WebKit
 
 /// Tells a nested `PluginsView` that an enclosing sheet already shows the shell notices.
@@ -14,14 +15,38 @@ extension EnvironmentValues {
 
     /// Open a session in the conversation area; the shell sets it. `让 Agent 创建插件`
     /// and the Agent presets' creator entry use it.
-    var openSession: ((String) -> Void)? {
+    var openSession: OpenSessionAction? {
         get { self[OpenSessionKey.self] }
         set { self[OpenSessionKey.self] = newValue }
     }
 }
 
 private struct OpenSessionKey: EnvironmentKey {
-    static let defaultValue: ((String) -> Void)? = nil
+    static let defaultValue: OpenSessionAction? = nil
+}
+
+/// The shell's way to open a session, for the environment. A closure there cannot be compared:
+/// every page reading it was told it had changed whenever the environment reached it again, and
+/// before iOS 26 a navigation stack sends it again to a pushed page each time a page is pushed
+/// from that one. 设置 pushed from the 探索 tab reads it and pushes 插件 and 自动化, which take
+/// it too: the two bodies and the stack kept updating one another and the app had to be killed.
+/// In a box that stays the same the value never changes.
+struct OpenSessionAction: Equatable {
+    final class Box {
+        var open: (String) -> Void = { _ in }
+    }
+
+    private let box: Box
+
+    /// The shell's latest way to do it, put in the box it keeps.
+    init(_ box: Box, open: @escaping (String) -> Void) {
+        box.open = open
+        self.box = box
+    }
+
+    func callAsFunction(_ session: String) { box.open(session) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.box === rhs.box }
 }
 
 extension View {
@@ -39,6 +64,8 @@ struct PluginIcon: View {
     var glyph = "puzzlepiece.extension"
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let source, source.hasPrefix("data:image/svg") {
                 SVGIconView(source: source)
@@ -56,7 +83,8 @@ struct PluginIcon: View {
         .padding(6)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.stroke))
         .accessibilityHidden(true)
-    }
+    
+        }}
 
     private var fallback: some View {
         Image(systemName: glyph).font(.system(size: size * 0.55)).foregroundStyle(Palette.secondary)
@@ -83,6 +111,8 @@ private struct RemoteIcon<Fallback: View>: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             switch art {
             case .image(let image): Image(uiImage: image).resizable().scaledToFit()
@@ -91,7 +121,8 @@ private struct RemoteIcon<Fallback: View>: View {
             }
         }
         .task(id: url) { art = await PluginIconMemory.load(url) }
-    }
+    
+        }}
 }
 
 private struct SVGIconView: UIViewRepresentable {
@@ -134,13 +165,16 @@ struct PluginTag: View {
     var tone: Color = Palette.secondary
 
     var body: some View {
+        WithPerceptionTracking {
+
         Text(text)
             .font(.caption2.weight(.medium))
             .foregroundStyle(tone)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(tone.opacity(0.12), in: Capsule())
-    }
+    
+        }}
 }
 
 /// The official plugins' configuration cards (`plugins.item`), each while its namespace is served.
@@ -158,7 +192,7 @@ struct OfficialPluginItem: Identifiable {
             items.append(.init(page: .subagent, title: String(localized: "子智能体"), summary: String(localized: "设置子智能体的递归层级、数量和模型。"), glyph: "person.2"))
         }
         if mirror.serves("web") || mirror.serves("web-search-deepseek") {
-            items.append(.init(page: .webSearch, title: String(localized: "网页搜索"), summary: String(localized: "设置 DeepSeek 的搜索提供方。"), glyph: "magnifyingglass"))
+            items.append(.init(page: .webSearch, title: String(localized: "网页搜索与获取"), summary: String(localized: "选择搜索和读取网页各用哪个提供方。"), glyph: "magnifyingglass"))
         }
         if mirror.serves("agent-loop") {
             items.append(.init(page: .agentLoop, title: String(localized: "Agent 循环"), summary: String(localized: "控制 Agent 派发工具调用的方式。"), glyph: "arrow.triangle.2.circlepath"))
@@ -183,6 +217,8 @@ struct PluginsView: View {
     private var showingMarket: Bool { tab == "discover" && manager.marketEnabled }
 
     var body: some View {
+        WithPerceptionTracking {
+
         content
             .navigationTitle("插件")
             .navigationBarTitleDisplayMode(.inline)
@@ -196,12 +232,17 @@ struct PluginsView: View {
             .task(id: app.revision("plugin-manager/changed")) { await manager.refresh(revision: app.revision("plugin-manager/changed")) }
             .followSettings()
             .modifier(HostNotices(hosted: noticesHosted))
-    }
+    
+        }}
 
     @ViewBuilder
     private var content: some View {
         if manager.status == .unavailable {
-            ContentUnavailableView("无法管理插件", systemImage: "puzzlepiece.extension", description: Text("当前无法安装或启停插件。"))
+            VStack(spacing: 10) {
+                Image(systemName: "puzzlepiece.extension").font(.largeTitle).foregroundStyle(Palette.secondary)
+                Text("无法管理插件").font(.headline).foregroundStyle(Palette.ink)
+                Text("当前无法安装或启停插件。").font(.subheadline).foregroundStyle(Palette.secondary)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 .pageBackground()
         } else if manager.marketEnabled {
             VStack(spacing: 0) {
@@ -239,20 +280,17 @@ struct PluginsView: View {
                     Image(systemName: "shippingbox")
                 }
             }
-            // 创造模式 is held back on iOS (`CreatorMode`), and with it the entry that starts one.
-            if !CreatorMode.hidden {
-                Button {
-                    Task { await createWithAgent() }
-                } label: {
-                    Label {
-                        Text("让 Agent 创建插件")
-                        Text("进入创造模式，制作属于你的 DSH 插件")
-                    } icon: {
-                        Image(systemName: "sparkles")
-                    }
+            Button {
+                Task { await createWithAgent() }
+            } label: {
+                Label {
+                    Text("让 Agent 创建插件")
+                    Text("进入创造模式，制作属于你的 DSH 插件")
+                } icon: {
+                    Image(systemName: "sparkles")
                 }
-                .disabled(creating)
             }
+            .disabled(creating)
         } label: {
             Image(systemName: "plus")
         }
@@ -381,13 +419,16 @@ private struct MoreExtensionsView: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section { ForEach(app.plugins.allExtensions) { PluginCard(package: $0) } }.groupedRow()
         }
         .groupedList()
         .navigationTitle("实验性插件")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 /// P-04: artwork, name, tags, one-liner and the state; the switch is on the detail page it opens.
@@ -400,6 +441,8 @@ private struct PluginCard: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationLink {
             PluginDetailView(name: package.name)
         } label: {
@@ -438,7 +481,8 @@ private struct PluginCard: View {
             try? await Task.sleep(for: .seconds(2.4))
             if manager.highlight == package.name { manager.highlight = nil }
         }
-    }
+    
+        }}
 }
 
 /// The status tags: version, 实验性, 异常, 未安装 / 包不可用, 可更新.
@@ -447,6 +491,8 @@ private struct PluginTags: View {
     let version: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         if version, let number = package.version { PluginTag(text: "v\(number)") }
         if package.beta { PluginTag(text: String(localized: "实验性")) }
         if package.problem { PluginTag(text: String(localized: "异常"), tone: Palette.removed) }
@@ -454,7 +500,8 @@ private struct PluginTags: View {
             PluginTag(text: package.installed ? String(localized: "包不可用") : String(localized: "未安装"))
         }
         if package.updateAvailable { PluginTag(text: String(localized: "可更新"), tone: Palette.running) }
-    }
+    
+        }}
 }
 
 private extension View {
@@ -497,17 +544,23 @@ struct PluginDetailView: View {
     private var manager: PluginManagerModel { app.plugins }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let package = manager.package(name) {
                 detail(package).confirmUninstall(package, isPresented: $confirmingUninstall) { uninstalled = true }
             } else {
-                ContentUnavailableView("插件已移除", systemImage: "puzzlepiece.extension")
+                VStack(spacing: 10) {
+                    Image(systemName: "puzzlepiece.extension").font(.largeTitle).foregroundStyle(Palette.secondary)
+                    Text("插件已移除").font(.headline).foregroundStyle(Palette.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .followSettings()
         .dismisses(when: uninstalled)
-    }
+    
+        }}
 
     private func detail(_ package: PluginPackage) -> some View {
         List {
@@ -534,7 +587,7 @@ struct PluginDetailView: View {
                 if manager.isBusy(package) {
                     ProgressView()
                 } else if !package.switchLocked {
-                    MonoSwitch(isOn: Binding(get: { package.enabled }, set: { on in Task { await manager.setEnabled(package, on) } }), label: Text("启用 \(package.title)"))
+                    AppSwitch(isOn: Binding(get: { package.enabled }, set: { on in Task { await manager.setEnabled(package, on) } }), label: Text("启用 \(package.title)"))
                 }
             }
             .padding(.vertical, 3)
@@ -683,11 +736,14 @@ private struct FlowTags: View {
     let package: PluginPackage
 
     var body: some View {
+        WithPerceptionTracking {
+
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 6) { PluginTags(package: package, version: true) }
             VStack(alignment: .leading, spacing: 4) { PluginTags(package: package, version: true) }
         }
-    }
+    
+        }}
 }
 
 /// P-08: one component: its state dot, name, description and switch. The switch
@@ -698,6 +754,8 @@ private struct PluginRowView: View {
     let showSwitch: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -715,7 +773,7 @@ private struct PluginRowView: View {
                     if app.plugins.isBusy(row) {
                         ProgressView().controlSize(.small)
                     } else {
-                        MonoSwitch(isOn: Binding(get: { row.enabled }, set: { on in Task { await app.plugins.setRowEnabled(row, on) } }), label: Text("启用组件 \(row.title)"))
+                        AppSwitch(isOn: Binding(get: { row.enabled }, set: { on in Task { await app.plugins.setRowEnabled(row, on) } }), label: Text("启用组件 \(row.title)"))
                             .disabled(row.locked)
                             .opacity(row.locked ? 0.4 : 1)
                     }
@@ -726,7 +784,8 @@ private struct PluginRowView: View {
             }
         }
         .padding(.vertical, 2)
-    }
+    
+        }}
 
     private var dotColor: Color {
         guard row.enabled, let phase = row.phase else { return Palette.faint }

@@ -1,18 +1,17 @@
 import Photos
 import SwiftUI
 
-/// 「分享 Fish Pocket」: a poster with the QR code, a poster with the link written out, or the
-/// link alone, each sent through the system share sheet; posters also save to the album.
-/// Reached from the top of 设置 and from the support card. Everything points at the website
-/// (`AppLinks.site`), which sends readers on to the App Store or the public beta.
+/// 「分享 Fish Pocket」: a poster whose QR code opens the App Store (`AppLinks.appStore`), or the
+/// website's link (`AppLinks.site`, which also leads to the public beta), each sent through the
+/// system share sheet; the poster also saves to the album. Reached from the top of 设置 and from
+/// the support card.
 struct ShareAppPage: View {
     enum Style: CaseIterable, Identifiable {
-        case qrPoster, linkPoster, link
+        case poster, link
         var id: Self { self }
         var title: LocalizedStringKey {
             switch self {
-            case .qrPoster: "二维码海报"
-            case .linkPoster: "链接海报"
+            case .poster: "二维码海报"
             case .link: "链接"
             }
         }
@@ -20,9 +19,9 @@ struct ShareAppPage: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.locale) private var locale
-    @State private var style = Style.qrPoster
-    /// Each poster is drawn once, the first time its tab is open.
-    @State private var posters: [Style: UIImage] = [:]
+    @State private var style = Style.poster
+    /// Drawn once, the first time its tab is open.
+    @State private var poster: UIImage?
     @State private var saving = false
 
     var body: some View {
@@ -48,7 +47,7 @@ struct ShareAppPage: View {
         .task(id: style) { draw(style) }
     }
 
-    /// Centred when the three fit, scrolling on a narrow phone in a longer language.
+    /// Centred when the tabs fit, scrolling on a narrow phone in a longer language.
     private var tabs: some View {
         ViewThatFits(in: .horizontal) {
             tabStrip.padding(.horizontal, 16)
@@ -78,16 +77,16 @@ struct ShareAppPage: View {
     @ViewBuilder
     private var preview: some View {
         switch style {
-        case .qrPoster, .linkPoster:
+        case .poster:
             Group {
-                if let image = posters[style] {
+                if let image = poster {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Palette.stroke) }
                         .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
-                        .accessibilityLabel(style == .qrPoster ? Text("Fish Pocket 分享海报，带二维码") : Text("Fish Pocket 分享海报，带链接"))
+                        .accessibilityLabel(Text("Fish Pocket 分享海报，带二维码"))
                 } else {
                     ProgressView().frame(height: 320)
                 }
@@ -116,8 +115,7 @@ struct ShareAppPage: View {
     private var actions: some View {
         HStack(spacing: 10) {
             switch style {
-            case .qrPoster, .linkPoster:
-                let poster = posters[style]
+            case .poster:
                 Button { if let poster { save(poster) } } label: { Label("保存到相册", systemImage: "square.and.arrow.down") }
                     .buttonStyle(.capsule(.secondary))
                     .disabled(poster == nil || saving)
@@ -150,12 +148,12 @@ struct ShareAppPage: View {
 
     /// Light whatever the app's appearance: a picture sent on is read on someone else's screen.
     private func draw(_ style: Style) {
-        guard posters[style] == nil, style != .link else { return }
-        let renderer = ImageRenderer(content: SharePoster(withCode: style == .qrPoster)
+        guard poster == nil, style == .poster else { return }
+        let renderer = ImageRenderer(content: SharePoster()
             .environment(\.colorScheme, .light)
             .environment(\.locale, locale))
         renderer.scale = 3
-        posters[style] = renderer.uiImage
+        poster = renderer.uiImage
     }
 
     private func save(_ poster: UIImage) {
@@ -191,11 +189,8 @@ enum PhotoAlbum {
 
 /// The poster itself (晒 Fish Pocket), drawn at a fixed 360 × 640 so every phone makes the same
 /// picture, 1080 × 1920 at 3×: the headline over a dotted page, the mascot peeking out of the
-/// website's dark stitched pocket, and in the pocket the plugin markets and the way to the app.
+/// website's dark stitched pocket, and in the pocket the plugin markets and the App Store's QR code.
 struct SharePoster: View {
-    /// The QR code at the foot; otherwise the link written out.
-    let withCode: Bool
-
     private static let ink = Color(red: 0.047, green: 0.047, blue: 0.051)
     private static let pocketInk = Color(red: 0.949, green: 0.949, blue: 0.953)
     private static let body = Color(red: 0.333, green: 0.333, blue: 0.361)
@@ -324,7 +319,7 @@ struct SharePoster: View {
                 Line()
                     .stroke(.white.opacity(0.16), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                     .frame(height: 1.5)
-                if withCode { code } else { link }
+                code
                 Spacer(minLength: 0)
             }
             .padding(EdgeInsets(top: 26, leading: 24, bottom: 24, trailing: 24))
@@ -363,48 +358,16 @@ struct SharePoster: View {
                 .frame(width: 92, height: 92)
                 .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
-                Text("扫码了解和下载")
+                Text("扫码前往 App Store")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Self.pocketInk)
-                Text("开源项目\nApp Store 与 TestFlight 均可安装")
+                Text("开源项目\n免费下载")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Self.pocketMuted)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-
-    private var link: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("在浏览器打开，了解和下载")
-                .font(.system(size: 12))
-                .foregroundStyle(Self.pocketMuted)
-            HStack(spacing: 10) {
-                Text(verbatim: Self.linkText)
-                    .font(.system(size: 13.5, weight: .bold, design: .monospaced))
-                    .kerning(-0.2)
-                    .foregroundStyle(Self.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                Spacer(minLength: 0)
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Self.ink)
-            }
-            .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 14))
-            .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            Text("开源项目 · App Store 与 TestFlight 均可安装")
-                .font(.system(size: 11))
-                .foregroundStyle(Color(red: 0.541, green: 0.541, blue: 0.569))
-        }
-        .padding(.top, 4)
-    }
-
-    /// The link as someone would type it: no scheme.
-    private static var linkText: String {
-        let link = AppLinks.site.absoluteString
-        return link.hasPrefix("https://") ? String(link.dropFirst("https://".count)) : link
     }
 }
 

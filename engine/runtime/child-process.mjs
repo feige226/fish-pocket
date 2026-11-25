@@ -48,6 +48,10 @@ function normalizeStdio(stdio) {
     if (value === 'inherit' || value === i) return 'inherit';
     // An open file descriptor (or a stream holding one): output is written to it.
     const fd = typeof value === 'number' ? value : value?.fd;
+    // Our own stdout or stderr (`process.stderr`, or 2 in the stdout slot): a real
+    // child would write where we do, so it goes through our stream, which also
+    // copies it into engine.log, not to the raw descriptor.
+    if (i > 0 && (fd === 1 || fd === 2)) return { std: fd };
     if (i > 0 && Number.isInteger(fd) && fd >= 0) return { fd };
     return 'ignore';
   });
@@ -73,11 +77,20 @@ function holdDescriptors(stdio) {
   return [...copies].filter(([fd, copy]) => fd !== copy).map(([, copy]) => copy);
 }
 
-/** Writes straight to a descriptor, so the bytes are there once the child exits. */
+/**
+ * Writes straight to a descriptor, so the bytes are there once the child exits.
+ * A write that fails (the descriptor went away: ENXIO, EBADF, EPIPE) loses that
+ * child's output and nothing else, as it would for a real child. Passing the
+ * error on would be an uncaught exception in the engine, and the stream piped
+ * in would stop flowing, so the child would never be reported as exited and
+ * whoever waits for it would wait forever.
+ */
 function fdSink(fd) {
+  let broken = false;
   return new Writable({
     write(chunk, encoding, callback) {
-      try { fs.writeSync(fd, chunk); callback(); } catch (error) { callback(error); }
+      if (!broken) { try { fs.writeSync(fd, chunk); } catch { broken = true; } }
+      callback();
     },
   });
 }
@@ -102,6 +115,7 @@ function spawn(file, args, options) {
   const sink = (i) => {
     if (stdio[i] === 'pipe') return child.stdio[i];
     if (stdio[i] === 'inherit') return i === 1 ? process.stdout : process.stderr;
+    if (stdio[i]?.std) return stdio[i].std === 1 ? process.stdout : process.stderr;
     if (stdio[i]?.fd !== undefined) return (sinks[i] ??= fdSink(stdio[i].fd));
     return null;
   };
@@ -332,8 +346,11 @@ function spawnSync(file, args, options) {
   const stderr = decode(result.stderr);
   // 'inherit' streams receive the output once the command has finished.
   const stdio = normalizeStdio(options.stdio);
-  if (stdio[1] === 'inherit') process.stdout.write(result.stdout);
-  if (stdio[2] === 'inherit') process.stderr.write(result.stderr);
+  const own = (i) => (stdio[i] === 'inherit' ? i : stdio[i]?.std);
+  for (const [i, data] of [[1, result.stdout], [2, result.stderr]]) {
+    if (own(i) === 1) process.stdout.write(data);
+    else if (own(i) === 2) process.stderr.write(data);
+  }
   const out = {
     pid: result.pid ?? 0,
     output: [null, stdout, stderr],

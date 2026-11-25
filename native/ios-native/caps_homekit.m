@@ -66,8 +66,8 @@ static NSString *const kRestrictedMessage =
 /// on the user's display.
 static NSString *const kNotEnabledMessage =
     @"the user has not switched home control on for this app yet. Nothing was read or changed. "
-     "Tell them they can turn it on themselves under Device capabilities on the app's Explore "
-     "tab (in the sidebar before iOS 18) — only they can grant it, and iOS asks once per app, so the app will not ask on its own.";
+     "Tell them they can turn it on themselves under Device capabilities in Connectors on the app's Explore "
+     "tab (in the sidebar on an iPad before iOS 18) — only they can grant it, and iOS asks once per app, so the app will not ask on its own.";
 
 static NSString *const kTimeoutMessage =
     @"the home data did not finish loading in time, so nothing was read or changed. This is not the "

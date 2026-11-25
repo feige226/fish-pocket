@@ -55,8 +55,8 @@ final class VoiceInput {
     /// Shorter than this is a tap, not speech.
     static let minDuration: TimeInterval = 0.6
 
-    /// The service chosen in 设置 → 语音输入: DeepSeek with the models' key, or Volcengine with
-    /// the user's own key (nil until one is saved).
+    /// The service chosen in 设置 → 语音输入: DeepSeek with the models' key, or Volcengine the way
+    /// picked there (nil until that way is set up).
     @ObservationIgnored var makeTranscriber: () -> SpeechTranscriber? = {
         #if DEBUG
         // Made-up levels and text, to look at the UI without a key or a microphone.
@@ -66,9 +66,8 @@ final class VoiceInput {
         case .deepseek:
             return DeepSeekTranscriber()
         case .volcengine:
-            let speech = VolcSpeech.shared
-            guard let key = speech.key, !key.isEmpty else { return nil }
-            return VolcTranscriber(key: key, resource: speech.resource)
+            guard let credential = VolcSpeech.shared.credential else { return nil }
+            return VolcTranscriber(credential: credential)
         }
     }
 

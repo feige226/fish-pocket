@@ -1,18 +1,22 @@
 import AVFoundation
 import SwiftUI
 
+import Perception
 /// 远程控制: before signing in, what it is and how to connect; after, the account and its computers.
 /// It is a page of 设置 and the sheet the sidebar opens.
 struct RemoteControlPage: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if app.remote.signedIn { RemoteDevicesList() } else { RemoteSignInPage() }
         }
         .navigationTitle("远程控制")
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 // MARK: Signing in
@@ -25,6 +29,8 @@ private struct RemoteSignInPage: View {
     @State private var typing = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
@@ -85,7 +91,8 @@ private struct RemoteSignInPage: View {
         .groupedList()
         .sheet(isPresented: $scanning) { RemoteScanSheet() }
         .sheet(isPresented: $typing) { RemotePasswordSheet() }
-    }
+    
+        }}
 
     private func step(_ number: Int, _ title: LocalizedStringKey, _ detail: LocalizedStringKey,
                       @ViewBuilder action: () -> some View = { EmptyView() }) -> some View {
@@ -124,20 +131,22 @@ private struct RemoteScanSheet: View {
     @State private var cameraDenied = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             VStack(spacing: 18) {
                 if let code {
                     waiting(code)
                 } else if cameraDenied {
-                    ContentUnavailableView {
-                        Label("需要相机权限", systemImage: "camera")
-                    } description: {
-                        Text("扫描电脑上的登录二维码要用到相机。")
-                    } actions: {
-                        Button("打开系统设置") {
+                    CompatEmptyState(
+                        title: "需要相机权限",
+                        systemImage: "camera",
+                        message: "扫描电脑上的登录二维码要用到相机。",
+                        actionTitle: "打开系统设置",
+                        action: {
                             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                         }
-                    }
+                    )
                 } else {
                     RemoteCodeScanner { text in
                         guard code == nil else { return }
@@ -174,7 +183,7 @@ private struct RemoteScanSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
         }
-        .tint(Palette.ink)
+        .inkTint()
         .task {
             switch AVCaptureDevice.authorizationStatus(for: .video) {
             case .denied, .restricted: cameraDenied = true
@@ -198,7 +207,8 @@ private struct RemoteScanSheet: View {
                 self.code = nil
             }
         }
-    }
+    
+        }}
 
     private func waiting(_ code: RemoteLoginCode) -> some View {
         VStack(spacing: 14) {
@@ -287,6 +297,8 @@ private struct RemotePasswordSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -320,11 +332,12 @@ private struct RemotePasswordSheet: View {
                 }
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
         // Over the remote control sheet on iPad a half-height sheet hangs off its lower edge: a full one there.
         .presentationDetents(UIDevice.current.userInterfaceIdiom == .pad ? [.large] : [.medium, .large])
         .interactiveDismissDisabled(busy)
-    }
+    
+        }}
 
     private func submit() {
         guard let url = RemoteClient.serverURL(from: server) else { return }
@@ -358,6 +371,8 @@ private struct RemoteDevicesList: View {
     private var remote: RemoteStore { app.remote }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 HStack(spacing: 12) {
@@ -434,7 +449,8 @@ private struct RemoteDevicesList: View {
             }
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-    }
+    
+        }}
 
     private func deviceRow(_ device: RemoteDevice) -> some View {
         let agents = remote.agents(on: device.id)

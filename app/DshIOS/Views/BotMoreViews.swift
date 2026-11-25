@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 // MARK: - Working folder
 
 /// Where a Bot or a group works: the team workspace, or another workspace of this app.
@@ -11,6 +12,8 @@ struct BotFolderPage: View {
     @State private var browsing = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let current: String? = switch target {
         case .bot(let id): team.bot(id)?.json["workDir"].string
@@ -59,7 +62,8 @@ struct BotFolderPage: View {
                 }
             }
         }
-    }
+    
+        }}
 
     private func row(title: String, path: String?, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -99,6 +103,8 @@ struct MemoryAskSection: View {
     @State private var asking = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         Section {
             HStack(spacing: 8) {
                 TextField("问它记得什么，或者让它记住、忘掉什么", text: $text, axis: .vertical).lineLimit(1...4)
@@ -123,7 +129,8 @@ struct MemoryAskSection: View {
             Text("问问它的记忆")
         }
         .groupedRow()
-    }
+    
+        }}
 
     private func ask() {
         asking = true
@@ -152,6 +159,8 @@ struct MemorySummarySection: View {
     @Binding var memory: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         let summary = memory["summary"]["text"].string
         let writing = memory["summarizing"].bool == true
         if !memory["entries"].array.isEmpty {
@@ -179,7 +188,8 @@ struct MemorySummarySection: View {
                 }
             }
         }
-    }
+    
+        }}
 
     private func load(regenerate: Bool) async {
         var payload = target
@@ -197,6 +207,8 @@ struct MemoryHistoryPage: View {
     @State private var loaded = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if loaded && rows.isEmpty {
                 Text("还没有改动").font(.footnote).foregroundStyle(Palette.secondary).groupedRow()
@@ -208,7 +220,7 @@ struct MemoryHistoryPage: View {
                 }
                 .swipeActions {
                     if row["restored"].bool != true {
-                        Button("撤销") { Task { await restore(row) } }.tint(Palette.ink)
+                        Button("撤销") { Task { await restore(row) } }.tint(Palette.swipe)
                     }
                 }
                 .groupedRow()
@@ -221,7 +233,8 @@ struct MemoryHistoryPage: View {
         .navigationTitle("改动记录")
         .navigationBarTitleDisplayMode(.inline)
         .task { if !loaded { await load(before: .null) } }
-    }
+    
+        }}
 
     private func caption(_ row: JSON) -> String {
         let op = switch row["op"].string {
@@ -267,6 +280,8 @@ struct RoomMemoryPage: View {
     @State private var memory: JSON = .null
 
     var body: some View {
+        WithPerceptionTracking {
+
         let target: [String: JSON] = ["roomId": .string(roomId)]
         List {
             MemorySummarySection(target: target, memory: $memory)
@@ -290,7 +305,8 @@ struct RoomMemoryPage: View {
         .navigationTitle("群记忆")
         .navigationBarTitleDisplayMode(.inline)
         .task { memory = (try? await app.botTeam.call("memory-view", ["roomId": .string(roomId), "summarize": true])) ?? .null }
-    }
+    
+        }}
 
     private func forget(_ entry: JSON) async {
         var payload: [String: JSON] = ["roomId": .string(roomId), "scope": entry["scope"], "text": entry["text"]]
@@ -310,6 +326,8 @@ struct RoomGoalSection: View {
     @Binding var confirmingStop: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         let goal = room.json["goal"]
         Section {
             if goal.isNull {
@@ -365,7 +383,8 @@ struct RoomGoalSection: View {
             }
         }
         .groupedRow()
-    }
+    
+        }}
 
     static func status(_ goal: JSON) -> String {
         switch goal["status"].string {
@@ -394,6 +413,8 @@ struct GoalDraftSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Form {
                 Section {
@@ -412,7 +433,8 @@ struct GoalDraftSheet: View {
                 }
             }
         }
-    }
+    
+        }}
 }
 
 // MARK: - Usage
@@ -426,6 +448,8 @@ struct BotUsagePage: View {
     @State private var span = Span.week
 
     var body: some View {
+        WithPerceptionTracking {
+
         let totals = self.totals
         List {
             Section {
@@ -457,7 +481,8 @@ struct BotUsagePage: View {
         .navigationTitle("用量")
         .navigationBarTitleDisplayMode(.inline)
         .task { usage = (try? await app.botTeam.call("usage", ["timeZone": .string(TimeZone.current.identifier)])) ?? .null }
-    }
+    
+        }}
 
     private struct Totals {
         var input = 0, cached = 0, output = 0, calls = 0
@@ -513,6 +538,8 @@ struct BotWorkspacePage: View {
     @State private var folders: JSON = .null
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             Section {
@@ -538,7 +565,8 @@ struct BotWorkspacePage: View {
         .navigationTitle("团队工作区")
         .navigationBarTitleDisplayMode(.inline)
         .task { folders = (try? await team.call("folders")) ?? .null }
-    }
+    
+        }}
 }
 
 // MARK: - Diagnostics
@@ -551,6 +579,8 @@ struct BotDiagnosticsPage: View {
     @State private var log: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             Section {
@@ -586,7 +616,8 @@ struct BotDiagnosticsPage: View {
             value = (try? await team.call("diagnostics", ["client": ["surface": "ios-native"]])) ?? .null
             if let text = try? await team.call("diagnostics-log").string, !text.isEmpty { log = text }
         }
-    }
+    
+        }}
 }
 
 /// Folders of the engine to work in, one level at a time (`folder-list`).
@@ -600,6 +631,8 @@ struct BotFolderBrowser: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let here = listing["path"].string ?? path ?? ""
         List {
             if failed { Text("这个文件夹打不开").font(.footnote).foregroundStyle(Palette.removed).groupedRow() }
@@ -627,7 +660,8 @@ struct BotFolderBrowser: View {
             if let path { payload["path"] = .string(path) }
             if let value = try? await app.botTeam.call("folder-list", .object(payload)) { listing = value } else { failed = true }
         }
-    }
+    
+        }}
 }
 
 extension EnginePaths {

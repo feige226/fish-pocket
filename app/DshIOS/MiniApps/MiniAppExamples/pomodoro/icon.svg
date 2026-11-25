@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="red" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#FF9A6B"/>
+      <stop offset="0.5" stop-color="#F9603F"/>
+      <stop offset="1" stop-color="#DE3524"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0" cy="0" r="0.8">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#red)"/>
+  <rect width="1024" height="1024" fill="url(#shine)"/>
+  <circle cx="512" cy="584" r="262" fill="#8E1F10" fill-opacity="0.22"/>
+  <circle cx="512" cy="560" r="262" fill="#fff"/>
+  <path d="M512 560V372A188 188 0 0 1 674.800 654Z" fill="#F9603F" fill-opacity="0.2"/>
+  <path d="M512 560V410" fill="none" stroke="#E8452C" stroke-width="44" stroke-linecap="round"/>
+  <circle cx="512" cy="560" r="34" fill="#E8452C"/>
+  <g fill="#23B07A">
+    <path d="M512 318c-30-66-96-96-170-84 18 62 80 102 170 84z"/>
+    <path d="M512 318c30-66 96-96 170-84-18 62-80 102-170 84z"/>
+    <path d="M512 330c-34-40-40-100-0-150 40 50 34 110 0 150z"/>
+  </g>
+</svg>

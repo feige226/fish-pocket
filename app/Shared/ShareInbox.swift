@@ -2,7 +2,7 @@ import Foundation
 
 /// What other apps share to Fish Pocket, on its way from the share extension (app/ShareExtension)
 /// to a composer. The extension copies what it was given into a folder of the App Group
-/// container, writes where it goes, and opens `dsh://share/<id>`; the app takes the folder and
+/// container, writes where it goes, and opens `fishpocket://share/<id>`; the app takes the folder and
 /// puts its text and files in that composer, where they wait to be sent.
 ///
 /// A delivery the link did not bring over (the system would not open the app) is taken the
@@ -151,19 +151,44 @@ struct ShareTargets: Codable, Equatable {
         var memberCount: Int
     }
 
-    var bots: [Bot]
-    var rooms: [Room]
+    /// A Bot or a group, as one list.
+    enum Entry: Identifiable {
+        case bot(Bot), room(Room)
 
-    init(bots: [Bot], rooms: [Room]) {
-        self.bots = bots
-        self.rooms = rooms
+        var id: String {
+            switch self {
+            case .bot(let bot): "bot:\(bot.id)"
+            case .room(let room): "room:\(room.id)"
+            }
+        }
     }
 
-    /// A file an older app wrote has no groups.
+    var bots: [Bot]
+    var rooms: [Room]
+    /// The Bots and groups in one order, the Bot page's (`bot:<id>`, `room:<id>`).
+    var order: [String]
+
+    init(bots: [Bot], rooms: [Room], order: [String] = []) {
+        self.bots = bots
+        self.rooms = rooms
+        self.order = order
+    }
+
+    /// A file an older app wrote has no groups, or no order.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         bots = try container.decode([Bot].self, forKey: .bots)
         rooms = try container.decodeIfPresent([Room].self, forKey: .rooms) ?? []
+        order = try container.decodeIfPresent([String].self, forKey: .order) ?? []
+    }
+
+    /// The Bots and groups as one list, in the Bot page's order. Without one (a file an older
+    /// app wrote), the Bots, then the groups.
+    var entries: [Entry] {
+        let all = bots.map(Entry.bot) + rooms.map(Entry.room)
+        guard !order.isEmpty else { return all }
+        let byId = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return order.compactMap { byId[$0] }
     }
 
     static let empty = ShareTargets(bots: [], rooms: [])

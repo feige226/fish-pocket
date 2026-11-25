@@ -1,17 +1,34 @@
 import AVFoundation
 import Foundation
-import Observation
+import Perception
 import Security
 
-/// Hold-to-talk through Volcengine's streaming recognition (豆包语音), on the user's own API Key.
-/// The key stays in this device's keychain; audio goes straight from the phone to Volcengine.
+/// Volcengine's speech (豆包语音): streaming recognition for hold-to-talk and calls, synthesis for
+/// calls and voice messages. Reached one of two ways, whichever the user picks (`route`), never
+/// switched on their behalf: with their own API Key, kept in this device's keychain, the audio
+/// going straight to Volcengine; or with their Fish Pocket account, through its relay, paid in
+/// credits. Volcengine only takes long-lived keys, so the relay holds the service's key and the
+/// app sends the account's runtime key.
 @MainActor
-@Observable
+@Perceptible
 final class VolcSpeech {
     static let shared = VolcSpeech()
 
-    /// The two-way streaming endpoint, optimized version: text comes back while the user speaks.
-    static let endpoint = URL(string: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async")!
+    /// How the app reaches Volcengine.
+    enum Route: String, CaseIterable, Identifiable {
+        case fishPocket
+        case ownKey
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .fishPocket: String(localized: "Fish Pocket 账号")
+            case .ownKey: String(localized: "自己的 API Key")
+            }
+        }
+    }
+
     static let consoleURL = URL(string: "https://console.volcengine.com/speech/new")!
     static let keysURL = URL(string: "https://console.volcengine.com/speech/new/setting/apikeys")!
     static let docsURL = URL(string: "https://www.volcengine.com/docs/6561/1354869")!
@@ -33,18 +50,48 @@ final class VolcSpeech {
     }
 
     private static let resourceKey = "voiceVolcResource"
+    private static let routeKey = "voiceVolcRoute"
 
     /// The saved key, or nil.
     private(set) var key: String?
     var resource: Resource {
         didSet { UserDefaults.standard.set(resource.rawValue, forKey: Self.resourceKey) }
     }
+    /// The way the user picked. Builds without the Fish Pocket service only have their own key.
+    var route: Route {
+        get { FishPocketAPI.available ? storedRoute : .ownKey }
+        set {
+            storedRoute = newValue
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.routeKey)
+            VoiceMessageSync.shared.sync()
+        }
+    }
+    private var storedRoute: Route
+    /// The Fish Pocket account's runtime key on this device, while signed in.
+    private(set) var fishPocketKey: String?
+    /// The relay refused the runtime key: the account issues a new one.
+    @ObservationIgnored var onRuntimeKeyRefused: (() -> Void)?
+    @ObservationIgnored private var lastRepair: Date?
 
-    var configured: Bool { key?.isEmpty == false }
+    /// What to connect with, on the route picked; nil until that route is set up.
+    var credential: VolcCredential? {
+        switch route {
+        case .ownKey:
+            guard let key, !key.isEmpty else { return nil }
+            return .ownKey(key: key, resource: resource.rawValue)
+        case .fishPocket:
+            guard let base = FishPocketAPI.baseURL, let fishPocketKey else { return nil }
+            return .fishPocket(base: base, runtimeKey: fishPocketKey)
+        }
+    }
+
+    var configured: Bool { credential != nil }
 
     private init() {
         key = VoiceKeychain.load()
         resource = UserDefaults.standard.string(forKey: Self.resourceKey).flatMap(Resource.init(rawValue:)) ?? .seedHourly
+        storedRoute = UserDefaults.standard.string(forKey: Self.routeKey).flatMap(Route.init(rawValue:)) ?? .ownKey
+        fishPocketKey = FishPocketAccount.storedRuntimeKey
         #if DEBUG
         // Testing in the simulator without typing the key:
         // `SIMCTL_CHILD_DSH_VOICE_KEY=… xcrun simctl launch …` saves it.
@@ -56,17 +103,35 @@ final class VolcSpeech {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         VoiceKeychain.save(trimmed.isEmpty ? nil : trimmed)
         self.key = trimmed.isEmpty ? nil : trimmed
+        VoiceMessageSync.shared.sync()
     }
 
     func removeKey() {
         VoiceKeychain.save(nil)
         key = nil
+        VoiceMessageSync.shared.sync()
     }
 
-    /// Whether Volcengine takes `key` for `resource`: connect, ask for a session, send a moment
+    /// The relay refused the runtime key. Both connections of a call may say so at once: one new
+    /// key is enough.
+    func runtimeKeyRefused() {
+        if let lastRepair, Date.now.timeIntervalSince(lastRepair) < 30 { return }
+        lastRepair = .now
+        onRuntimeKeyRefused?()
+    }
+
+    /// The account signed in, out, or got a new runtime key.
+    func reloadFishPocketKey() {
+        let stored = FishPocketAccount.storedRuntimeKey
+        guard stored != fishPocketKey else { return }
+        fishPocketKey = stored
+        VoiceMessageSync.shared.sync()
+    }
+
+    /// Whether recognition works with `credential`: connect, ask for a session, send a moment
     /// of silence. Throws what went wrong, worded for the user.
-    nonisolated static func check(key: String, resource: Resource) async throws {
-        let stream = VolcStream(key: key, resource: resource.rawValue)
+    nonisolated static func check(_ credential: VolcCredential) async throws {
+        let stream = VolcStream(credential: credential)
         stream.send(audio: Data(count: MicCapture.chunkBytes), last: true)
         // A failure lands in the result too.
         let session = Task { try? await stream.open() }
@@ -106,6 +171,82 @@ private enum VoiceKeychain {
     }
 }
 
+/// How to reach Volcengine for one connection: straight, with the user's own key, or through the
+/// Fish Pocket relay, with the account's runtime key. The relay passes Volcengine's frames through
+/// unchanged, so everything after the handshake is the same on both.
+enum VolcCredential: Sendable, Equatable {
+    case ownKey(key: String, resource: String)
+    case fishPocket(base: URL, runtimeKey: String)
+
+    enum Service { case recognition, synthesis }
+
+    static let recognitionEndpoint = URL(string: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async")!
+    static let synthesisEndpoint = URL(string: "wss://openspeech.bytedance.com/api/v3/tts/bidirection")!
+    static let synthesisResource = "seed-tts-2.0"
+
+    /// The handshake for `service`, with a fresh connection id.
+    func request(_ service: Service) -> URLRequest {
+        let id = UUID().uuidString
+        var request: URLRequest
+        switch self {
+        case .ownKey(let key, let resource):
+            request = URLRequest(url: service == .recognition ? Self.recognitionEndpoint : Self.synthesisEndpoint)
+            request.setValue(key, forHTTPHeaderField: "X-Api-Key")
+            request.setValue(service == .recognition ? resource : Self.synthesisResource, forHTTPHeaderField: "X-Api-Resource-Id")
+        case .fishPocket(let base, let runtimeKey):
+            var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
+            components.scheme = "wss"
+            components.path = components.path.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+                + (service == .recognition ? "/v1/speech/recognition" : "/v1/speech/synthesis")
+            request = URLRequest(url: components.url!)
+            request.setValue("Bearer \(runtimeKey)", forHTTPHeaderField: "Authorization")
+        }
+        request.setValue(id, forHTTPHeaderField: "X-Api-Connect-Id")
+        if service == .recognition {
+            request.setValue(id, forHTTPHeaderField: "X-Api-Request-Id")
+            request.setValue("-1", forHTTPHeaderField: "X-Api-Sequence")
+        }
+        request.timeoutInterval = 15
+        return request
+    }
+
+    /// Why the handshake was refused, from its HTTP status; nil when it was not.
+    func refusal(_ response: URLResponse?, _ service: Service) -> Error? {
+        guard let status = (response as? HTTPURLResponse)?.statusCode, status >= 400 else { return nil }
+        switch self {
+        case .ownKey:
+            guard [401, 403].contains(status) else { return nil }
+            return service == .recognition ? VoiceError.rejected : CallError.synthesisRefused
+        case .fishPocket:
+            switch status {
+            case 401:
+                Task { @MainActor in VolcSpeech.shared.runtimeKeyRefused() }
+                return VoiceError.fishPocketSignedOut
+            case 402: return VoiceError.fishPocketBalance
+            case 429: return VoiceError.fishPocketBusy
+            default: return VoiceError.fishPocketUnavailable
+            }
+        }
+    }
+
+    /// Why an open connection was closed, from its close code; nil for an ordinary close.
+    static func closure(_ code: URLSessionWebSocketTask.CloseCode) -> Error? {
+        switch code.rawValue {
+        case 4402: VoiceError.fishPocketBalance
+        default: nil
+        }
+    }
+
+    /// A refusal that trying again will not cure.
+    static func fatal(_ error: Error) -> Bool {
+        if case .synthesisRefused? = error as? CallError { return true }
+        switch error as? VoiceError {
+        case .rejected?, .noQuota?, .fishPocketSignedOut?, .fishPocketBalance?: return true
+        default: return false
+        }
+    }
+}
+
 /// What can go wrong, as the toast says it.
 enum VoiceError: LocalizedError {
     case microphoneDenied
@@ -117,6 +258,11 @@ enum VoiceError: LocalizedError {
     case noQuota
     case server(code: Int, message: String)
     case timedOut
+    /// The relay does not know this device's runtime key (signed out elsewhere, key revoked).
+    case fishPocketSignedOut
+    case fishPocketBalance
+    case fishPocketBusy
+    case fishPocketUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -129,6 +275,10 @@ enum VoiceError: LocalizedError {
         // The code as digits, without the locale's grouping.
         case .server(let code, let message): String(localized: "语音识别出错（\(String(code))）：\(message)")
         case .timedOut: String(localized: "识别超时，请再说一次")
+        case .fishPocketSignedOut: String(localized: "Fish Pocket 登录已失效，正在重新连接，请稍后再试")
+        case .fishPocketBalance: String(localized: "Fish Pocket 余额不足，请到设置 → Fish Pocket 账号充值")
+        case .fishPocketBusy: String(localized: "同时进行的语音太多，请稍后再试")
+        case .fishPocketUnavailable: String(localized: "Fish Pocket 的语音服务暂时不可用，请稍后再试")
         }
     }
 }
@@ -141,8 +291,8 @@ final class VolcTranscriber: SpeechTranscriber {
     private let mic = MicCapture()
     private var reader: Task<Void, Never>?
 
-    init(key: String, resource: VolcSpeech.Resource) {
-        stream = VolcStream(key: key, resource: resource.rawValue)
+    init(credential: VolcCredential) {
+        stream = VolcStream(credential: credential)
     }
 
     func start(
@@ -150,7 +300,7 @@ final class VolcTranscriber: SpeechTranscriber {
         level: @escaping @MainActor (Float) -> Void,
         failed: @escaping @MainActor (Error) -> Void
     ) async throws {
-        guard AVAudioApplication.shared.recordPermission == .granted else { throw VoiceError.microphoneDenied }
+        guard AVAudioSession.sharedInstance().recordPermission == .granted else { throw VoiceError.microphoneDenied }
         let stream = stream
         mic.onChunk = { stream.send(audio: $0, last: false) }
         mic.onLevel = { value in Task { @MainActor in level(value) } }
@@ -184,9 +334,10 @@ final class VolcTranscriber: SpeechTranscriber {
 }
 
 /// One recognition session on the WebSocket: Volcengine's binary frames, sent in order from any
-/// thread, and the running text out.
+/// thread, and the running text out. The audio goes as Ogg Opus.
 final class VolcStream: @unchecked Sendable {
     private let lock = NSLock()
+    private let credential: VolcCredential
     private let socket: URLSessionWebSocketTask
     private let session: URLSession
     private let outbox: AsyncStream<(Data, Bool)>.Continuation
@@ -198,17 +349,10 @@ final class VolcStream: @unchecked Sendable {
     /// The whole running transcript, each time it changes. Called off the main thread.
     var onText: (@Sendable (String) -> Void)?
 
-    init(key: String, resource: String) {
-        var request = URLRequest(url: VolcSpeech.endpoint)
-        let id = UUID().uuidString
-        request.setValue(key, forHTTPHeaderField: "X-Api-Key")
-        request.setValue(resource, forHTTPHeaderField: "X-Api-Resource-Id")
-        request.setValue(id, forHTTPHeaderField: "X-Api-Request-Id")
-        request.setValue(id, forHTTPHeaderField: "X-Api-Connect-Id")
-        request.setValue("-1", forHTTPHeaderField: "X-Api-Sequence")
-        request.timeoutInterval = 15
+    init(credential: VolcCredential) {
+        self.credential = credential
         session = URLSession(configuration: .ephemeral)
-        socket = session.webSocketTask(with: request)
+        socket = session.webSocketTask(with: credential.request(.recognition))
         (packets, outbox) = AsyncStream.makeStream()
     }
 
@@ -227,10 +371,13 @@ final class VolcStream: @unchecked Sendable {
         let sender = Task {
             do {
                 var sequence: Int32 = 1
+                let encoder = OggOpusEncoder()
                 try await socket.send(.data(VolcFrame.request(sequence: sequence, json: Self.parameters)))
                 for await (audio, last) in packets {
                     sequence += 1
-                    try await socket.send(.data(VolcFrame.audio(sequence: sequence, pcm: audio, last: last)))
+                    var encoded = encoder.encode(audio)
+                    if last { encoded.append(encoder.finish()) }
+                    try await socket.send(.data(VolcFrame.audio(sequence: sequence, encoded: encoded, last: last)))
                     if last { break }
                 }
             } catch {
@@ -312,9 +459,8 @@ final class VolcStream: @unchecked Sendable {
 
     private func translate(_ error: Error) -> Error {
         if error is VoiceError || error is CancellationError { return error }
-        if let response = socket.response as? HTTPURLResponse, [401, 403].contains(response.statusCode) {
-            return VoiceError.rejected
-        }
+        if let refused = credential.refusal(socket.response, .recognition) { return refused }
+        if let closed = VolcCredential.closure(socket.closeCode) { return closed }
         return VoiceError.network(error.localizedDescription)
     }
 
@@ -322,7 +468,7 @@ final class VolcStream: @unchecked Sendable {
     /// pass that re-recognizes each finished sentence more accurately.
     private static let parameters: Data = {
         let json: [String: Any] = [
-            "audio": ["format": "pcm", "codec": "raw", "rate": 16_000, "bits": 16, "channel": 1],
+            "audio": VolcFrame.audioFormat,
             "request": [
                 "model_name": "bigmodel",
                 "enable_itn": true,
@@ -344,14 +490,21 @@ enum VolcFrame {
         var errorCode: Int?
         var message: String?
         var text: String?
+        /// `result.utterances`, when the request asked for them (`show_utterances`).
+        var utterances: [VolcUtterance] = []
     }
 
     static func request(sequence: Int32, json: Data) -> Data {
         frame(type: 0b0001, flags: 0b0001, serialization: 0b0001, sequence: sequence, payload: Gzip.compress(json))
     }
 
-    static func audio(sequence: Int32, pcm: Data, last: Bool) -> Data {
-        frame(type: 0b0010, flags: last ? 0b0011 : 0b0001, serialization: 0, sequence: last ? -sequence : sequence, payload: Gzip.compress(pcm))
+    /// The audio the app sends: 16 kHz mono speech as Ogg Opus (`OggOpusEncoder`), about a tenth
+    /// of the bytes of PCM, which matters on the Fish Pocket relay.
+    static let audioFormat: [String: Any] = ["format": "ogg", "codec": "opus", "rate": 16_000, "bits": 16, "channel": 1]
+
+    /// A packet of Ogg pages (or nothing, when the encoder is still filling a frame).
+    static func audio(sequence: Int32, encoded: Data, last: Bool) -> Data {
+        frame(type: 0b0010, flags: last ? 0b0011 : 0b0001, serialization: 0, sequence: last ? -sequence : sequence, payload: Gzip.compress(encoded))
     }
 
     private static func frame(type: UInt8, flags: UInt8, serialization: UInt8, sequence: Int32, payload: Data) -> Data {
@@ -394,6 +547,7 @@ enum VolcFrame {
         if compression == 0b0001, let inflated = Gzip.decompress(payload) { payload = inflated }
         if serialization == 0b0001, let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any] {
             parsed.text = Self.text(in: json["result"])
+            parsed.utterances = Self.utterances(in: json["result"])
             if parsed.errorCode != nil { parsed.message = json["error"] as? String ?? json["message"] as? String }
         }
         if parsed.errorCode != nil, parsed.message == nil { parsed.message = String(data: payload, encoding: .utf8) }
@@ -406,6 +560,29 @@ enum VolcFrame {
         if let results = result as? [[String: Any]] { return results.compactMap { $0["text"] as? String }.joined() }
         return nil
     }
+
+    private static func utterances(in result: Any?) -> [VolcUtterance] {
+        let results = (result as? [[String: Any]]) ?? (result as? [String: Any]).map { [$0] } ?? []
+        return results.flatMap { ($0["utterances"] as? [[String: Any]]) ?? [] }.compactMap { item in
+            guard let text = item["text"] as? String else { return nil }
+            return VolcUtterance(
+                text: text,
+                definite: item["definite"] as? Bool ?? false,
+                start: (item["start_time"] as? NSNumber)?.intValue ?? 0,
+                end: (item["end_time"] as? NSNumber)?.intValue ?? 0
+            )
+        }
+    }
+}
+
+/// One sentence of a recognition result. `definite` once Volcengine has heard its end (a pause
+/// of its own judging) and recognized it a second time; until then it may still change.
+struct VolcUtterance: Equatable, Sendable {
+    let text: String
+    let definite: Bool
+    /// Milliseconds from the start of the connection's audio.
+    let start: Int
+    let end: Int
 }
 
 private extension Data {

@@ -1,10 +1,11 @@
 import SwiftUI
+import Perception
 import WebKit
 
 /// The Host's task catalog (`schedule/catalog`: every session, active and
 /// inactive, by target time), shared by the list and the detail it pushes.
 @MainActor
-@Observable
+@Perceptible
 final class ScheduleCatalog {
     enum Status { case loading, ready, error }
 
@@ -12,7 +13,7 @@ final class ScheduleCatalog {
     private(set) var status = Status.loading
     /// A read has succeeded at least once.
     private(set) var settled = false
-    @ObservationIgnored private var epoch = 0
+    @PerceptionIgnored private var epoch = 0
 
     func load(_ client: EngineClient) async {
         epoch += 1
@@ -40,7 +41,7 @@ final class ScheduleCatalog {
 ///
 /// `sessionId` narrows the list to one session (the session header's entry);
 /// `openSession` opens a session and leaves this page. Without it the page
-/// dismisses itself and opens `dsh://session/<id>`, which `RootView` hands to `MainView`.
+/// dismisses itself and opens `fishpocket://session/<id>`, which `RootView` hands to `MainView`.
 struct SchedulesView: View {
     var sessionId: String? = nil
     var openSession: ((String) -> Void)? = nil
@@ -82,6 +83,8 @@ struct SchedulesView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 if catalog.status == .error && !catalog.records.isEmpty {
@@ -129,7 +132,7 @@ struct SchedulesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if sessionId == nil {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button { Task { await newTask() } } label: { Label("新建", systemImage: "plus") }
                         .disabled(creating)
                 }
@@ -144,28 +147,28 @@ struct SchedulesView: View {
             Text("「\(record["title"].string ?? "")」\n任务将停止触发，并连同其已保存的任务运行记录一并删除。原会话及其消息仍然保留；已排队的消息不会被撤回。")
         }
         .dismisses(when: leaving)
-    }
+    
+        }}
 
     @ViewBuilder
     private var overlay: some View {
         if !catalog.settled && catalog.status != .error {
             ProgressView()
         } else if catalog.status == .error && catalog.records.isEmpty {
-            ContentUnavailableView {
-                Label("无法加载任务", systemImage: "exclamationmark.triangle")
-            } actions: {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle").font(.title2).foregroundStyle(Palette.secondary)
+                Text("无法加载任务").foregroundStyle(Palette.ink)
                 Button("重试") { Task { await catalog.load(app.client) } }
-            }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if shown.isEmpty {
-            ContentUnavailableView {
-                Label(emptyTitle, systemImage: "clock")
-            } description: {
-                if scoped.isEmpty { Text("在对话里让 DSH 安排，例如「每天早上 9 点总结提交」。") }
-            } actions: {
+            VStack(spacing: 12) {
+                Image(systemName: "clock").font(.title2).foregroundStyle(Palette.secondary)
+                Text(emptyTitle).foregroundStyle(Palette.ink)
+                if scoped.isEmpty { Text("在对话里让 DSH 安排，例如「每天早上 9 点总结提交」。").font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center) }
                 if sessionId == nil && scoped.isEmpty {
                     Button("新建") { Task { await newTask() } }.disabled(creating)
                 }
-            }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -214,6 +217,8 @@ struct ScheduleRow: View {
     let record: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         let armed = ScheduleRule.isArmed(record)
         let stopped = record["status"].string == "paused" ? String(localized: "已暂停") : String(localized: "已结束")
         VStack(alignment: .leading, spacing: 4) {
@@ -228,7 +233,8 @@ struct ScheduleRow: View {
             }
         }
         .padding(.vertical, 3)
-    }
+    
+        }}
 }
 
 /// Kept for callers outside this file: the rule as one line.
@@ -285,6 +291,8 @@ struct ScheduleDetailView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let page = Group {
             if let task {
                 VStack(spacing: 0) {
@@ -302,7 +310,10 @@ struct ScheduleDetailView: View {
                 }
                 .pageBackground()
             } else if catalog.settled {
-                ContentUnavailableView("任务已不可用，可能已被删除", systemImage: "clock")
+                VStack(spacing: 12) {
+                    Image(systemName: "clock").font(.title2).foregroundStyle(Palette.secondary)
+                    Text("任务已不可用，可能已被删除").foregroundStyle(Palette.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView()
             }
@@ -342,17 +353,23 @@ struct ScheduleDetailView: View {
             Button("继续编辑", role: .cancel) {}
         }
         .onAppear(perform: sync)
-        .onChange(of: catalog.entry(taskId)) { _, _ in sync() }
+        .onChangeCompat(of: catalog.entry(taskId)) { _, _ in sync() }
         // The save button is at the top; the reason may be under the fold.
-        .onChange(of: failure) { _, failure in
+        .onChangeCompat(of: failure) { _, failure in
             if failure != nil, let failureText { app.showToast(failureText, tone: .warning) }
         }
-        .onChange(of: shown?.kind) { _, kind in
+        .onChangeCompat(of: shown?.kind) { _, kind in
             // A switch into the interval picks the unit that states it, unless one was chosen.
-            guard kind == .every else { explicitUnit = false; return }
-            if !explicitUnit, let seconds = shown?.draft.seconds { unit = .preferred(seconds) }
+            if kind != .every {
+                explicitUnit = false
+                return
+            }
+            if !explicitUnit {
+                if let seconds = shown?.draft.seconds { unit = .preferred(seconds) }
+            }
         }
-    }
+    
+        }}
 
     // MARK: Rule tab
 
@@ -621,6 +638,8 @@ private struct DeliveryHistoryView: View {
     @State private var showRetention = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if let failure, !records.isEmpty {
                 HStack {
@@ -675,20 +694,24 @@ private struct DeliveryHistoryView: View {
                 if loading {
                     ProgressView()
                 } else if let failure {
-                    ContentUnavailableView {
-                        Label(failure.text, systemImage: "exclamationmark.triangle")
-                    } actions: {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle").font(.title2).foregroundStyle(Palette.secondary)
+                        Text(failure.text).foregroundStyle(Palette.ink)
                         Button(failure.cursor ? "刷新" : "重试") { Task { await load(failure.before) } }
-                    }
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    ContentUnavailableView("暂无任务运行记录", systemImage: "clock")
+                    VStack(spacing: 12) {
+                        Image(systemName: "clock").font(.title2).foregroundStyle(Palette.secondary)
+                        Text("暂无任务运行记录").foregroundStyle(Palette.secondary)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
         .refreshable { await load(nil) }
         // A new delivery re-reads the latest page.
         .task(id: task["lastDelivery"]["messageId"].string ?? "") { await load(nil) }
-    }
+    
+        }}
 
     private func load(_ before: String?) async {
         loading = true
@@ -729,19 +752,21 @@ private struct SavedPrompt: View {
     @State private var clampedHeight: CGFloat = 0
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             Text(text)
                 .font(.footnote)
                 .foregroundStyle(Palette.secondary)
                 .lineLimit(expanded ? nil : 2)
                 .textSelection(.enabled)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { if !expanded { clampedHeight = $0 } }
+                .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { if !expanded { clampedHeight = $0 } }
                 .background {
                     Text(text).font(.footnote).fixedSize(horizontal: false, vertical: true).hidden()
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                        .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
                 }
             if expanded || fullHeight > clampedHeight + 1 {
-                Button { withAnimation(.snappy) { expanded.toggle() } } label: {
+                Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { expanded.toggle() } } label: {
                     Label(expanded ? "收起" : "展开", systemImage: expanded ? "chevron.up" : "chevron.down")
                         .font(.caption)
                 }
@@ -749,25 +774,70 @@ private struct SavedPrompt: View {
                 .foregroundStyle(Palette.ink)
             }
         }
-    }
+    
+        }}
 }
 
 // MARK: Web fallback
 
-/// The engine's own web UI, for plugin interfaces that only exist in the browser.
+/// The engine's own web UI, for plugin interfaces that only exist in the browser. Its icon on the
+/// home screen (更多 → 添加到主屏幕) opens the app straight on it (`fishpocket://web`).
 struct WebFallbackView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var addingToHome = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             EngineWebView(url: app.client.launchURL)
-                .ignoresSafeArea(edges: .bottom)
+                .modifier(FloatingBar())
                 .navigationTitle("网页版")
                 .navigationBarTitleDisplayMode(.inline)
-                .closeButton(dismiss)
+                .toolbar {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Group {
+                            Menu {
+                                Button("添加到主屏幕", systemImage: "plus.square.on.square") { addingToHome = true }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                            }
+                            .accessibilityLabel("更多")
+                            Button { dismiss() } label: { Image(systemName: "xmark") }
+                                .accessibilityLabel("关闭")
+                        }
+                        // iPhone Duo keeps the bar buttons in the column at its trailing edge, folded and
+                        // open. At a fold SwiftUI puts a new view on each bar item it already had, and with
+                        // the title off the bar that column often goes on holding the old one: the capsule
+                        // is left empty, nothing in it takes a tap, and the page has no other way out. Made
+                        // anew at each fold, the buttons are new items to the column, and it takes those.
+                        .id(ThisDevice.isDuo ? sizeClass : nil)
+                    }
+                }
         }
+        .sheet(isPresented: $addingToHome) { AddToHomeScreenSheet(target: .web) }
     }
+}
+
+/// From iOS 26 the bar floats as a conversation's does: no title, the buttons on glass, the page
+/// running on under them and under the sides' safe area (a phone on its side, the column iPhone
+/// Duo keeps at its trailing edge for the buttons). WebKit lays the page out inside the safe area
+/// and paints the rest in the page's own background, so no strip of the window's colour frames it.
+/// Before, the bar stays as it was.
+private struct FloatingBar: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .ignoresSafeArea()
+                .toolbar(removing: .title)
+                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+        } else {
+            content.ignoresSafeArea(edges: .bottom)
+        }
+    
+        }}
 }
 
 struct EngineWebView: UIViewRepresentable {

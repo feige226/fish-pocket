@@ -32,7 +32,7 @@ final class ShareViewController: UIViewController {
     }
 
     /// An extension has no `UIApplication.shared`, but the application object is up the
-    /// responder chain, and it opens the app's own `dsh://` link. false: nothing up there could.
+    /// responder chain, and it opens the app's own `fishpocket://` link. false: nothing up there could.
     private func open(_ url: URL) -> Bool {
         typealias Open = @convention(c) (AnyObject, Selector, URL, [UIApplication.OpenExternalURLOptionsKey: Any], (@convention(block) (Bool) -> Void)?) -> Void
         let selector = NSSelectorFromString("openURL:options:completionHandler:")

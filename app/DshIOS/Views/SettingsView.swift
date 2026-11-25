@@ -4,15 +4,51 @@ import WatchConnectivity
 
 /// Settings: only what people come here for (账号, 模型, 访问模式, 插件, 自动化, 后台运行: 静音音频,
 /// 任务续跑, 小组件), then the rarely touched 外观, App 图标 and 语言. Developer pages sit behind 高级, versions and
-/// engine status behind 关于. 本机能力 and 远程控制 are on the 探索 tab (in the sidebar before iOS 18), not here.
-/// 分享 Fish Pocket and Apple Watch open the list (on the tab bar they are on 探索 instead); the star, rating, website, source, feedback and author links,
-/// then the WeChat group's QR code, close it.
+/// engine status behind 关于, and 已归档会话 on its own below them. 本机能力 (under 连接器) and 远程控制 are on the 探索 tab (in the sidebar on an iPad before iOS 18), not here.
+/// 分享 Fish Pocket and Apple Watch open the list and the rating, website, feedback and community
+/// links close it (`SupportLink`) only on an iPad before iOS 18: elsewhere they are on the 探索 tab.
 /// The engine card shows here only while the engine is not running. Every page reads the shared
 /// settings mirror, so a write anywhere shows everywhere.
 struct SettingsView: View {
+    /// A page of the 探索 tab, pushed from its top row, rather than a sheet: that tab's navigation
+    /// stack and back button, no ✕. The stack sets the settings look for it (`ExploreTabView`).
+    var pushed = false
+
+    var body: some View {
+        if pushed { SettingsList(pushed: true) } else { SettingsSheet() }
+    }
+}
+
+extension SettingsView {
+    /// A permission preset in the words the app uses everywhere (`{value, name}`).
+    static func permissionName(_ option: JSON) -> String {
+        switch option["value"].string {
+        case "read-only": String(localized: "仅可查看")
+        case "workspace-write": String(localized: "工作区内修改")
+        case "danger-full-access": String(localized: "完全权限")
+        case "auto": String(localized: "自动审查")
+        default: localized(option["name"]) ?? option["value"].string ?? ""
+        }
+    }
+}
+
+/// 设置 as a sheet, with its ✕. `dismiss` is read here, outside the stack, and not by the list:
+/// the list pushes further, and a pushed page that reads it and pushes on freezes the app before
+/// iOS 26 (see `dismisses(when:)`). Pushed from the 探索 tab the list is such a page: there
+/// 插件 and 自动化 never opened and the app had to be killed.
+private struct SettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack { SettingsList(pushed: false).closeButton(dismiss) }
+            // 设置 and every page pushed or presented from it: the system's lists, not the monochrome ones.
+            .settingsStyle()
+    }
+}
+
+private struct SettingsList: View {
     @Environment(AppModel.self) private var app
     @EnvironmentObject private var engine: NodeEngine
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.openSession) private var openSession
     @State private var defaultModel: String?
     @State private var pluginCount: Int?
@@ -27,8 +63,8 @@ struct SettingsView: View {
     @State private var languageChanged = false
     @AppStorage(BackgroundKeeper.continuedKey) private var continuedProcessing = false
     @AppStorage(WidgetSnapshotWriter.showTitlesKey) private var widgetTitles = true
-    /// The phone's 设置 tab rather than a sheet: no ✕.
-    var asTab = false
+    /// Pushed from the 探索 tab rather than the root of the sheet (`SettingsView.pushed`).
+    let pushed: Bool
 
     private var mirror: SettingsMirror { app.settings }
 
@@ -38,197 +74,187 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if !engineRunning {
-                    Section { EngineCard() }
-                }
+        List {
+            if !engineRunning {
+                Section { EngineCard() }
+            }
 
-                // On the tab bar these two are on the 探索 tab.
-                if !asTab {
-                    Section {
-                        NavigationLink { ShareAppPage() } label: { ShareAppRow() }
-                        // iPad pairs with no watch.
-                        if WCSession.isSupported() {
-                            NavigationLink { WatchSetupPage() } label: { WatchSetupRow() }
-                        }
-                    }
-                }
-
-                // The ways to reach a model, each on its own: Fish Pocket credits (when this build
-                // has the service), the DeepSeek account, an API key.
+            // Pushed from the 探索 tab, these two are on that page.
+            if !pushed {
                 Section {
-                    if app.fishPocket.available {
-                        NavigationLink { FishPocketPage() } label: {
-                            row("Fish Pocket 账号", "sparkles", app.fishPocket.signedIn
-                                ? (app.fishPocket.balance.map { String(localized: "\($0) 积分") } ?? String(localized: "已登录"))
-                                : String(localized: "未登录"))
-                        }
-                    }
-                    NavigationLink { AccountPage() } label: {
-                        row("DeepSeek 账号", "person.crop.circle", app.account.signedIn ? (app.account.displayName ?? String(localized: "已登录")) : String(localized: "未登录"))
-                    }
-                    DeepSeekKeyRow()
-                } header: {
-                    Text("连接方式")
-                } footer: {
-                    Text("几种方式相互独立，配置任意一种就能开始对话。")
-                }
-
-                Section {
-                    NavigationLink { ModelProvidersPage() } label: { row("模型", "cpu", defaultModel ?? "") }
-                    NavigationLink { VoiceSettingsPage() } label: {
-                        row("语音", "mic", VoicePreferences.shared.source == .volcengine && !VolcSpeech.shared.configured ? String(localized: "未设置") : VoicePreferences.shared.source.title)
-                    }
-                    if mirror.serves("permission") { permissionPicker }
-                }
-
-                Section {
-                    NavigationLink { PluginsView() } label: {
-                        row("插件", "puzzlepiece.extension", pluginCount.map { String(localized: "\($0) 个") } ?? "")
-                    }
-                    NavigationLink { SchedulesView(openSession: openSession) } label: {
-                        row("自动化", "clock.arrow.2.circlepath", app.scheduleCount.map { String(localized: "\($0) 个") } ?? "")
+                    NavigationLink { ShareAppPage() } label: { ShareAppRow() }
+                    // iPad pairs with no watch.
+                    if WCSession.isSupported() {
+                        NavigationLink { WatchSetupPage() } label: { WatchSetupRow() }
                     }
                 }
+            }
 
-                Section {
-                    // Turning it off asks first: without it the system may end the engine in the background.
-                    Toggle(isOn: Binding(get: { keepAlive }, set: { on in
-                        if on { keepAlive = true } else { confirmingKeepAliveOff = true }
+            // The ways to reach a model, each on its own: Fish Pocket credits (when this build
+            // has the service), the DeepSeek account, an API key.
+            Section {
+                if app.fishPocket.available {
+                    NavigationLink { FishPocketPage() } label: {
+                        row("Fish Pocket 账号", "sparkles", app.fishPocket.signedIn
+                            ? (app.fishPocket.balance.map { String(localized: "\($0) 积分") } ?? String(localized: "已登录"))
+                            : String(localized: "未登录"))
+                    }
+                }
+                NavigationLink { AccountPage() } label: {
+                    row("DeepSeek 账号", "person.crop.circle", app.account.signedIn ? (app.account.displayName ?? String(localized: "已登录")) : String(localized: "未登录"))
+                }
+                DeepSeekKeyRow()
+            } header: {
+                Text("连接方式")
+            } footer: {
+                Text("几种方式相互独立，配置任意一种就能开始对话。")
+            }
+
+            Section {
+                NavigationLink { ModelProvidersPage() } label: { row("模型", "cpu", defaultModel ?? "") }
+                NavigationLink { VoiceInputSettingsPage() } label: {
+                    row("语音输入", "mic", VoicePreferences.shared.source == .volcengine && !VolcSpeech.shared.configured ? String(localized: "未设置") : VoicePreferences.shared.source.title)
+                }
+                NavigationLink { ReadAloudSettingsPage() } label: {
+                    row("朗读", "speaker.wave.2", readingSummary)
+                }
+                NavigationLink { VoiceCallSettingsPage() } label: {
+                    row("语音通话", "waveform", VolcSpeech.shared.configured ? CallVoice.chosen.name : String(localized: "未设置"))
+                }
+                NavigationLink { VoiceMessageSettingsPage() } label: {
+                    row("语音消息", "message.badge.waveform", VoiceMessageSettings.shared.summary)
+                }
+                // dsh-image-gen, built into the engine: shown once the engine serves its settings.
+                if mirror.serves(ImageGenModel.namespace) {
+                    NavigationLink { ImageGenSettingsPage() } label: {
+                        let value = mirror.namespace(ImageGenModel.namespace)?["value"] ?? .null
+                        row("生图", "photo.badge.plus", FishPocketImageGen.isChosen(value) ? FishPocketImageGen.title : (ImageGenProvider(rawValue: value["provider"].string ?? "") ?? .google).title)
+                    }
+                }
+                if mirror.serves("permission") { permissionPicker }
+            }
+
+            Section {
+                NavigationLink { PluginsView() } label: {
+                    row("插件", "puzzlepiece.extension", pluginCount.map { String(localized: "\($0) 个") } ?? "")
+                }
+                NavigationLink { SchedulesView(openSession: openSession.map { open in { open($0) } }) } label: {
+                    row("自动化", "clock.arrow.2.circlepath", app.scheduleCount.map { String(localized: "\($0) 个") } ?? "")
+                }
+            }
+
+            Section {
+                // Turning it off asks first: without it the system may end the engine in the background.
+                Toggle(isOn: Binding(get: { keepAlive }, set: { on in
+                    if on { keepAlive = true } else { confirmingKeepAliveOff = true }
+                })) {
+                    Label("静音音频", systemImage: "speaker.slash")
+                }
+                // The system's continued-processing task exists from iOS 26 only.
+                if #available(iOS 26.0, *) {
+                    Toggle(isOn: $continuedProcessing) { Label("任务续跑", systemImage: "hourglass") }
+                }
+            } header: {
+                Text("后台运行")
+            } footer: {
+                Text(backgroundFooter)
+            }
+            .onChange(of: keepAlive) { BackgroundKeeper.shared.settingsChanged() }
+            .onChange(of: continuedProcessing) { BackgroundKeeper.shared.settingsChanged() }
+            .alert("关闭静音音频？", isPresented: $confirmingKeepAliveOff) {
+                Button("取消", role: .cancel) {}
+                Button("关闭", role: .destructive) { keepAlive = false }
+            } message: {
+                Text("离开 App 时\(turnsOffScreen)，之后引擎可能被系统暂停，自动化和开发服务器会中断。")
+            }
+
+            Section {
+                Toggle(isOn: $widgetTitles) { Label("显示会话标题", systemImage: "eye") }
+            } header: {
+                Text("小组件")
+            } footer: {
+                Text("关掉后，主屏幕和锁屏小组件只显示数量和状态。设备锁定时，标题总会被打码。")
+            }
+            .onChange(of: widgetTitles) { WidgetSnapshotWriter.shared.refresh() }
+
+            Section {
+                if let theme = mirror.namespace("ui-theme") {
+                    Picker(selection: Binding(get: { theme["value"]["preference"].string ?? "system" }, set: { value in
+                        Task { await write("ui-theme", ["preference"], .string(value)) }
                     })) {
-                        Label("静音音频", systemImage: "speaker.slash")
-                    }
-                    .toggleStyle(.mono)
-                    // The system's continued-processing task exists from iOS 26 only.
-                    if #available(iOS 26.0, *) {
-                        Toggle(isOn: $continuedProcessing) { Label("任务续跑", systemImage: "hourglass") }
-                            .toggleStyle(.mono)
-                    }
-                } header: {
-                    Text("后台运行")
-                } footer: {
-                    Text(backgroundFooter)
-                }
-                .onChange(of: keepAlive) { BackgroundKeeper.shared.settingsChanged() }
-                .onChange(of: continuedProcessing) { BackgroundKeeper.shared.settingsChanged() }
-                .alert("关闭静音音频？", isPresented: $confirmingKeepAliveOff) {
-                    Button("取消", role: .cancel) {}
-                    Button("关闭", role: .destructive) { keepAlive = false }
-                } message: {
-                    Text("离开 App 时\(turnsOffScreen)，之后引擎可能被系统暂停，自动化和开发服务器会中断。")
-                }
-
-                Section {
-                    Toggle(isOn: $widgetTitles) { Label("显示会话标题", systemImage: "eye") }
-                        .toggleStyle(.mono)
-                } header: {
-                    Text("小组件")
-                } footer: {
-                    Text("关掉后，主屏幕和锁屏小组件只显示数量和状态。设备锁定时，标题总会被打码。")
-                }
-                .onChange(of: widgetTitles) { WidgetSnapshotWriter.shared.refresh() }
-
-                Section {
-                    if let theme = mirror.namespace("ui-theme") {
-                        Picker(selection: Binding(get: { theme["value"]["preference"].string ?? "system" }, set: { value in
-                            Task { await write("ui-theme", ["preference"], .string(value)) }
-                        })) {
-                            Text("跟随系统").tag("system")
-                            Text("浅色").tag("light")
-                            Text("深色").tag("dark")
-                        } label: {
-                            Label("外观", systemImage: "circle.lefthalf.filled")
-                        }
-                        .pickerValueTint()
-                    }
-                    if AppIconChoice.available {
-                        NavigationLink { AppIconPage() } label: { AppIconRow() }
-                    }
-                    // iOS shows the per-app language in its Settings only to readers with several system
-                    // languages; this picker writes the same preference, applied at the next launch.
-                    Picker(selection: $languageChoice) {
                         Text("跟随系统").tag("system")
-                        ForEach(AppLanguage.choices, id: \.code) { Text(verbatim: $0.name).tag($0.code) }
+                        Text("浅色").tag("light")
+                        Text("深色").tag("dark")
                     } label: {
-                        Label("语言", systemImage: "globe")
+                        Label("外观", systemImage: "circle.lefthalf.filled")
                     }
                     .pickerValueTint()
-                    .onChange(of: languageChoice) { _, value in
-                        AppLanguage.chosen = value == "system" ? nil : value
-                        languageChanged = true
-                    }
                 }
-
-                Section {
-                    NavigationLink { AdvancedSettingsPage() } label: { row("高级", "wrench.and.screwdriver") }
-                    NavigationLink { AboutPage(engineVersion: engineVersion) } label: { row("关于", "info.circle", aboutValue) }
+                if AppIconChoice.available {
+                    NavigationLink { AppIconPage() } label: { AppIconRow() }
                 }
-
-                Section {
-                    linkRow("给个 Star", "star", "GitHub", Self.repositoryURL)
-                        .environment(\.openURL, OpenURLAction { _ in SupportPrompt.settle(); return .systemAction })
-                    // Only an App Store install can be reviewed there.
-                    if AppDistribution.channel == .appStore {
-                        linkRow("给个评分", "heart", "App Store", AppLinks.writeReview)
-                    }
-                    linkRow("官网", "safari", AppLinks.site.host() ?? "", AppLinks.site)
-                    linkRow("开源仓库", "chevron.left.forwardslash.chevron.right", UpdateChecker.repository, Self.repositoryURL)
-                    linkRow("问题反馈", "exclamationmark.bubble", "GitHub Issues", Self.issuesURL)
-                    // The site's picture is swapped in place when the 7-day code expires: always the current one.
-                    linkRow("微信交流群", "bubble.left.and.bubble.right", String(localized: "扫码加群"), AppLinks.wechatGroupCode)
-                    linkRow("作者", "at", "sai · imsai.cc", Self.authorURL)
-                } footer: {
-                    Text("觉得好用的话，去 GitHub 仓库页点一下 Star ⭐️，这是对项目最大的支持。")
+                // iOS shows the per-app language in its Settings only to readers with several system
+                // languages; this picker writes the same preference, applied at the next launch.
+                Picker(selection: $languageChoice) {
+                    Text("跟随系统").tag("system")
+                    ForEach(AppLanguage.choices, id: \.code) { Text(verbatim: $0.name).tag($0.code) }
+                } label: {
+                    Label("语言", systemImage: "globe")
                 }
+                .pickerValueTint()
+                .onChange(of: languageChoice) { _, value in
+                    AppLanguage.chosen = value == "system" ? nil : value
+                    languageChanged = true
+                }
+            }
 
+            Section {
+                NavigationLink { AdvancedSettingsPage() } label: { row("高级", "wrench.and.screwdriver") }
+                NavigationLink { AboutPage(engineVersion: engineVersion) } label: { row("关于", "info.circle", aboutValue) }
             }
-            .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.large)
-            .modifier(SettingsClose(shown: !asTab, dismiss: dismiss))
-            .alert("重启 App 后生效", isPresented: $languageChanged) {
-                Button("好", role: .cancel) {}
-            } message: {
-                Text("退出 Fish Pocket 再重新打开，界面就会换成新的语言。")
+
+            // Out of the sessions list: a tap there is to open a conversation, and an archived one does not open.
+            Section {
+                NavigationLink { DrawerView.archive() } label: {
+                    let count = DrawerView.archivedCount(app)
+                    row("已归档会话", "archivebox", count > 0 ? "\(count)" : "")
+                }
             }
-            .alert("启用完全权限？", isPresented: $confirmingFullAccess) {
-                Button("取消", role: .cancel) {}
-                Button("启用", role: .destructive) { Task { await write("permission", ["defaultPreset"], "danger-full-access") } }
-            } message: {
-                Text("新会话将减少确认步骤，可以直接改文件、跑命令。仅在信任后续任务时使用。")
-            }
-            .followSettings()
-            .task { await load() }
-            .task(id: app.settingsRevision) { await loadDerived() }
-            .task(id: app.revision("permission-presets/catalog-changed")) { await loadPermissions() }
+
+            // On the 探索 tab when there is one; an iPad before iOS 18 has 设置 as a sheet and no such tab.
+            if !pushed { SupportLinksSection() }
+
         }
-        // 设置 and every page pushed or presented from it: the system's lists, not the monochrome ones.
-        .environment(\.systemLists, true)
-        .tint(Palette.ink)
+        .navigationTitle("设置")
+        .navigationBarTitleDisplayMode(pushed ? .inline : .large)
+        .alert("重启 App 后生效", isPresented: $languageChanged) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text("退出 Fish Pocket 再重新打开，界面就会换成新的语言。")
+        }
+        .alert("启用完全权限？", isPresented: $confirmingFullAccess) {
+            Button("取消", role: .cancel) {}
+            Button("启用", role: .destructive) { Task { await write("permission", ["defaultPreset"], "danger-full-access") } }
+        } message: {
+            Text("新会话将减少确认步骤，可以直接改文件、跑命令。仅在信任后续任务时使用。")
+        }
+        .followSettings()
+        .task { await load() }
+        .task(id: app.settingsRevision) { await loadDerived() }
+        .task(id: app.revision("permission-presets/catalog-changed")) { await loadPermissions() }
+    }
+
+    /// 朗读's value: the voice, Volcengine's being the call's, or 未设置 until it can be reached.
+    private var readingSummary: String {
+        switch VoicePreferences.shared.readingSource {
+        case .deepseek: VoicePreferences.shared.readingVoice.title
+        case .volcengine: VolcSpeech.shared.configured ? CallVoice.chosen.name : String(localized: "未设置")
+        }
     }
 
     private var aboutValue: String {
         if case .available = UpdateChecker.shared.status { return String(localized: "有新版本") }
         return ""
-    }
-
-    private static let repositoryURL = AppLinks.repository
-    private static let issuesURL = repositoryURL.appending(path: "issues")
-    private static let authorURL = URL(string: "https://imsai.cc")!
-
-    /// Opens in the browser; the arrow says it leaves the app.
-    private func linkRow(_ title: LocalizedStringKey, _ icon: String, _ value: String, _ url: URL) -> some View {
-        Link(destination: url) {
-            LabeledContent {
-                HStack(spacing: 6) {
-                    Text(value).lineLimit(1)
-                    Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.tertiary)
-                }
-                .foregroundStyle(.secondary)
-            } label: {
-                Label(title, systemImage: icon)
-            }
-        }
     }
 
     private func row(_ title: LocalizedStringKey, _ icon: String, _ value: String = "") -> some View {
@@ -247,7 +273,7 @@ struct SettingsView: View {
             else { Task { await write("permission", ["defaultPreset"], .string(value)) } }
         })) {
             ForEach(permissionOptions, id: \.self) { option in
-                Text(Self.permissionName(option)).tag(option["value"].string ?? "")
+                Text(SettingsView.permissionName(option)).tag(option["value"].string ?? "")
             }
             if !permissionOptions.contains(where: { $0["value"].string == current }) {
                 Text(current).tag(current)
@@ -276,17 +302,6 @@ struct SettingsView: View {
         return continuesTurns
             ? String(localized: "离开 App 后播放无声音频，任务、自动化和开发服务器都不停，会多耗一些电。音频被来电等打断时，进行中的任务仍会继续跑完。")
             : String(localized: "离开 App 后播放无声音频，任务、自动化和开发服务器都不停。会多耗一些电。")
-    }
-
-    /// A permission preset in the words the app uses everywhere (`{value, name}`).
-    static func permissionName(_ option: JSON) -> String {
-        switch option["value"].string {
-        case "read-only": String(localized: "仅可查看")
-        case "workspace-write": String(localized: "工作区内修改")
-        case "danger-full-access": String(localized: "完全权限")
-        case "auto": String(localized: "自动审查")
-        default: localized(option["name"]) ?? option["value"].string ?? ""
-        }
     }
 
     private func load() async {
@@ -589,6 +604,7 @@ private struct EngineCard: View {
         case .starting: String(localized: "引擎启动中")
         case .running: String(localized: "引擎运行中")
         case .exited(let code): String(localized: "引擎已退出（\(code)）")
+        case .unsupported: String(localized: "这台设备运行不了引擎")
         }
     }
 
@@ -655,16 +671,7 @@ private struct EngineLogView: View {
 private struct ShareAppRow: View {
     var body: some View {
         HStack(spacing: 12) {
-            Group {
-                if let image = UIImage(named: "AppIcon") {
-                    Image(uiImage: image).resizable()
-                } else {
-                    Image("LaunchMark").resizable().scaledToFit()
-                }
-            }
-            .frame(width: 40, height: 40)
-            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .accessibilityHidden(true)
+            AppIconMark(size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text("分享 Fish Pocket")
                 Text("海报、二维码或链接").font(.footnote).foregroundStyle(.secondary)
@@ -675,12 +682,77 @@ private struct ShareAppRow: View {
     }
 }
 
-/// The settings sheet's ✕; the 设置 tab has none.
-private struct SettingsClose: ViewModifier {
-    let shown: Bool
-    let dismiss: DismissAction
+/// The rating, website, feedback and community links that close the 探索 tab, drawn there as its
+/// other rows are (`ExploreTabView`), and 设置 in the system's look on an iPad before iOS 18,
+/// which has no such tab (`SupportLinksSection`). Each opens in the browser.
+struct SupportLink: Identifiable {
+    let title: LocalizedStringKey
+    let symbol: String
+    let glyph: ExploreGlyph.Kind
+    /// What it says on the right in 设置.
+    let value: String
+    /// The line under the name on the 探索 tab.
+    let detail: Text
+    let url: URL
+    /// The App Store page: opening it settles the rating ask (`SupportPrompt`).
+    var rates = false
 
-    func body(content: Content) -> some View {
-        if shown { content.closeButton(dismiss) } else { content }
+    var id: URL { url }
+
+    static var all: [SupportLink] {
+        let site = AppLinks.site.host() ?? ""
+        return [
+            // The App Store page, from any install: rating it there is what helps most now.
+            SupportLink(title: "给个评分", symbol: "star", glyph: .rate, value: "App Store",
+                        detail: Text("在 App Store 打分、写评价"), url: AppLinks.appStore, rates: true),
+            SupportLink(title: "官网", symbol: "safari", glyph: .site, value: site,
+                        detail: Text(verbatim: site), url: AppLinks.site),
+            SupportLink(title: "问题反馈", symbol: "exclamationmark.bubble", glyph: .feedback, value: "GitHub Issues",
+                        detail: Text("在 GitHub Issues 提问题和建议"), url: AppLinks.repository.appending(path: "issues")),
+            // The site's picture is swapped in place when the 7-day code expires: always the current one.
+            SupportLink(title: "微信交流群", symbol: "bubble.left.and.bubble.right", glyph: .wechat,
+                        value: String(localized: "扫码加群"), detail: Text("扫码加群"), url: AppLinks.wechatGroupCode),
+            SupportLink(title: "Discord 社区", symbol: "person.2.circle", glyph: .discord, value: "discord.gg",
+                        detail: Text(verbatim: "discord.gg"), url: AppLinks.discord),
+            SupportLink(title: "关注我们", symbol: "at", glyph: .follow, value: "imsai.cc",
+                        detail: Text(verbatim: "imsai.cc"), url: URL(string: "https://imsai.cc")!),
+        ]
+    }
+
+    static let footer = Text("觉得好用的话，去 App Store 给个评分 ⭐️，这是对项目最大的支持。")
+}
+
+extension View {
+    /// Opening the App Store page from a rating link settles the rating ask.
+    @ViewBuilder func settlesRating(_ rates: Bool) -> some View {
+        if rates {
+            environment(\.openURL, OpenURLAction { _ in SupportPrompt.settle(); return .systemAction })
+        } else {
+            self
+        }
+    }
+}
+
+/// `SupportLink`s in 设置 on an iPad before iOS 18; the arrow says each leaves the app.
+struct SupportLinksSection: View {
+    var body: some View {
+        Section {
+            ForEach(SupportLink.all) { link in
+                Link(destination: link.url) {
+                    LabeledContent {
+                        HStack(spacing: 6) {
+                            Text(link.value).lineLimit(1)
+                            Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .foregroundStyle(.secondary)
+                    } label: {
+                        Label(link.title, systemImage: link.symbol)
+                    }
+                }
+                .settlesRating(link.rates)
+            }
+        } footer: {
+            SupportLink.footer
+        }
     }
 }

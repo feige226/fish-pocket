@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import WidgetKit
 
 /// Keeps the widgets' snapshot (`WidgetSnapshot`) in step with the app: rewritten
@@ -45,7 +45,7 @@ final class WidgetSnapshotWriter {
 
     private func observe() {
         guard let app else { return }
-        let next = withObservationTracking { Self.snapshot(of: app) } onChange: { [weak self] in
+        let next = withPerceptionTracking { Self.snapshot(of: app) } onChange: { [weak self] in
             Task { @MainActor in self?.observe() }
         }
         apply(next)

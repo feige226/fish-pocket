@@ -13,3 +13,5 @@
 // The engine's filesystem view (DshRoot), so the browser can turn the engine's paths into the app's
 // when it saves a download or uploads a file. Plain C, no Node.
 #import "root.h"
+// WebRTC's echo canceller for the voice call (native/aec3): plain C in front of C++.
+#import "dsh_aec3.h"

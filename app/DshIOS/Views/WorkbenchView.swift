@@ -13,6 +13,14 @@ enum WorkbenchTab: String, CaseIterable, Identifiable {
         case .context: "上下文"
         }
     }
+
+    /// The tab last looked at, in any conversation: the workbench opens where it was left.
+    static var last: WorkbenchTab {
+        get { UserDefaults.standard.string(forKey: lastKey).flatMap(WorkbenchTab.init) ?? .terminal }
+        set { if newValue != last { UserDefaults.standard.set(newValue.rawValue, forKey: lastKey) } }
+    }
+
+    private static let lastKey = "dsh.workbench.tab"
 }
 
 /// The session's tools in one place: terminal, files, a browser, the changes this
@@ -21,6 +29,11 @@ struct WorkbenchView: View {
     let model: SessionModel
     /// Kept by the conversation, which can also ask for a tab while this is open.
     @Binding var tab: WorkbenchTab
+    /// Beside the conversation, so inside its navigation stack: the pages here push on that
+    /// stack and make none of their own. A stack inside another's page is taken into the outer
+    /// one, its path with it: under the Bot pages' typed path the app then ends the next time
+    /// that path changes (`AnyNavigationPath.Error.comparisonTypeMismatch`).
+    var beside = false
     let close: () -> Void
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -60,9 +73,9 @@ struct WorkbenchView: View {
             tabs
             ZStack {
                 page(.terminal) { WorkbenchTerminal(sessionId: model.sessionId) }
-                page(.files) { WorkbenchFiles(model: model) }
+                page(.files) { WorkbenchFiles(model: model, beside: beside) }
                 page(.browser) { if let browser { WorkbenchBrowser(model: browser) } }
-                page(.changes) { WorkbenchChanges(model: model) }
+                page(.changes) { WorkbenchChanges(model: model, beside: beside) }
                 page(.context) { WorkbenchContext(model: model, close: close) }
             }
         }
@@ -112,7 +125,8 @@ private struct WorkbenchTerminal: View {
     let sessionId: String
     @Environment(AppModel.self) private var app
     @State private var connection: TerminalConnection?
-    @State private var terminals: [(id: String, title: String, exited: Bool)] = []
+    /// `agent`: the Agent opened it (`origin`, with the experimental terminal bundle's tools).
+    @State private var terminals: [(id: String, title: String, exited: Bool, agent: Bool)] = []
     @State private var error: String?
     @State private var renaming = false
     @State private var newTitle = ""
@@ -164,6 +178,12 @@ private struct WorkbenchTerminal: View {
         // Edge to edge: every column of a phone's width goes to the terminal.
         .background(Palette.grouped.ignoresSafeArea())
         .task { await reload() }
+        // The session's terminals as they come and go, the Agent's included (`terminal/watch`).
+        .task(id: app.generation) {
+            do {
+                for try await frame in app.mux.open("terminal/watch", ["sessionId": .string(sessionId)]) { show(frame.array) }
+            } catch {}
+        }
         .task(id: app.revision("settings/document-updated")) { await loadFontSize() }
         // The attachment does not survive a dropped connection; the new one brings a fresh screen.
         .onChange(of: app.generation) { _, _ in if connection?.phase == .disconnected { connection?.connect() } }
@@ -194,6 +214,15 @@ private struct WorkbenchTerminal: View {
                     status(String(localized: "终端错误：\(message)"), "重试") { connection.connect() }
                 case .connected where !connection.writable:
                     status(String(localized: "此终端当前只读。"), "接管输入") { connection.connect() }
+                case .connected where connection.info["origin"].string == "agent":
+                    // The Agent's terminal: what typing here does, and whose sandbox its commands run in.
+                    if connection.info["control"].string == "agent" {
+                        status(String(localized: "由 Agent 打开。你一输入就由你接管，Agent 之后只能读取。"), nil) {}
+                    } else if connection.info["sandboxMode"].string == "read-only" {
+                        status(String(localized: "命令在 Agent 的只读沙箱里运行，包括你在这里输入的命令。"), nil) {}
+                    } else if connection.info["sandboxMode"].string == "workspace-write" {
+                        status(String(localized: "命令在 Agent 的工作区沙箱里运行，包括你在这里输入的命令。"), nil) {}
+                    }
                 default:
                     EmptyView()
                 }
@@ -217,7 +246,8 @@ private struct WorkbenchTerminal: View {
         Menu {
             ForEach(terminals, id: \.id) { terminal in
                 Button { attach(terminal.id) } label: {
-                    let title = terminal.exited ? String(localized: "\(terminal.title)（已退出）") : terminal.title
+                    let name = terminal.agent ? "\(terminal.title) · Agent" : terminal.title
+                    let title = terminal.exited ? String(localized: "\(name)（已退出）") : name
                     if terminal.id == current { Label(title, systemImage: "checkmark") } else { Text(title) }
                 }
             }
@@ -249,8 +279,12 @@ private struct WorkbenchTerminal: View {
 
     private func loadTerminals() async -> [JSON] {
         let list = (try? await app.client.call("terminal/list", ["sessionId": .string(sessionId)]))?.array ?? []
-        terminals = list.map { ($0["id"].string ?? "", $0["title"].string ?? "bash", $0["state"].string != "running") }
+        show(list)
         return list
+    }
+
+    private func show(_ list: [JSON]) {
+        terminals = list.map { ($0["id"].string ?? "", $0["title"].string ?? "bash", $0["state"].string != "running", $0["origin"].string == "agent") }
     }
 
     private func reload() async {
@@ -351,7 +385,7 @@ private struct TerminalKeyBar<Menu: View>: View {
                     .labelStyle(.titleOnly)
                     .buttonBorderShape(.capsule)
                     .controlSize(.large)
-                    .tint(Palette.ink)
+                    .inkTint()
                 }
                 .padding(.horizontal, 10)
             }
@@ -380,19 +414,30 @@ private struct TerminalKeyBar<Menu: View>: View {
 
 private struct WorkbenchFiles: View {
     let model: SessionModel
+    /// On the conversation's stack, with no stack of its own (`WorkbenchView.beside`).
+    let beside: Bool
 
     var body: some View {
-        NavigationStack {
-            DirectoryView(
-                sessionId: model.sessionId,
-                path: ".",
+        if beside {
+            // No title of its own: the bar is the conversation's, which shows none beside the workbench.
+            root(title: "")
+        } else {
+            NavigationStack {
                 // This title reaches the sheet's bar; the folder is named by the path under the tabs.
-                title: String(localized: "工作台"),
-                root: model.workingDirectory,
-                modified: Set(FileChange.collect(model.items.allBlocks, root: model.workingDirectory).map(\.path))
-            )
-            .toolbar(.hidden, for: .navigationBar)
+                root(title: String(localized: "工作台"))
+                    .toolbar(.hidden, for: .navigationBar)
+            }
         }
+    }
+
+    private func root(title: String) -> some View {
+        DirectoryView(
+            sessionId: model.sessionId,
+            path: ".",
+            title: title,
+            root: model.workingDirectory,
+            modified: Set(FileChange.collect(model.items.allBlocks, root: model.workingDirectory).map(\.path))
+        )
     }
 }
 
@@ -402,37 +447,44 @@ private struct WorkbenchFiles: View {
 /// whole file is one step further. Built from the tool calls in the timeline.
 private struct WorkbenchChanges: View {
     let model: SessionModel
+    /// On the conversation's stack, with no stack of its own (`WorkbenchView.beside`).
+    let beside: Bool
 
     var body: some View {
+        if beside {
+            list
+        } else {
+            NavigationStack { list.toolbar(.hidden, for: .navigationBar) }
+        }
+    }
+
+    @ViewBuilder
+    private var list: some View {
         let changes = FileChange.collect(model.items.allBlocks, root: model.workingDirectory)
-        NavigationStack {
-            Group {
-                if changes.isEmpty {
-                    ContentUnavailableView("还没有改动", systemImage: "doc.text.magnifyingglass", description: Text("智能体改过的文件会显示在这里。"))
-                } else {
-                    List {
-                        Section {
-                            ForEach(changes) { change in
-                                NavigationLink(value: change.path) { ChangedFileRow(change: change) }
-                                    .contextMenu {
-                                        Button { copyToPasteboard(change.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
-                                    }
+        if changes.isEmpty {
+            ContentUnavailableView("还没有改动", systemImage: "doc.text.magnifyingglass", description: Text("智能体改过的文件会显示在这里。"))
+        } else {
+            List {
+                Section {
+                    ForEach(changes) { change in
+                        // The page itself, not a value for the stack to look up: beside the
+                        // conversation the stack is the Bot pages', whose path takes only their routes.
+                        NavigationLink { FileDiffPage(model: model, path: change.path) } label: { ChangedFileRow(change: change) }
+                            .contextMenu {
+                                Button { copyToPasteboard(change.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
                             }
-                        } header: {
-                            HStack(spacing: 8) {
-                                Text("\(changes.count) 个文件")
-                                ChangeCounts(added: changes.reduce(0) { $0 + $1.added }, removed: changes.reduce(0) { $0 + $1.removed })
-                            }
-                            .font(.footnote)
-                            .textCase(nil)
-                        }
-                        .groupedRow()
                     }
-                    .groupedList()
+                } header: {
+                    HStack(spacing: 8) {
+                        Text("\(changes.count) 个文件")
+                        ChangeCounts(added: changes.reduce(0) { $0 + $1.added }, removed: changes.reduce(0) { $0 + $1.removed })
+                    }
+                    .font(.footnote)
+                    .textCase(nil)
                 }
+                .groupedRow()
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: String.self) { path in FileDiffPage(model: model, path: path) }
+            .groupedList()
         }
     }
 }
@@ -509,7 +561,7 @@ private struct FileDiffPage: View {
                     Spacer()
                     Toggle(isOn: $wrap) { Label("自动换行", systemImage: "arrow.turn.down.left") }
                         .toggleStyle(.button)
-                        .tint(Palette.ink)
+                        .inkTint()
                 }
             }
         }
@@ -597,7 +649,7 @@ private struct WorkbenchContext: View {
                     VStack(alignment: .leading, spacing: 14) {
                         Text(ratio, format: .percent.precision(.fractionLength(0)))
                             .font(.system(size: 48, weight: .semibold)).monospacedDigit().kerning(-1)
-                        ProgressView(value: ratio).tint(Palette.ink)
+                        ProgressView(value: ratio).inkTint()
                         Text("上下文已用 \(Self.compact(used)) / \(Self.compact(window)) tokens").font(.subheadline).foregroundStyle(Palette.secondary)
                     }
                     .accessibilityElement(children: .combine)

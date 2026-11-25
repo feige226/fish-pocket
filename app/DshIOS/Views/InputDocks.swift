@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// One line above the composer for what the session has going: 「任务 2/5 · 编译中 ·
-/// 排队 2」, this client's messages on their way, a full context and a deferred
-/// approval. Everything behind it opens in a sheet. With the keyboard up the timeline
-/// has little room left: only the queue and a waiting approval keep their place.
+/// One line above the composer for what the session has going: 「任务 2/5 · 编译中」,
+/// a message on its way, a full context and a deferred approval. Everything behind it
+/// opens in a sheet. With the keyboard up the timeline has little room left: only a
+/// waiting approval keeps its place. Queued messages show in the conversation (`QueuedMessages`).
 struct ComposerStatusBar: View {
     let model: SessionModel
     var keyboardUp = false
@@ -40,7 +40,7 @@ struct ComposerStatusBar: View {
         }
         .sheet(isPresented: $showSheet, onDismiss: {
             sheetUp = false
-            if refocus || composer.editingQueue != nil { composer.requestFocus() }
+            if refocus { composer.requestFocus() }
         }) {
             ComposerStatusSheet(model: model, waiting: waiting, reveal: reveal)
         }
@@ -87,7 +87,7 @@ struct ComposerStatusBar: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint("查看任务、目标和排队")
+                .accessibilityHint("查看任务和目标")
                 if showsCompact {
                     Button("压缩") { Haptics.tap(); composer.compact() }
                         .font(.footnote.weight(.semibold))
@@ -149,8 +149,9 @@ struct ComposerStatusBar: View {
                 }
             }
         }
-        if let echo = composer.visiblePending.first(where: { $0.placement != .queued }) {
-            add(echo.placement == .steering ? String(localized: "插话发送中…") : String(localized: "发送中…"))
+        // Queued and steering messages show at the foot of the conversation (`QueuedMessages`).
+        if composer.visiblePending.contains(where: { $0.placement == .transcript }) {
+            add(String(localized: "发送中…"))
         }
         var joined = AttributedString()
         for (index, part) in parts.enumerated() {
@@ -162,9 +163,7 @@ struct ComposerStatusBar: View {
 
     /// What stays whole however long the rest is.
     private var tail: String {
-        let queued = composer.queueRows.count + composer.visiblePending.filter { $0.placement == .queued }.count
-        return [
-            queued > 0 ? String(localized: "排队 \(queued)") : nil,
+        [
             !keyboardUp && composer.contextNearlyFull ? String(localized: "上下文快满了") : nil,
         ].compactMap { $0 }.joined(separator: " · ")
     }
@@ -195,8 +194,8 @@ private struct TodoProgress {
     var text: String { String(localized: "任务 \(done)/\(total)") }
 }
 
-/// What the status bar stands for, one section each: the agent's tasks (C-120), the
-/// goal (C-121) and the queue (C-95), under whatever needs a decision now. Every
+/// What the status bar stands for, one section each: the agent's tasks (C-120) and the
+/// goal (C-121), under whatever needs a decision now. Every
 /// section comes and goes on its own, so the sheet closes itself once the last one
 /// leaves rather than standing there empty.
 struct ComposerStatusSheet: View {
@@ -219,18 +218,13 @@ struct ComposerStatusSheet: View {
                     .groupedRow()
                 }
                 GoalSection(composer: composer)
-                QueueSection(model: model) { row in
-                    composer.beginQueueEdit(row)
-                    dismiss()
-                }
             }
             .groupedList()
             .navigationTitle("状态")
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
-            // 「插话」 on the last queued row (or 「全部插话」, a delete, the agent picking
-            // the queue up) leaves nothing to show: close, so the conversation behind
-            // shows where the message went instead of a blank panel.
+            // The last section leaving (the tasks cleared, the goal done) leaves nothing to
+            // show: close rather than stand there empty.
             .onChange(of: hasContent) { _, has in
                 if !has { dismiss() }
             }
@@ -247,8 +241,7 @@ struct ComposerStatusSheet: View {
             || composer.planActive
             || !composer.todos.isEmpty
             || composer.visibleGoal != nil
-            || !composer.queueRows.isEmpty
-            || !composer.visiblePending.isEmpty
+            || composer.visiblePending.contains { $0.placement == .transcript }
     }
 
     @ViewBuilder
@@ -283,7 +276,6 @@ struct ComposerStatusSheet: View {
                 }
                 if composer.planActive {
                     Toggle("计划模式", isOn: Binding(get: { composer.planActive }, set: { on in Haptics.select(); composer.setPlan(on) }))
-                        .toggleStyle(.mono)
                         .disabled(composer.planSwitching)
                 }
             }
@@ -397,112 +389,124 @@ private struct GoalSection: View {
 
 // MARK: Queue (C-95)
 
-/// Messages waiting for the next turn, then this client's on their way. A tap puts a
-/// row back in the input to edit (text only), a swipe left removes it, a swipe right
-/// or 「插话」 steers it (while running); a long press has them all. One operation at a time.
-private struct QueueSection: View {
+/// Messages steered into the running turn and those waiting for the next one, at the foot
+/// of the conversation, then this client's on their way. Each is a faded bubble of the user's
+/// with 「取消」 under it: out of the inbox, its text back in the input. A steered one says it
+/// waits for the step to end; a queued one (sent with 「排队发送」) can still be steered from
+/// its long-press menu. One operation at a time.
+struct QueuedMessages: View {
     let model: SessionModel
-    let edit: (QueueRow) -> Void
     @State private var busy: String?
 
     private var composer: ComposerModel { model.composer }
 
     var body: some View {
         let rows = composer.queueRows
-        let sending = composer.visiblePending
-        if !rows.isEmpty || !sending.isEmpty {
-            Section {
-                ForEach(rows) { row in queueRow(row) }
+        let steering = composer.steerRows
+        let sending = composer.visiblePending.filter { $0.placement != .transcript }
+        if !rows.isEmpty || !steering.isEmpty || !sending.isEmpty {
+            VStack(alignment: .trailing, spacing: 14) {
+                ForEach(steering) { row in
+                    message(row) {
+                        // Stopped before the step ended: the Host hands it over with the next message.
+                        HStack(spacing: 6) {
+                            if model.running {
+                                ProgressView().controlSize(.mini)
+                                Text("插话中，这一步做完就送到")
+                            } else {
+                                Text("下次发消息时一起送到")
+                            }
+                        }
+                        .foregroundStyle(Palette.secondary)
+                    }
+                }
+                ForEach(rows) { row in
+                    message(row) { EmptyView() }
+                        .contextMenu {
+                            if model.running {
+                                // DSH's steer: the running turn takes it at its next step, nothing is stopped.
+                                Button { steer(row) } label: { Label("立即发送", systemImage: "paperplane") }
+                            }
+                            Button { withdraw(row) } label: { Label("取消", systemImage: "arrow.uturn.backward") }
+                        }
+                }
                 ForEach(sending) { echo in
-                    HStack(spacing: 8) {
-                        Text(echo.text.isEmpty ? echo.attachments.joined(separator: "、") : MessageQuotes.preview(echo.text)).lineLimit(2)
-                        Spacer(minLength: 8)
-                        Text(echo.placement == .steering ? "插话发送中…" : "发送中…").font(.caption)
+                    bubble(echo.text.isEmpty ? echo.attachments.joined(separator: "、") : MessageQuotes.preview(echo.text),
+                           attachments: echo.text.isEmpty ? 0 : echo.attachments.count) {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.mini)
+                            Text(echo.placement == .steering ? "插话发送中…" : "发送中…")
+                        }
+                        .font(.footnote)
+                        .foregroundStyle(Palette.secondary)
+                        .frame(minHeight: 28)
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondary)
-                    .frame(minHeight: 44)
                 }
-            } header: {
-                header(rows: rows, sending: sending)
             }
-            .groupedRow()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .animation(.snappy, value: rows.map(\.id) + steering.map(\.id))
         }
     }
 
-    private func header(rows: [QueueRow], sending: [PendingSubmission]) -> some View {
-        let queued = rows.count + sending.filter { $0.placement == .queued }.count
-        return HStack {
-            Text(queued > 0 ? "排队 \(queued)" : "发送中")
-            Spacer(minLength: 8)
-            if model.running && !rows.isEmpty {
-                Button("全部插话") {
-                    Haptics.tap()
-                    busy = "*"
-                    Task { await composer.steerAll(); busy = nil }
+    /// A message in the inbox: its bubble, what it waits for, and 「取消」.
+    private func message(_ row: QueueRow, @ViewBuilder status: () -> some View) -> some View {
+        bubble(row.preview.isEmpty ? row.attachments.joined(separator: "、") : row.preview,
+               attachments: row.preview.isEmpty ? 0 : row.attachments.count) {
+            HStack(spacing: 14) {
+                status()
+                if busy == row.id {
+                    ProgressView().controlSize(.mini).frame(minWidth: 44)
+                } else {
+                    Button("取消") { withdraw(row) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(busy != nil ? Palette.faint : Palette.ink)
+                        .disabled(busy != nil)
+                        .hitTarget()
+                        .accessibilityHint("撤回这条消息，文字放回输入框")
                 }
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Palette.ink)
-                .disabled(busy != nil)
-                .hitTarget()
             }
+            .font(.footnote)
+            .frame(minHeight: 28)
         }
     }
 
-    private func queueRow(_ row: QueueRow) -> some View {
-        HStack(spacing: 8) {
-            Button { edit(row) } label: {
-                HStack(spacing: 8) {
-                    if !row.attachments.isEmpty {
-                        Label("\(row.attachments.count)", systemImage: "paperclip").font(.caption).labelStyle(.titleAndIcon).foregroundStyle(Palette.secondary)
-                    }
-                    Text(row.preview.isEmpty ? row.attachments.joined(separator: "、") : row.preview).lineLimit(2).foregroundStyle(Palette.ink)
-                    Spacer(minLength: 0)
+    /// A faded bubble of the user's, what happens to it below.
+    private func bubble(_ text: String, attachments: Int, @ViewBuilder footer: () -> some View) -> some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(spacing: 6) {
+                if attachments > 0 {
+                    Label("\(attachments)", systemImage: "paperclip").labelStyle(.titleAndIcon).font(.caption)
                 }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+                Text(text).lineLimit(4).multilineTextAlignment(.leading)
             }
-            .buttonStyle(.plain)
-            .disabled(row.editableText == nil || busy != nil)
-            if busy == row.id {
-                ProgressView().controlSize(.mini).hitTarget()
-            } else if model.running {
-                Button("插话") { act(row.id, .steer) }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(Palette.ink)
-                    .disabled(busy != nil)
-                    .hitTarget()
-            }
+            .font(.body)
+            .lineSpacing(3)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .userBubble()
+            .opacity(0.6)
+            footer()
         }
-        .font(.subheadline)
-        .swipeActions(edge: .trailing) {
-            Button(role: .destructive) { act(row.id, .remove) } label: { Label("删除", systemImage: "trash") }
-        }
-        .swipeActions(edge: .leading) {
-            if model.running {
-                Button { act(row.id, .steer) } label: { Label("插话", systemImage: "bolt") }
-                    .tint(Palette.ink)
-            }
-        }
-        .contextMenu {
-            if model.running {
-                Button { act(row.id, .steer) } label: { Label("插话", systemImage: "bolt") }
-            }
-            Button { edit(row) } label: {
-                Label(row.editableText == nil ? "包含非文本内容，暂不支持编辑" : "编辑", systemImage: "pencil")
-            }
-            .disabled(row.editableText == nil)
-            Button(role: .destructive) { act(row.id, .remove) } label: { Label("删除", systemImage: "trash") }
-        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.leading, 60)
+        .transition(.opacity)
     }
 
-    private func act(_ id: String, _ action: ComposerModel.QueueAction) {
+    private func withdraw(_ row: QueueRow) {
+        run(row) { await composer.withdrawQueued(row) }
+    }
+
+    private func steer(_ row: QueueRow) {
+        run(row) { await composer.steerQueued(row.id) }
+    }
+
+    private func run(_ row: QueueRow, _ work: @escaping () async -> Void) {
         guard busy == nil else { return }
         Haptics.tap()
-        busy = id
+        busy = row.id
         Task {
-            await composer.updateQueue(id, action)
-            if busy == id { busy = nil }
+            await work()
+            if busy == row.id { busy = nil }
         }
     }
 }

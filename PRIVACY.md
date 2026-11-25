@@ -18,7 +18,7 @@ Fish Pocket 是独立的开源社区项目，与深度求索（DeepSeek）不存
 
 小组件要显示的会话标题、状态和当前工作区名称，由 App 写进设备上 App 与小组件共用的存储空间，同样不会离开设备。设备锁定时标题会被打码，也可以在 设置 → 小组件 里关掉标题。
 
-你授权过的本机数据（日历、提醒事项、通讯录、健康、位置、照片、音乐资料库等）不会被 App 另存一份，每次用到都是现读。例外是你明确交给智能体的文件：从照片里导出的那一张、你在文件选择器里选中的那几个，会拷一份进工作区，留到被删除为止。增、删、改默认直接执行，不会每次问你——想让它每次停下来问，或者干脆设成只读，都在「探索 → 本机能力」（iOS 17 上在侧边栏）中按项设置。App 只在本机留一份使用记录：哪项能力、什么操作、什么时候、调用方自报的名字，最近若干条，可以在同一页里查看和清空。
+你授权过的本机数据（日历、提醒事项、通讯录、健康、位置、照片、音乐资料库等）不会被 App 另存一份，每次用到都是现读。例外是你明确交给智能体的文件：从照片里导出的那一张、你在文件选择器里选中的那几个，会拷一份进工作区，留到被删除为止。增、删、改默认直接执行，不会每次问你——想让它每次停下来问，或者干脆设成只读，都在「探索 → 连接器 → 本机能力」（iOS 17 的 iPad 上在侧边栏）中按项设置。App 只在本机留一份使用记录：哪项能力、什么操作、什么时候、调用方自报的名字，最近若干条，可以在同一页里查看和清空。
 
 ### 会发送到第三方的内容
 
@@ -26,10 +26,11 @@ Fish Pocket 是独立的开源社区项目，与深度求索（DeepSeek）不存
 
 - **模型服务商：** 你发送的消息、附件，以及智能体为回答你而读取的文件内容、命令输出和本机数据（你授权之后的日历、提醒事项、通讯录、健康、位置、照片和音乐资料库，以及机型电量这类设备状态），都会发给你选择的模型服务商（默认是 DeepSeek，也可以配置其他服务商）。使用 DeepSeek 官方服务时，请求还带有 App 在本机生成的匿名 ID 和会话 ID。通讯录里是别人的姓名、电话和邮箱，智能体查到的那几位同样会发给模型服务商。这些数据如何处理，由服务商的隐私政策决定。
 - **DeepSeek 账号：** 选择账号登录时，登录在 DeepSeek 的官方页面完成，App 读不到你的账号和密码，只保存授权令牌用于调用模型和查询余额。
-- **插件：** 打开插件市场时，App 会访问索引源里列出的地址，默认是 `api.dshfind.com`，并从索引指定的地址加载插件图标，目前是 GitHub。查看插件说明时会访问 npm 文件 CDN 或插件的代码仓库，安装插件时会访问 npm 仓库。这些请求不含你的对话或文件，但对方能看到你的 IP 地址。已安装的插件和智能体运行的命令可以按你的操作访问网络。
+- **插件：** 打开插件市场时，App 会访问你启用的索引源。默认不启用任何索引源；列为示例的两个第三方索引源（经 jsDelivr 访问的 dsh-market 和 `api.dshfind.com`）要你自己启用。插件图标从索引指定的地址加载。查看插件说明时会访问 npm 文件 CDN 或插件的代码仓库，安装插件时会访问 npm 仓库。这些请求不含你的对话或文件，但对方能看到你的 IP 地址。已安装的插件和智能体运行的命令可以按你的操作访问网络。
+- **火山引擎（语音）：** 用你自己的火山引擎 API Key 使用按住说话、语音通话或语音消息时，录音和要念出来的文字直接发给火山引擎的豆包语音服务，由火山引擎按其隐私政策处理。
 - **内置浏览器：** 你访问的网站会收到常规的网络请求。
 - **Apple 的系统服务：** 让智能体查天气、查地点或路线时，要查的坐标或地名会发给 Apple 的天气和地图服务，由系统发出。语音转写默认在设备上完成，录音不上传；只有智能体明确改用联网识别时，录音才会发给 Apple。
-- **远程控制（可选）：** 只有你在「探索 → 远程控制」（iOS 17 上在侧边栏）里登录 [Agents Anywhere](https://github.com/anywhere-labs/Agents-Anywhere) 之后才会发生。App 会连接你登录的那台 Agents Anywhere 服务器（它的官方云服务，或你自己部署的服务器），读取并显示你电脑上的智能体会话；你在这些会话里发的消息、附件和对审批、提问的回应，经这台服务器转给你的电脑。本机的会话不会发到那里。这些数据如何处理，由 Agents Anywhere 的隐私政策或你自己的服务器决定。
+- **远程控制（可选）：** 只有你在「探索 → 远程控制」（iOS 17 的 iPad 上在侧边栏）里登录 [Agents Anywhere](https://github.com/anywhere-labs/Agents-Anywhere) 之后才会发生。App 会连接你登录的那台 Agents Anywhere 服务器（它的官方云服务，或你自己部署的服务器），读取并显示你电脑上的智能体会话；你在这些会话里发的消息、附件和对审批、提问的回应，经这台服务器转给你的电脑。本机的会话不会发到那里。这些数据如何处理，由 Agents Anywhere 的隐私政策或你自己的服务器决定。
 - **更新检查：** App 会向 Apple 和 GitHub 查询最新版本，请求里不含你的个人信息。
 
 ### Fish Pocket 账号与额度（可选）
@@ -37,8 +38,10 @@ Fish Pocket 是独立的开源社区项目，与深度求索（DeepSeek）不存
 Fish Pocket 账号是可选功能，登录后可以用 App 内购买的额度调用 DeepSeek 模型。只有登录并使用这个功能时，以下数据才会发给开发者运营的 Fish Pocket 服务器：
 
 - **账号信息：** 用 Apple 登录时，Apple 提供的用户标识，以及你同意分享的姓名和邮箱；用手机号登录时，你的手机号和验证码。
-- **额度与购买：** 积分余额、App Store 的购买凭证，以及每次调用的模型名称、token 用量和扣除的积分。
+- **额度与购买：** 积分余额、App Store 的购买凭证，以及每次调用的模型名称、token 用量和扣除的积分；用语音时是录音时长、念出来的字数和扣除的积分；生图时是生成的张数、尺寸、参考图张数和扣除的积分。
 - **对话内容：** 选择「Fish Pocket 账号」里的模型时，你发送的内容经 Fish Pocket 服务器转发给提供 DeepSeek 模型的服务商（DeepSeek 官方或其模型的托管服务商），由该服务商按其隐私政策处理。Fish Pocket 服务器只读取用量用于计费，不保存对话内容。
+- **语音：** 在语音输入或语音通话的设置里选择用「Fish Pocket 账号」接入火山引擎时，按住说话和语音通话的录音、语音消息和通话里要念出来的文字，经 Fish Pocket 服务器转发给火山引擎的豆包语音服务，由火山引擎按其隐私政策处理。Fish Pocket 服务器只读取录音时长和字数用于计费，不保存录音和文字。
+- **生图：** 在生图设置里把「Fish Pocket 账号（Seedream）」设为默认使用时，生图的提示词和参考图经 Fish Pocket 服务器转发给火山方舟的 Seedream 模型，由火山引擎按其隐私政策处理；生成的图片由 App 直接从火山引擎下载，不经过 Fish Pocket 服务器。Fish Pocket 服务器只读取生成的张数和尺寸用于计费，不保存提示词和图片。
 
 登录凭证保存在本机的钥匙串里。你可以随时在「设置 → Fish Pocket 账号」退出登录，或注销账号；注销后账号无法恢复，剩余积分作废。
 
@@ -70,7 +73,7 @@ With remote control turned on, your Agents Anywhere sign-in is kept in this devi
 
 For the widgets, the app writes session titles, their status and the current workspace name to storage on your device shared by the app and its widgets; this also never leaves the device. Titles are hidden while the device is locked, and you can turn them off in Settings → Widgets.
 
-Device data you have allowed (Calendar, Reminders, Contacts, Health, Location, Photos, your music library and the like) is never copied into the app’s own storage; it is read fresh each time it is used. The exception is a file you hand to the agent yourself: a picture exported from Photos, or files you choose in the file picker, are copied into the workspace and stay there until deleted. Adding, changing and deleting go ahead without asking by default; you can set any capability to ask every time, or to read-only, under Explore › Device capabilities (in the sidebar before iOS 18). The app keeps one local record of that use — which capability, which operation, when, and the name the caller gave for itself — for the most recent entries only. You can read and clear it on the same screen.
+Device data you have allowed (Calendar, Reminders, Contacts, Health, Location, Photos, your music library and the like) is never copied into the app’s own storage; it is read fresh each time it is used. The exception is a file you hand to the agent yourself: a picture exported from Photos, or files you choose in the file picker, are copied into the workspace and stay there until deleted. Adding, changing and deleting go ahead without asking by default; you can set any capability to ask every time, or to read-only, under Explore › Connectors › Device capabilities (in the sidebar on an iPad before iOS 18). The app keeps one local record of that use — which capability, which operation, when, and the name the caller gave for itself — for the most recent entries only. You can read and clear it on the same screen.
 
 ### What is sent to third parties
 
@@ -78,10 +81,11 @@ These connections happen only when you use the related feature, and the data goe
 
 - **Model providers:** Your messages and attachments, along with file contents, command output and device data the agent reads to answer you (your Calendar, Reminders, Contacts, Health, Location, Photos and music library once you have allowed them, and device state such as model and battery), are sent to the model provider you choose (DeepSeek by default, and other providers can be configured). Requests to DeepSeek's official service also carry an anonymous ID generated on your device and a session ID. Contacts hold other people's names, phone numbers and email addresses; the ones the agent looks up are sent to the model provider too. How this data is handled is governed by the provider's privacy policy.
 - **DeepSeek account:** If you sign in with an account, sign-in happens on DeepSeek's own page. The app cannot read your credentials and stores only an authorization token used to call models and check your balance.
-- **Plugins:** Opening the plugin market contacts the addresses in your index sources, `api.dshfind.com` by default, and loads plugin icons from the addresses the index gives, currently GitHub. Viewing a plugin's documentation contacts npm file CDNs or the plugin's repository, and installing a plugin contacts the npm registry. These requests do not contain your conversations or files, but those services can see your IP address. Installed plugins and commands run by the agent can access the network as you direct them.
+- **Plugins:** Opening the plugin market contacts the index sources you have turned on. None is on by default; the two third-party sources listed as examples (dsh-market, served through jsDelivr, and `api.dshfind.com`) are read only after you turn them on. Plugin icons load from the addresses the index gives. Viewing a plugin's documentation contacts npm file CDNs or the plugin's repository, and installing a plugin contacts the npm registry. These requests do not contain your conversations or files, but those services can see your IP address. Installed plugins and commands run by the agent can access the network as you direct them.
+- **Volcengine (voice):** When you use hold-to-talk, voice calls or voice messages with your own Volcengine API key, the recording and the text to be spoken go directly to Volcengine's Doubao speech service and are handled under Volcengine's privacy policy.
 - **Built-in browser:** Websites you visit receive ordinary network requests.
 - **Apple system services:** When the agent looks up weather, a place or a route, the coordinates or place name being looked up are sent by iOS to Apple's weather and maps services. Transcription runs on the device by default and the recording is not uploaded; only when the agent explicitly asks for online recognition is the recording sent to Apple.
-- **Remote control (optional):** This happens only after you sign in to [Agents Anywhere](https://github.com/anywhere-labs/Agents-Anywhere) under Explore › Remote control (in the sidebar before iOS 18). The app connects to the Agents Anywhere server you signed in to (its cloud service, or a server you host yourself) to read and show the agent sessions on your computers; the messages and attachments you send in those sessions, and your answers to approvals and questions, go through that server to your computer. Sessions on this device are never sent there. How this data is handled is governed by Agents Anywhere's privacy policy, or by you for a server of your own.
+- **Remote control (optional):** This happens only after you sign in to [Agents Anywhere](https://github.com/anywhere-labs/Agents-Anywhere) under Explore › Remote control (in the sidebar on an iPad before iOS 18). The app connects to the Agents Anywhere server you signed in to (its cloud service, or a server you host yourself) to read and show the agent sessions on your computers; the messages and attachments you send in those sessions, and your answers to approvals and questions, go through that server to your computer. Sessions on this device are never sent there. How this data is handled is governed by Agents Anywhere's privacy policy, or by you for a server of your own.
 - **Update check:** The app asks Apple and GitHub for the latest version. These requests contain no personal information.
 
 ### Fish Pocket account and credits (optional)
@@ -89,8 +93,10 @@ These connections happen only when you use the related feature, and the data goe
 A Fish Pocket account is optional. Once signed in, you can use credits bought in the app to call DeepSeek models. Only when you sign in and use this feature is the following sent to the Fish Pocket servers the developer runs:
 
 - **Account details:** with Sign in with Apple, the user identifier Apple provides and the name and email you choose to share; with a phone number, your number and the verification code.
-- **Credits and purchases:** your credit balance, App Store purchase receipts, and for each request the model name, token usage and credits deducted.
+- **Credits and purchases:** your credit balance, App Store purchase receipts, and for each request the model name, token usage and credits deducted; for voice, the length of the recording, the number of characters spoken and the credits deducted; for image generation, the number and size of the images made, the number of reference images and the credits deducted.
 - **Conversations:** when you pick a model under "Fish Pocket credits", what you send is forwarded through the Fish Pocket servers to the provider serving the DeepSeek models (DeepSeek itself or a provider hosting its models) and handled under that provider's privacy policy. The Fish Pocket servers read usage for billing only and do not store conversation content.
+- **Voice:** when you choose to reach Volcengine with your Fish Pocket account in the voice input or voice call settings, the recordings of hold-to-talk and voice calls, and the text of voice messages and of call replies to be spoken, are forwarded through the Fish Pocket servers to Volcengine's Doubao speech service and handled under Volcengine's privacy policy. The Fish Pocket servers read the length of the recordings and the number of characters for billing only and do not store recordings or text.
+- **Image generation:** when you set "Fish Pocket Account (Seedream)" as the default in the image generation settings, your prompts and reference images are forwarded through the Fish Pocket servers to Volcengine Ark's Seedream model and handled under Volcengine's privacy policy; the images it makes are downloaded by the app directly from Volcengine, not through the Fish Pocket servers. The Fish Pocket servers read the number and size of the images made for billing only and do not store prompts or images.
 
 Sign-in tokens are kept in this device's Keychain. You can sign out or delete your account at any time in Settings → Fish Pocket credits; a deleted account cannot be restored and its remaining credits are forfeited.
 

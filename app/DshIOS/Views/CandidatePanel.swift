@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What picking a candidate does: run the `/` row's decision, or put text in place
 /// of the token (`keepOpen`: a directory drill, the menu continues one level down).
 enum Candidate {
@@ -19,6 +20,8 @@ struct CandidatePanel: View {
     let hit: TriggerHit
     let pick: (Candidate) -> Void
     let showAll: () -> Void
+    /// What a hardware Return does while the panel is up, kept current as the rows change.
+    let onReturn: (ReturnChoice) -> Void
     @Environment(AppModel.self) private var app
     @Environment(\.botComposer) private var bot
     @State private var references: [Row] = []
@@ -26,6 +29,14 @@ struct CandidatePanel: View {
 
     /// Rows that fit without covering the timeline; 「全部」 takes the last place when there are more.
     private static let limit = 4
+
+    /// As on the web, where the menu opens with its first row highlighted: Return picks that row,
+    /// waits while the rows are still loading, and sends the draft when nothing matches.
+    enum ReturnChoice {
+        case pick(Candidate)
+        case wait
+        case send
+    }
 
     struct Row: Identifiable {
         let id: String
@@ -41,6 +52,8 @@ struct CandidatePanel: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let rows = hit.trigger == "/" ? commandRows : references
         VStack(alignment: .leading, spacing: 0) {
             if rows.isEmpty {
@@ -74,13 +87,18 @@ struct CandidatePanel: View {
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.grouped, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .onChange(of: rows.map(\.id) + [String(hit.trigger), String(searched)], initial: true) {
+            if let first = rows.first { onReturn(.pick(first.candidate)) }
+            else { onReturn(hit.trigger == "/" || searched ? .send : .wait) }
+        }
         .task(id: hit.trigger == "@" ? "\(model.loaded)\(hit.quoted)\(hit.query)" : nil) {
             guard hit.trigger == "@", model.loaded else { return }
             guard let rows = await Self.loadReferences(app: app, model: model, query: hit.query, quoted: hit.quoted, bot: bot) else { return }
             references = rows
             searched = true
         }
-    }
+    
+        }}
 
     private func rowView(_ row: Row) -> some View {
         CandidateRowView(row: row, pick: pick, descend: pick)
@@ -184,6 +202,8 @@ struct CandidateRowView: View {
     let descend: (Candidate) -> Void
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 0) {
             Button { pick(row.candidate) } label: {
                 HStack(spacing: 10) {
@@ -212,7 +232,8 @@ struct CandidateRowView: View {
                 .accessibilityLabel("进入目录")
             }
         }
-    }
+    
+        }}
 }
 
 /// Every candidate with a search field: the panel's 「全部」 and the ＋ tray's
@@ -256,6 +277,8 @@ struct CandidateList: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if rows.isEmpty {
                 if trigger == "/" || searched {
@@ -286,7 +309,8 @@ struct CandidateList: View {
             references = rows
             searched = true
         }
-    }
+    
+        }}
 
     /// The folder's mention is a live token: its query lists the folder.
     private func descend(_ candidate: Candidate) {
@@ -310,12 +334,15 @@ struct CandidateSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             CandidateList(model: model, context: context, trigger: hit.trigger, query: hit.query, quoted: hit.quoted, leading: hit.leading, pick: pick)
                 .closeButton(dismiss)
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 }
 
 /// Attachments waiting in the composer (C-106): image thumbnails and file cards
@@ -324,6 +351,8 @@ struct AttachmentRail: View {
     let composer: ComposerModel
 
     var body: some View {
+        WithPerceptionTracking {
+
         if !composer.attachments.isEmpty {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -343,23 +372,50 @@ struct AttachmentRail: View {
                     .padding(.top, 4)
                     .padding(.trailing, 4)
                 }
-                .onChange(of: composer.attachments.count) { old, new in
+                .onChangeCompat(of: composer.attachments.count) { old, new in
                     if new > old, let last = composer.attachments.last { withAnimation { proxy.scrollTo(last.id, anchor: .trailing) } }
                 }
             }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func item(_ attachment: DraftAttachment) -> some View {
         switch attachment.kind {
         case .image(_, _, let preview):
-            Image(uiImage: preview).resizable().scaledToFill()
-                .frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 12))
-                .accessibilityLabel(Text("图片 \(attachment.name)"))
+            imageTile(attachment, preview: preview)
         case .file, .reading:
             fileCard(attachment)
         }
+    }
+
+    /// The thumbnail, under a spinner while the image goes to the Host; a failed one retries on tap.
+    private func imageTile(_ attachment: DraftAttachment, preview: UIImage) -> some View {
+        let failed: Bool = if case .failed = attachment.upload { true } else { false }
+        return Button { composer.retryUpload(attachment.id) } label: {
+            Image(uiImage: preview).resizable().scaledToFill()
+                .frame(width: 56, height: 56)
+                .overlay {
+                    switch attachment.upload {
+                    case .uploading:
+                        Color.black.opacity(0.35)
+                        ProgressView().controlSize(.small).tint(.white)
+                    case .failed:
+                        Color.black.opacity(0.35)
+                        Image(systemName: "arrow.clockwise").font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                    default:
+                        EmptyView()
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(failed ? Palette.removed : .clear, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        // Not `disabled`: that washes the picture out.
+        .allowsHitTesting(failed)
+        .accessibilityLabel(Text("图片 \(attachment.name)"))
+        .accessibilityHint(failed ? Text("轻点重试上传") : Text(""))
     }
 
     private func fileCard(_ attachment: DraftAttachment) -> some View {
@@ -394,7 +450,7 @@ struct AttachmentRail: View {
                     }
                 }
                 .progressViewStyle(.linear)
-                .tint(Palette.ink)
+                .inkTint()
                 .padding(.horizontal, 10)
                 .padding(.bottom, 4)
             }

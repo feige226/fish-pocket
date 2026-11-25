@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- The page KaTeXTypesetter (Views/MathKaTeX.swift) typesets formulas on, one at a time. -->
+<link rel="stylesheet" href="katex.min.css">
+<script src="katex.min.js"></script>
+<style>
+html, body { margin: 0; padding: 0; background: transparent; }
+body { color: #000; }
+#slot { position: absolute; left: 0; top: 0; padding: 4px; white-space: nowrap; }
+/* At the size of the reply's text, as SwiftMath draws it, not KaTeX's 1.21em. */
+#slot .katex { font-size: 1em; }
+#slot .katex-display { margin: 0; }
+#slot .katex-display > .katex { text-align: left; }
+/* On the web a number (`\tag`) sits at the right edge of the column; here the formula is the
+   column, and it would sit on the formula: it follows it instead. */
+#slot .katex-display > .katex > .katex-html > .katex-tag { position: static; margin-left: 1.5em; }
+#probe { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+</style>
+</head>
+<body>
+<div id="slot"></div>
+<script>
+// Every KaTeX font, loaded before the first formula. Left to load on first use, a font can miss
+// the drawing on iOS 17 (an integral sign or ∴ is simply not there), `document.fonts.ready`
+// notwithstanding.
+const fontsLoaded = Promise.all([...document.fonts].map(face => face.load().catch(() => null)));
+
+// The formula's frame on the page, how far it hangs below the baseline and whether it has colours
+// of its own, or null when KaTeX cannot typeset it. As the web version does: strict first, then
+// lenient, where a command KaTeX lacks is shown as written (in red). The rest is drawn in the
+// first of `inks`, the text's ink in light and dark mode.
+async function typeset(latex, display, size, inks) {
+  let html;
+  try {
+    html = katex.renderToString(latex, { displayMode: display, throwOnError: true });
+  } catch (error) {
+    try {
+      html = katex.renderToString(latex, { displayMode: display, strict: "ignore", throwOnError: false });
+    } catch (error) {
+      return null;
+    }
+  }
+  const slot = document.getElementById("slot");
+  slot.style.fontSize = size + "px";
+  slot.innerHTML = '<span id="probe"></span>' + html;
+  slot.dataset.inks = JSON.stringify(inks);
+  paint(inks[0]);
+  await fontsLoaded;
+  slot.getBoundingClientRect();
+  await document.fonts.ready;
+  const root = slot.querySelector(".katex-html");
+  if (!root) return null;
+  // Only what is drawn: KaTeX's boxes are taller than their ink (struts that hold lines apart)
+  // and wider (a stretchy brace or arrow is a 400em picture its box clips).
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  // `\color`, `\colorbox` and the like; `\phantom` is transparent, which is not a colour.
+  const base = getComputedStyle(slot).color;
+  const own = color => color !== base && color !== "transparent" && !/^rgba\(.*, 0\)$/.test(color);
+  let colored = false;
+  const add = (element, box) => {
+    for (let parent = element.parentElement; parent && parent !== slot; parent = parent.parentElement) {
+      if (getComputedStyle(parent).overflowX === "visible") continue;
+      const clip = parent.getBoundingClientRect();
+      box = { left: Math.max(box.left, clip.left), top: Math.max(box.top, clip.top), right: Math.min(box.right, clip.right), bottom: Math.min(box.bottom, clip.bottom) };
+    }
+    if (box.right <= box.left || box.bottom <= box.top) return;
+    left = Math.min(left, box.left); top = Math.min(top, box.top);
+    right = Math.max(right, box.right); bottom = Math.max(bottom, box.bottom);
+  };
+  const texts = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  while (texts.nextNode()) {
+    if (!texts.currentNode.data.trim()) continue;
+    if (own(getComputedStyle(texts.currentNode.parentElement).color)) colored = true;
+    range.selectNodeContents(texts.currentNode);
+    for (const box of range.getClientRects()) add(texts.currentNode, box);
+  }
+  for (const element of root.querySelectorAll("*")) {
+    const style = getComputedStyle(element);
+    const svg = element instanceof SVGSVGElement;
+    const borders = ["Top", "Right", "Bottom", "Left"].filter(side => parseFloat(style[`border${side}Width`]) > 0 && style[`border${side}Style`] !== "none");
+    const background = style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.backgroundColor !== "transparent";
+    if (own(style.backgroundColor) || (svg && own(style.color)) || borders.some(side => own(style[`border${side}Color`]))) colored = true;
+    if (svg || borders.length || background) add(element, element.getBoundingClientRect());
+  }
+  if (!(right > left && bottom > top)) return null;
+  left = Math.floor(left) - 1; top = Math.floor(top) - 1;
+  right = Math.ceil(right) + 1; bottom = Math.ceil(bottom) + 1;
+  const baseline = document.getElementById("probe").getBoundingClientRect().top;
+  // Where the web version may wrap a formula in running text: between KaTeX's bases, which end
+  // after a relation or an operator. A display formula has a line of its own.
+  const breaks = display ? [] : [...root.children]
+    .filter(element => element.classList.contains("katex-base")).slice(1)
+    .map(element => element.getBoundingClientRect().left - left)
+    .filter(x => x > 1 && x < right - left - 1);
+  return { x: left, y: top, width: right - left, height: bottom - top, descent: display ? 0 : Math.max(0, bottom - baseline), breaks, colored };
+}
+
+// The formula last typeset, in another ink: a coloured one is drawn again for dark mode.
+function recolor(ink) {
+  paint(ink);
+}
+
+// The formula in `ink`, except text on a `\colorbox` that has no colour of its own: whichever of
+// the inks stands out on the box, so that light text in dark mode is not lost on a yellow box.
+function paint(ink) {
+  const slot = document.getElementById("slot");
+  slot.style.color = ink;
+  const inks = JSON.parse(slot.dataset.inks);
+  const light = color => {
+    const [r, g, b] = color.match(/[\d.]+/g).map(Number);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  for (const element of slot.querySelectorAll(".katex-html *")) {
+    const style = getComputedStyle(element);
+    if (style.backgroundColor === "transparent" || /^rgba\(.*, 0\)$/.test(style.backgroundColor)) continue;
+    // The box is drawn beside its text, both in a stack (`vlist`): the colour goes on what holds the stack.
+    const holder = element.closest(".vlist-t")?.parentElement ?? element;
+    if (!holder.dataset.inked && getComputedStyle(holder).color !== getComputedStyle(slot).color) continue;
+    const ground = light(style.backgroundColor);
+    holder.style.color = inks.reduce((best, each) => Math.abs(light(each) - ground) > Math.abs(light(best) - ground) ? each : best);
+    holder.dataset.inked = "1";
+  }
+}
+</script>
+</body>
+</html>

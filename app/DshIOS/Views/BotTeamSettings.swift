@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What the whole Bot team shares: connectors, capabilities, keys, the mailbox, and how much
 /// it has used. Each Bot's own page switches these on or off for it.
 struct BotTeamSettingsView: View {
@@ -7,6 +8,8 @@ struct BotTeamSettingsView: View {
     @State private var releasing: JSON?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             Section {
@@ -35,19 +38,22 @@ struct BotTeamSettingsView: View {
                 Toggle(isOn: Binding(get: { team.showsThinking }, set: { on in Task { await team.setPrefs(["thinking": .bool(on)]) } })) {
                     Label("显示思考过程", systemImage: "brain")
                 }
-                Picker(selection: Binding(get: { team.prefs["defaultBotModel"].string ?? "" }, set: { ref in
-                    Task { await team.setPrefs(["defaultBotModel": ref.isEmpty ? .null : .string(ref)]) }
-                })) {
-                    Text(team.team["defaultModel"].string.flatMap(team.modelName).map { String(localized: "跟随 DSH（\($0)）") } ?? String(localized: "跟随 DSH")).tag("")
-                    ForEach(team.models.compactMap { item in item["ref"].string.map { (ref: $0, name: item["name"].string ?? $0) } }, id: \.ref) { item in
-                        Text(item.name).tag(item.ref)
-                    }
-                } label: { Label("新 Bot 的默认模型", systemImage: "cpu") }
-                .pickerValueTint()
+                // A row like the ones above, value on the right: the long「跟随 DSH（…）」choice
+                // wrapped a menu picker's value under its title.
+                NavigationLink { DefaultBotModelPage() } label: {
+                    LabeledContent {
+                        Text(team.prefs["defaultBotModel"].string.flatMap(team.modelName) ?? String(localized: "跟随 DSH"))
+                    } label: { Label("新 Bot 的默认模型", systemImage: "cpu") }
+                }
             } header: {
                 Text("偏好")
             } footer: {
-                Text("打开后，Bot 回复的步骤里会带上它的思考和用时。这两项和网页版共用。")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("打开后，Bot 回复的步骤里会带上它的思考和用时。这两项和网页版共用。")
+                    // Temporary: ds-bot pins every group's own Session to this model and DSH refuses
+                    // images on a text-only one (Fei2411/DS-Bot#1857). Drop once upstream fixes it.
+                    Text("群聊能不能发图片也由默认模型决定：选了不支持图片的模型，群里发图会被拒绝，和成员各自用什么模型无关。改完后重启 App，已有的群聊才会生效。")
+                }
             }
             .groupedRow()
             if !team.privateArchives.isEmpty {
@@ -94,6 +100,33 @@ struct BotTeamSettingsView: View {
                 if let id = releasing?["id"] { Task { await team.run("private-release", ["id": id]) } }
             }
         } message: { Text("它留下的文件不会删除，但别的 Bot 之后可以在那个文件夹里工作、读到里面的内容。") }
+    
+        }}
+}
+
+/// The model a new Bot starts on: DSH's default, or one the team picks.
+private struct DefaultBotModelPage: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        let team = app.botTeam
+        List {
+            Section {
+                Picker(selection: Binding(get: { team.prefs["defaultBotModel"].string ?? "" }, set: { ref in
+                    Task { await team.setPrefs(["defaultBotModel": ref.isEmpty ? .null : .string(ref)]) }
+                })) {
+                    Text(team.team["defaultModel"].string.flatMap(team.modelName).map { String(localized: "跟随 DSH（\($0)）") } ?? String(localized: "跟随 DSH")).tag("")
+                    ForEach(team.models.compactMap { item in item["ref"].string.map { (ref: $0, name: item["name"].string ?? $0) } }, id: \.ref) { item in
+                        Text(item.name).tag(item.ref)
+                    }
+                } label: { EmptyView() }
+                .pickerStyle(.inline)
+            }
+            .groupedRow()
+        }
+        .groupedList()
+        .navigationTitle("新 Bot 的默认模型")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -105,6 +138,8 @@ struct BotCapabilitiesPage: View {
     @State private var adding = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             if team.capabilities.isEmpty {
@@ -128,13 +163,16 @@ struct BotCapabilitiesPage: View {
         .navigationTitle("能力")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $adding) { NavigationStack { BotCapabilityEditor(original: nil) } }
-    }
+    
+        }}
 }
 
 struct BotCapabilityRow: View {
     let item: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Text(item["name"].string ?? "").foregroundStyle(Palette.ink)
@@ -144,7 +182,8 @@ struct BotCapabilityRow: View {
             if let detail = item["description"].string, !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(Palette.secondary).lineLimit(2) }
             if item["transport"].string == "stdio" { Text("需要在电脑上运行，iOS 上用不了").font(.caption2).foregroundStyle(Palette.waiting) }
         }
-    }
+    
+        }}
 
     static func kind(_ item: JSON) -> String {
         switch item["kind"].string {
@@ -174,6 +213,8 @@ struct BotCapabilityEditor: View {
     @State private var loaded = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         Form {
             Section {
@@ -215,7 +256,8 @@ struct BotCapabilityEditor: View {
         .navigationBarTitleDisplayMode(.inline)
         .saveToolbar(canSave: canSave, saving: saving, cancel: original == nil ? { dismiss() } : nil) { save() }
         .onAppear(perform: fill)
-    }
+    
+        }}
 
     private var canSave: Bool {
         guard !name.isEmpty else { return false }
@@ -277,6 +319,8 @@ struct BotSecretsPage: View {
     @State private var adding = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         List {
             if team.secrets.isEmpty {
@@ -307,7 +351,8 @@ struct BotSecretsPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: Binding(get: { editing.map(IdentifiedJSON.init) }, set: { editing = $0?.json })) { item in BotSecretSheet(original: item.json) }
         .sheet(isPresented: $adding) { BotSecretSheet(original: nil) }
-    }
+    
+        }}
 
     @MainActor
     static func scope(_ secret: JSON, team: BotModel) -> String {
@@ -335,6 +380,8 @@ private struct BotSecretSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack {
             Form {
@@ -363,7 +410,8 @@ private struct BotSecretSheet: View {
                 bots = Set(original["scope"].array.compactMap(\.string))
             }
         }
-    }
+    
+        }}
 
     private func save() {
         let scope: JSON = everyone ? "all" : .array(bots.sorted().map(JSON.string))
@@ -390,6 +438,8 @@ struct BotMailPage: View {
     @State private var recipient = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let mail = team.mail
         List {
@@ -435,7 +485,8 @@ struct BotMailPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $adding) { MailAccountSheet() }
         .task { await team.refreshState() }
-    }
+    
+        }}
 
     private func mailCall(_ endpoint: String, _ payload: [String: JSON]) {
         Task {
@@ -466,6 +517,8 @@ private struct MailAccountSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Form {
                 Section {
@@ -504,5 +557,6 @@ private struct MailAccountSheet: View {
                 }
             }
         }
-    }
+    
+        }}
 }

@@ -1,15 +1,15 @@
 import SwiftUI
 import WidgetKit
 
-/// 我的应用 on the home screen: the apps the user picked (the most recent ones until they pick),
+/// 我的应用 on the home screen: the apps the user picked (the newest ones until they pick),
 /// each one tap away. Opening one needs no engine.
 struct MiniAppsWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: MiniAppCatalog.widgetKind, intent: MiniAppsWidgetIntent.self, provider: MiniAppsProvider()) { entry in
             MiniAppsWidgetView(entry: entry)
         }
-        .configurationDisplayName("小工具")
-        .description("把你做的小工具和小游戏放到主屏幕上。")
+        .configurationDisplayName("Mini Apps")
+        .description("把你做的 Mini App 放到主屏幕上。")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -32,7 +32,7 @@ struct MiniAppsProvider: AppIntentTimelineProvider {
         Timeline(entries: [entry(configuration, context)], policy: .never)
     }
 
-    /// The picked apps still there, with their current names; none picked, the most recent.
+    /// The picked apps still there, with their current names; none picked, the newest.
     private func entry(_ configuration: MiniAppsWidgetIntent, _ context: Context) -> MiniAppsEntry {
         let all = MiniAppCatalog.read()
         let limit = context.family == .systemSmall ? 1 : 4
@@ -58,11 +58,17 @@ private struct MiniAppsWidgetView: View {
         .containerBackground(WidgetPalette.background, for: .widget)
     }
 
+    @ViewBuilder
     private func icon(_ app: MiniAppSummary, size: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
-            .fill(Color(miniApp: app.color).gradient)
-            .frame(width: size, height: size)
-            .overlay { Text(verbatim: app.icon).font(.system(size: size * 0.5)) }
+        let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+        if let image = MiniAppCatalog.icon(app) {
+            Image(uiImage: image).resizable().scaledToFill().frame(width: size, height: size).clipShape(shape)
+        } else {
+            Text(verbatim: app.icon)
+                .font(.system(size: size * 0.5))
+                .frame(width: size, height: size)
+                .widgetFill(Color(miniApp: app.color).gradient, in: shape)
+        }
     }
 
     private func small(_ app: MiniAppSummary) -> some View {
@@ -96,8 +102,8 @@ private struct MiniAppsWidgetView: View {
         VStack(alignment: .leading, spacing: 6) {
             FishMark(size: 18)
             Spacer(minLength: 0)
-            Text("小工具").font(.headline)
-            Text("在对话里让 Agent 做一个小工具").font(.caption).foregroundStyle(WidgetPalette.secondary).lineLimit(2)
+            Text("Mini Apps").font(.headline)
+            Text("在对话里让 Agent 做一个 Mini App").font(.caption).foregroundStyle(WidgetPalette.secondary).lineLimit(2)
         }
         .foregroundStyle(WidgetPalette.ink)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

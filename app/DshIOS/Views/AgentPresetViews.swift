@@ -1,17 +1,5 @@
 import SwiftUI
 
-/// 创造模式 (`cordis`) is held back on iOS: what it makes are plugins with their own
-/// Web views, and there is no good native SwiftUI way to run those yet. Only the entries
-/// that start it are hidden — the preset itself still exists, so a session already in it
-/// keeps its name everywhere. Drop this flag once the views have a native home.
-enum CreatorMode {
-    static let id = "cordis"
-    static let hidden = true
-
-    /// True for the preset whose entries are held back.
-    static func isHidden(_ presetId: String?) -> Bool { hidden && presetId == id }
-}
-
 /// PTC (`ptc`) is held back on iOS: its only tool, `run_code`, asks the subprocess provider
 /// for a control pipe the iOS provider cannot supply, so every call fails before any code
 /// runs (#171). Only the entries are hidden — the preset still exists, so a session already
@@ -35,7 +23,7 @@ enum PtcMode {
 }
 
 /// Presets whose entries iOS does not offer, as a default or for a new session.
-func presetHeldBack(_ presetId: String?) -> Bool { CreatorMode.isHidden(presetId) || PtcMode.isHidden(presetId) }
+func presetHeldBack(_ presetId: String?) -> Bool { PtcMode.isHidden(presetId) }
 
 /// The Agent preset roster (`agentPresets/list`) with the display copy the web keeps
 /// for shipped presets: a preset that publishes no name is one of these.
@@ -84,7 +72,7 @@ final class AgentPresetCatalog {
         case "standard": (String(localized: "标准模式"), String(localized: "处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。"))
         case "ptc": (String(localized: "PTC 模式"), String(localized: "包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。"))
         case "minimal": (String(localized: "极简模式"), String(localized: "Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。"))
-        case "cordis": (String(localized: "创造模式"), String(localized: "用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。"))
+        case "cordis": (String(localized: "创造模式"), String(localized: "用对话定制 DSH：让 Agent 编写插件，添加新工具、接入外部服务；也能组合工具和提示词，创建自己的模式。"))
         default: nil
         }
     }
@@ -196,7 +184,7 @@ private struct AgentPresetSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
         }
-        .tint(Palette.ink)
+        .inkTint()
         .presentationDetents([.medium, .large])
         .sheetNotices()
     }

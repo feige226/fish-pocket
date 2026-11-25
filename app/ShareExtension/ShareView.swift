@@ -3,7 +3,7 @@ import SwiftUI
 /// The sheet: what was shared on top, then where it goes: 新对话 first, then the Bots and the
 /// group chats in the Bot page's order. A tap opens the app there.
 struct ShareView: View {
-    let model: ShareModel
+    @ObservedObject var model: ShareModel
     /// The app's ink, as in the app: an extension does not take `NSAccentColorName` by itself.
     static let ink = Color("AccentColor")
 
@@ -22,15 +22,25 @@ struct ShareView: View {
         .tint(Self.ink)
     }
 
+    private func unavailable(_ title: String, symbol: String, message: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 32)).foregroundStyle(.secondary)
+            Text(title).font(.headline)
+            Text(message).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch model.phase {
         case .empty:
-            ContentUnavailableView("没能读取分享的内容", systemImage: "exclamationmark.triangle",
-                                   description: Text("换一种方式分享，或者在 Fish Pocket 里从文件添加。"))
+            unavailable("没能读取分享的内容", symbol: "exclamationmark.triangle",
+                         message: "换一种方式分享，或者在 Fish Pocket 里从文件添加。")
         case .waitingForApp:
-            ContentUnavailableView("已经准备好", systemImage: "checkmark.circle",
-                                   description: Text("打开 Fish Pocket 就能在输入框里看到，确认后再发送。"))
+            unavailable("已经准备好", symbol: "checkmark.circle",
+                         message: "打开 Fish Pocket 就能在输入框里看到，确认后再发送。")
         case .reading where model.preset != nil, .ready where model.preset != nil:
             // From the top row: nothing to pick, just a moment to read what was shared.
             VStack(spacing: 10) {
@@ -58,23 +68,23 @@ struct ShareView: View {
                         }
                     }
                 }
-                if !model.targets.bots.isEmpty {
-                    Section("Bot") {
-                        ForEach(model.targets.bots) { bot in
-                            Button { model.send(to: .bot(bot.id)) } label: {
-                                TargetRow(title: Text(verbatim: bot.name), detail: bot.role.isEmpty ? nil : Text(verbatim: bot.role)) {
-                                    BotPicture(bot: bot)
+                // One list, in the Bot page's order: a Bot's chat and a group side by side.
+                let entries = model.targets.entries
+                if !entries.isEmpty {
+                    Section("Bot 和群聊") {
+                        ForEach(entries) { entry in
+                            switch entry {
+                            case .bot(let bot):
+                                Button { model.send(to: .bot(bot.id)) } label: {
+                                    TargetRow(title: Text(verbatim: bot.name), detail: bot.role.isEmpty ? nil : Text(verbatim: bot.role)) {
+                                        BotPicture(bot: bot)
+                                    }
                                 }
-                            }
-                        }
-                    }
-                }
-                if !model.targets.rooms.isEmpty {
-                    Section("群聊") {
-                        ForEach(model.targets.rooms) { room in
-                            Button { model.send(to: .room(room.id)) } label: {
-                                TargetRow(title: Text(verbatim: room.name), detail: room.memberCount > 0 ? Text("\(room.memberCount) 个 Bot") : nil) {
-                                    RoomPicture(room: room)
+                            case .room(let room):
+                                Button { model.send(to: .room(room.id)) } label: {
+                                    TargetRow(title: Text(verbatim: room.name), detail: room.memberCount > 0 ? Text("\(room.memberCount) 个 Bot") : nil) {
+                                        RoomPicture(room: room)
+                                    }
                                 }
                             }
                         }
@@ -88,7 +98,7 @@ struct ShareView: View {
 
 /// What was shared: the first picture or a symbol, and a line or two saying what it is.
 private struct SharedPreview: View {
-    let model: ShareModel
+    @ObservedObject var model: ShareModel
 
     var body: some View {
         HStack(spacing: 12) {

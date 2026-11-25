@@ -4,9 +4,25 @@ import QuickLook
 import SwiftUI
 import WebKit
 
+/// What the files page and its search follow. The web keeps these per workspace root in
+/// browser storage (`dsh.sidebar-files.workspace-search.v1`), not in the engine; here they
+/// are the app's own, one choice for every workspace.
+private enum FileSearchPreference {
+    static let showHidden = "dsh.files.showHidden"
+    static let respectIgnore = "dsh.files.respectIgnore"
+    /// The web's default exclusion list (`search-rules.ts`). Its settings panel edits the list;
+    /// here it is fixed. A name without `/` is left out at any depth, with what it holds.
+    static let excluded = [
+        ".git", ".hg", ".next", ".pnpm-store", ".svn", ".turbo", ".yarn", "build", "coverage", "dist", "node_modules",
+        ".DS_Store", ".Spotlight-V100", ".Trashes", ".fseventsd", "Thumbs.db", "desktop.ini", "$RECYCLE.BIN", "System Volume Information",
+    ]
+}
+
 /// One directory of the session workspace (the workbench 文件 tab): folders
 /// push, files open their preview; files this session changed are marked. The
-/// listing follows `workspaceFiles/changes` while on screen (S-75).
+/// listing follows `workspaceFiles/changes` while on screen (S-75). As on the
+/// web's files page, names starting with a dot stay out until 显示隐藏项 is on,
+/// and the magnifier searches the whole workspace.
 struct DirectoryView: View {
     @Environment(AppModel.self) private var app
     let sessionId: String
@@ -18,12 +34,15 @@ struct DirectoryView: View {
     @State private var truncated = false
     @State private var error: String?
     @State private var loading = true
-    @State private var query = ""
     @State private var pendingReload: Task<Void, Never>?
+    @AppStorage(FileSearchPreference.showHidden) private var showHidden = false
+    #if DEBUG
+    /// `-dshOpen filesearch`: the workspace root opens on its search page, for screenshots.
+    @State private var searchShown = UserDefaults.standard.string(forKey: "dshOpen") == "filesearch"
+    #endif
 
     private var shown: [(name: String, type: String, size: Int?)] {
-        let needle = query.trimmed.lowercased()
-        return needle.isEmpty ? entries : entries.filter { $0.name.lowercased().contains(needle) }
+        showHidden ? entries : entries.filter { !$0.name.hasPrefix(".") }
     }
 
     var body: some View {
@@ -55,11 +74,23 @@ struct DirectoryView: View {
                 }
                 if truncated { Text("条目太多，只显示了一部分。").font(.footnote).foregroundStyle(Palette.secondary) }
             } header: {
-                VStack(alignment: .leading, spacing: 10) {
-                    if entries.count > 1 || !query.isEmpty { searchField }
-                    Text(displayPath).font(.footnote).foregroundStyle(Palette.secondary).textCase(nil)
+                HStack(spacing: 0) {
+                    Text(displayPath).font(.footnote).foregroundStyle(Palette.secondary)
                         .lineLimit(1).truncationMode(.head)
+                    Spacer(minLength: 8)
+                    Button { showHidden.toggle(); Haptics.select() } label: { tool(showHidden ? "eye" : "eye.slash") }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("显示隐藏项")
+                        .accessibilityAddTraits(showHidden ? .isSelected : [])
+                    NavigationLink {
+                        WorkspaceSearchView(sessionId: sessionId, root: root, modified: modified)
+                    } label: {
+                        tool("magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("搜索文件")
                 }
+                .textCase(nil)
             }
             .groupedRow()
         }
@@ -70,34 +101,28 @@ struct DirectoryView: View {
             } else if entries.isEmpty && error == nil {
                 ContentUnavailableView("空文件夹", systemImage: "folder")
             } else if shown.isEmpty && error == nil {
-                ContentUnavailableView.search(text: query)
+                // Every entry here is a hidden one.
+                ContentUnavailableView("隐藏项未显示", systemImage: "eye.slash")
             }
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        #if DEBUG
+        .navigationDestination(isPresented: path == "." ? $searchShown : .constant(false)) {
+            WorkspaceSearchView(sessionId: sessionId, root: root, modified: modified)
+        }
+        #endif
         .refreshable { await load() }
         // Lists, then follows; a reconnect drops the stream and may have missed changes.
         .task(id: app.generation) { await watch() }
         .onDisappear { pendingReload?.cancel() }
     }
 
-    /// The workbench hides the navigation bar on its root, so the field sits in the list.
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(Palette.faint)
-            TextField("筛选此文件夹", text: $query)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if !query.isEmpty {
-                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.faint).contentShape(Rectangle().inset(by: -8)) }
-                    .accessibilityLabel("清空搜索")
-            }
-        }
-        .font(.subheadline)
-        .textCase(nil)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 36)
-        .background(Palette.bubble, in: Capsule())
+    /// A control beside the path. The workbench hides the navigation bar on its root, so these
+    /// sit in the list, not in a toolbar.
+    private func tool(_ symbol: String) -> some View {
+        Image(systemName: symbol).font(.subheadline).foregroundStyle(Palette.ink)
+            .frame(width: 44, height: 36).contentShape(Rectangle())
     }
 
     private func row(_ entry: (name: String, type: String, size: Int?), _ child: String) -> some View {
@@ -167,6 +192,269 @@ struct DirectoryView: View {
                 }
             }
         } catch {}
+    }
+}
+
+/// The whole workspace searched by name or path (`workspaceFiles/search`, the web's files
+/// search): the engine walks every folder, listed here or not. A page of its own under the
+/// system's search field, since the files root has no navigation bar to hold one. A word
+/// without `/` matches names, one with `/` matches paths from the workspace root; the
+/// matches are a flat list in the engine's order, shallow first.
+private struct WorkspaceSearchView: View {
+    @Environment(AppModel.self) private var app
+    let sessionId: String
+    let root: String?
+    let modified: Set<String>
+    #if DEBUG
+    /// `-dshQuery <text>` opens the page on a search, for screenshots.
+    @State private var query = UserDefaults.standard.string(forKey: "dshQuery") ?? ""
+    #else
+    @State private var query = ""
+    #endif
+    /// The field takes the keyboard as the page opens.
+    @State private var active = true
+    /// The last search that came back; it stays up while the next one is out.
+    @State private var found: Found?
+    @State private var failure: String?
+    @State private var pending = false
+    /// Bumped by 重试.
+    @State private var attempt = 0
+    @AppStorage(FileSearchPreference.showHidden) private var showHidden = false
+    @AppStorage(FileSearchPreference.respectIgnore) private var respectIgnore = true
+
+    private struct Match: Identifiable {
+        /// From the workspace root, `/`-joined.
+        let path: String
+        let directory: Bool
+        var id: String { path }
+        var name: String { (path as NSString).lastPathComponent }
+        /// The folder it is in, empty at the root.
+        var folder: String { (path as NSString).deletingLastPathComponent }
+    }
+
+    private struct Found {
+        /// What was searched for, marked in the names.
+        var query: String
+        var matches: [Match]
+        /// More matched than the engine returns.
+        var truncated: Bool
+        /// The engine stopped at its file limit, or could not read some folder.
+        var incomplete: Bool
+    }
+
+    /// Everything a search depends on: a change in any of it searches again.
+    private struct Request: Hashable {
+        var query: String
+        var includeHidden: Bool
+        var respectIgnore: Bool
+        var attempt: Int
+        /// A new connection: the search a dropped one took down runs again.
+        var generation: Int
+    }
+
+    var body: some View {
+        // Whitespace around the text does not change what matches.
+        let request = Request(query: query.trimmed, includeHidden: showHidden, respectIgnore: respectIgnore, attempt: attempt, generation: app.generation)
+        List {
+            if !request.query.isEmpty {
+                Section {
+                    if let failure {
+                        Text(failure).foregroundStyle(Palette.removed)
+                        Button("重试") { attempt += 1 }
+                    }
+                    if let found {
+                        ForEach(found.matches) { match in link(match, marking: found.query) }
+                    }
+                } header: {
+                    status
+                } footer: {
+                    notes
+                }
+                .groupedRow()
+            }
+        }
+        .groupedList()
+        .scrollDismissesKeyboard(.immediately)
+        .overlay(alignment: .top) {
+            if request.query.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass").font(.title2).foregroundStyle(Palette.ink)
+                    Text("按名称搜索整个工作区，带 / 时匹配路径").font(.subheadline).foregroundStyle(Palette.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 32)
+                .padding(.top, 72)
+                .accessibilityElement(children: .combine)
+                .allowsHitTesting(false)
+            }
+        }
+        .navigationTitle("搜索文件")
+        .navigationBarTitleDisplayMode(.inline)
+        .fileSearchField(text: $query, isPresented: $active)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        // The field's own 取消 (✕ from iOS 26) is the way out, as on the session search page:
+        // before iOS 26 an active search hides the bar, and the back button with it. Never while
+        // there is text, so that only ending the search leaves the page.
+        .dismisses(when: !active && query.isEmpty)
+        .task(id: request) { await search(request) }
+    }
+
+    /// How many matched, a spinner while a search is out, and what the search leaves out.
+    /// In the list rather than the bar: before iOS 26 an active search field takes the bar's buttons away.
+    private var status: some View {
+        HStack(spacing: 8) {
+            if let found {
+                if found.matches.isEmpty { Text("没有匹配项") } else { Text("\(found.matches.count) 个结果") }
+            }
+            if pending { ProgressView().controlSize(.small) }
+            Spacer(minLength: 8)
+            Menu {
+                Toggle("显示隐藏项", isOn: $showHidden)
+                Toggle("跳过 .gitignore 忽略的文件", isOn: $respectIgnore)
+            } label: {
+                Image(systemName: "slider.horizontal.3").font(.subheadline).foregroundStyle(Palette.ink)
+                    .frame(width: 44, height: 36).contentShape(Rectangle())
+            }
+            .accessibilityLabel("搜索设置")
+        }
+        .font(.footnote)
+        .textCase(nil)
+    }
+
+    /// Under the matches: what may have kept a match out of an empty result, and what a cut
+    /// or partial result is missing.
+    @ViewBuilder
+    private var notes: some View {
+        if let found {
+            VStack(alignment: .leading, spacing: 4) {
+                if found.matches.isEmpty {
+                    if !showHidden { Text("没搜隐藏项。") }
+                    if respectIgnore { Text("没搜 .gitignore 忽略的文件。") }
+                    Text("没搜 node_modules、dist、build 这类目录。")
+                }
+                if found.truncated { Text("只显示前 \(found.matches.count) 个结果，请缩小搜索范围。") }
+                if found.incomplete { Text("文件太多，或有目录没读到，结果可能不全。") }
+            }
+        }
+    }
+
+    private func link(_ match: Match, marking needle: String) -> some View {
+        NavigationLink {
+            if match.directory {
+                DirectoryView(sessionId: sessionId, path: match.path, title: match.name, root: root, modified: modified)
+            } else {
+                FileContentView(sessionId: sessionId, path: match.path, root: root)
+            }
+        } label: {
+            row(match, marking: needle)
+        }
+        .contextMenu {
+            Button { copyToPasteboard(root.map { "\($0)/\(match.path)" } ?? match.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
+            Button { copyToPasteboard(match.path) } label: { Label("复制相对路径", systemImage: "doc.on.clipboard") }
+        }
+    }
+
+    /// The name, and under it the folder: the same name can match in many places.
+    private func row(_ match: Match, marking needle: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: match.directory ? "folder" : "doc").foregroundStyle(Palette.secondary).frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Self.marked(match.name, needle)).font(.callout).lineLimit(1).truncationMode(.middle)
+                if !match.folder.isEmpty {
+                    Text(match.folder).font(.caption).foregroundStyle(Palette.secondary).lineLimit(1).truncationMode(.head)
+                }
+            }
+            Spacer(minLength: 8)
+            if modified.contains(match.path) || (match.directory && modified.contains { $0.hasPrefix(match.path + "/") }) {
+                Text("已修改").font(.footnote).foregroundStyle(Palette.secondary)
+            }
+        }
+        .frame(minHeight: 34)
+    }
+
+    /// The name with every occurrence of the query in semibold, case ignored, as the web's
+    /// result tree marks them. A query with `/` matched the path, so no name holds it.
+    private static func marked(_ name: String, _ needle: String) -> AttributedString {
+        var text = AttributedString(name)
+        var start = text.startIndex
+        while start < text.endIndex, let range = text[start...].range(of: needle, options: .caseInsensitive) {
+            text[range].swiftUI.font = Font.callout.weight(.semibold)
+            start = range.upperBound
+        }
+        return text
+    }
+
+    /// A newer request cancels this one, the wait included, so only the last answer is drawn.
+    private func search(_ request: Request) async {
+        guard !request.query.isEmpty else {
+            found = nil
+            failure = nil
+            pending = false
+            return
+        }
+        // A new search takes a shown failure away; matches stay until the answer replaces them.
+        failure = nil
+        do {
+            // Typing settles first, and the spinner waits with it: no blink per keystroke.
+            try await Task.sleep(for: .milliseconds(250))
+            pending = true
+            let value = try await app.client.call("workspaceFiles/search", [
+                "workspaceFileScopeId": .string(sessionId),
+                "request": [
+                    "query": .string(request.query),
+                    "excludedPaths": .array(FileSearchPreference.excluded.map { JSON.string($0) }),
+                    "includeHidden": .bool(request.includeHidden),
+                    "respectGitignore": .bool(request.respectIgnore),
+                ],
+            ])
+            try Task.checkCancellation()
+            found = Found(
+                query: request.query,
+                matches: value["matches"].array.map { Match(path: $0["path"].string ?? "", directory: $0["type"].string == "directory") },
+                truncated: value["truncated"].bool ?? false,
+                incomplete: value["incomplete"].bool ?? false
+            )
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            if !(error is EngineError) {
+                // Not the engine's answer but the connection's. That comes back by itself, and the
+                // new `generation` searches again; only one that stays down is reported.
+                try? await Task.sleep(for: .seconds(3))
+                if Task.isCancelled { return }
+            }
+            found = nil
+            failure = Self.message(error)
+        }
+        pending = false
+    }
+
+    private static func message(_ error: Error) -> String {
+        let reason: String
+        switch (error as? EngineError)?.code {
+        case "workspace-file/not-found": reason = String(localized: "这个目录不在了。可能已被移动或删除。")
+        case "workspace-file/not-directory": reason = String(localized: "这不是一个目录。")
+        default: reason = error.localizedDescription
+        }
+        return String(localized: "搜索失败：\(reason)")
+    }
+}
+
+private extension View {
+    /// The system's search field for the files search. From iOS 26 it sits at the bottom, by the
+    /// keyboard, as on the session search page. Before, in the bar's drawer and always in view,
+    /// so the page is pushed with its field already there.
+    @ViewBuilder
+    func fileSearchField(text: Binding<String>, isPresented: Binding<Bool>) -> some View {
+        if #available(iOS 26.0, *) {
+            searchable(text: text, isPresented: isPresented, prompt: "搜索文件")
+                .toolbar { DefaultToolbarItem(kind: .search, placement: .bottomBar) }
+        } else {
+            searchable(text: text, isPresented: isPresented, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索文件")
+        }
     }
 }
 
@@ -240,7 +528,14 @@ struct FileContentView: View {
                 case .image: if let localURL { ZoomableImage(url: localURL).id(revision) }
                 case .webImage: if let localURL { InlineImageWebView(url: localURL).id(revision) }
                 case .pdf: if let localURL { PDFPreview(url: localURL).id(revision) }
-                case .unsupported: unsupported
+                case .unsupported:
+                    // Office documents, spreadsheets, audio, video: shown in place by the system's
+                    // own viewer when it knows the format.
+                    if let localURL, QLPreviewController.canPreview(localURL as NSURL) {
+                        QuickLookView(url: localURL).id(revision).ignoresSafeArea(edges: .bottom)
+                    } else {
+                        unsupported
+                    }
                 }
             }
         }
@@ -823,4 +1118,31 @@ private struct PDFKitView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: PDFView, context: Context) {}
+}
+
+/// One file in the system's Quick Look viewer, inside the page instead of over it: Word,
+/// Excel, PowerPoint, iWork, audio and video read here as they do in Files.
+struct QuickLookView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> Source { Source(url: url) }
+
+    func makeUIViewController(context: Context) -> QLPreviewController {
+        let controller = QLPreviewController()
+        controller.dataSource = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: QLPreviewController, context: Context) {
+        guard context.coordinator.url != url else { return }
+        context.coordinator.url = url
+        controller.reloadData()
+    }
+
+    final class Source: NSObject, QLPreviewControllerDataSource {
+        var url: URL
+        init(url: URL) { self.url = url }
+        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url as NSURL }
+    }
 }

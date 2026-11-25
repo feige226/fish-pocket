@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Perception
 /// The words of a request, in the reader's language: agents send their titles and buttons in English.
 enum RemoteNoticeText {
     static func title(of action: RemoteNotice.Action, in notice: RemoteNotice) -> String {
@@ -209,6 +209,8 @@ struct RemoteNoticeSheet: View {
     private var enabled: Bool { model.current && notice.answerable && !answered && !model.working && !approvalBlocked }
 
     var body: some View {
+        WithPerceptionTracking {
+
         PinnedActionsSheet(typing: typing) {
             VStack(alignment: .leading, spacing: 14) {
                 if let questions, !unsupported {
@@ -233,7 +235,8 @@ struct RemoteNoticeSheet: View {
         } actions: {
             actions.padding(EdgeInsets(top: 10, leading: 22, bottom: 22, trailing: 22))
         }
-    }
+    
+        }}
 
     private var detail: String? {
         guard notice.isApproval || !notice.context.object.isEmpty else { return nil }
@@ -370,7 +373,6 @@ struct RemoteNoticeSheet: View {
                 .background(Palette.field, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         case .toggle:
             Toggle(isOn: Binding(get: { value.wrappedValue?.bool ?? false }, set: { value.wrappedValue = .bool($0) })) { EmptyView() }
-                .toggleStyle(.mono)
         case .choice(let options):
             optionList(options, selected: { value.wrappedValue == $0 }, multiple: false) { value.wrappedValue = $0 }
         case .choices(let options):
@@ -485,7 +487,7 @@ struct RemoteNoticeSheet: View {
 
     private func move(to next: Int) {
         typing = false
-        withAnimation(.snappy(duration: 0.2)) { page = next }
+        withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { page = next }
     }
 
     private func pick(_ option: RemoteQuestionForm.Question.Option, in question: RemoteQuestionForm.Question, form: RemoteQuestionForm, index: Int) {
@@ -564,6 +566,8 @@ private struct RemoteCommandBlock: View {
     private let limit: CGFloat = 220
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 6) {
             ScrollView {
                 Text(text)
@@ -572,7 +576,7 @@ private struct RemoteCommandBlock: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+                    .onGeometryChangeCompat(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             }
             .frame(height: min(height, limit))
             .scrollBounceBehavior(.basedOnSize)
@@ -581,7 +585,8 @@ private struct RemoteCommandBlock: View {
                 Text("内容较长，滑动查看全部").font(.caption).foregroundStyle(Palette.secondary)
             }
         }
-    }
+    
+        }}
 }
 
 /// A plan the agent wrote in its plan mode: run it, send it back with a note, or leave it.
@@ -593,6 +598,8 @@ struct RemotePlanSheet: View {
     @FocusState private var typing: Bool
 
     var body: some View {
+        WithPerceptionTracking {
+
         PinnedActionsSheet(typing: typing) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("计划待确认").font(.footnote).foregroundStyle(Palette.secondary)
@@ -632,7 +639,8 @@ struct RemotePlanSheet: View {
             }
             .padding(EdgeInsets(top: 10, leading: 22, bottom: 22, trailing: 22))
         }
-    }
+    
+        }}
 
     private func act(_ action: String, feedback: String = "") {
         typing = false

@@ -56,6 +56,9 @@ static NSDictionary *reminder_json(EKReminder *reminder) {
   if (reminder.notes.length > 0) entry[@"notes"] = truncated(reminder.notes, kMaxNotesLength);
   // 0 is "none"; 1-4 high, 5 medium, 6-9 low, as EventKit defines it.
   if (reminder.priority != 0) entry[@"priority"] = @(reminder.priority);
+  // When it was ticked off, so "what did I finish this week" can be told apart
+  // from what was finished years ago.
+  if (reminder.completed && reminder.completionDate != nil) entry[@"completedAt"] = DshISO8601(reminder.completionDate);
   return entry;
 }
 
@@ -77,9 +80,78 @@ static NSString *reminder_summary(EKReminder *reminder) {
 
 #pragma mark - Reading
 
+/// A number argument, or nil when it is absent. Anything else is the caller's
+/// mistake and is reported rather than silently ignored.
+static BOOL number_arg(NSDictionary *args, NSString *key, NSNumber **out, NSString **error) {
+  id value = args[key];
+  if (value == nil || value == NSNull.null) { *out = nil; return YES; }
+  if (![value isKindOfClass:NSNumber.class]) {
+    *error = [NSString stringWithFormat:@"'%@' must be a number", key];
+    return NO;
+  }
+  *out = value;
+  return YES;
+}
+
+/// Seconds since 1970 as a date, or nil when absent.
+static NSDate *date_arg(NSNumber *seconds) {
+  return seconds == nil ? nil : [NSDate dateWithTimeIntervalSince1970:seconds.doubleValue];
+}
+
+/// Whether `date` falls in [from, to). A missing date is outside every range.
+static BOOL in_range(NSDate *date, NSDate *from, NSDate *to) {
+  if (date == nil) return NO;
+  if (from != nil && [date compare:from] == NSOrderedAscending) return NO;
+  if (to != nil && [date compare:to] != NSOrderedAscending) return NO;
+  return YES;
+}
+
 static void list_reminders(NSDictionary *args, DshNativeReply reply) {
   NSNumber *includeCompleted = args[@"includeCompleted"];
   BOOL wantCompleted = [includeCompleted isKindOfClass:NSNumber.class] && includeCompleted.boolValue;
+
+  NSString *order = args[@"order"];
+  if (order != nil && !([order isEqual:@"asc"] || [order isEqual:@"desc"])) {
+    reply(nil, @"'order' must be \"asc\" or \"desc\"");
+    return;
+  }
+  BOOL latestFirst = [order isEqual:@"desc"];
+  NSString *sort = args[@"sort"];
+  if (sort != nil && !([sort isEqual:@"due"] || [sort isEqual:@"completed"])) {
+    reply(nil, @"'sort' must be \"due\" or \"completed\"");
+    return;
+  }
+  BOOL byCompletion = [sort isEqual:@"completed"];
+
+  NSNumber *from = nil, *to = nil, *completedFrom = nil, *completedTo = nil, *offsetArg = nil, *limitArg = nil;
+  NSString *argError = nil;
+  if (!number_arg(args, @"from", &from, &argError) || !number_arg(args, @"to", &to, &argError)
+      || !number_arg(args, @"completedFrom", &completedFrom, &argError)
+      || !number_arg(args, @"completedTo", &completedTo, &argError)
+      || !number_arg(args, @"offset", &offsetArg, &argError) || !number_arg(args, @"limit", &limitArg, &argError)) {
+    reply(nil, argError);
+    return;
+  }
+  if (from != nil && to != nil && to.doubleValue <= from.doubleValue) {
+    reply(nil, @"list needs 'to' to be after 'from'");
+    return;
+  }
+  if (completedFrom != nil && completedTo != nil && completedTo.doubleValue <= completedFrom.doubleValue) {
+    reply(nil, @"list needs 'completedTo' to be after 'completedFrom'");
+    return;
+  }
+  NSDate *fromDate = date_arg(from), *toDate = date_arg(to);
+  NSDate *completedFromDate = date_arg(completedFrom), *completedToDate = date_arg(completedTo);
+  BOOL dueRange = fromDate != nil || toDate != nil;
+  BOOL completionRange = completedFromDate != nil || completedToDate != nil;
+  // Asking about when things were finished is asking about the finished ones:
+  // an unfinished reminder has no completion date to sort or filter by.
+  BOOL onlyCompleted = byCompletion || completionRange;
+  NSUInteger offset = offsetArg == nil || offsetArg.doubleValue < 0 ? 0 : offsetArg.unsignedIntegerValue;
+  // The page stays bounded whatever is asked for: the reply crosses into JS as
+  // one JSON string, and the rest is a `nextOffset` away.
+  NSUInteger limit = limitArg == nil || limitArg.doubleValue < 1 || limitArg.unsignedIntegerValue > kMaxReminders
+    ? kMaxReminders : limitArg.unsignedIntegerValue;
 
   with_access(^(BOOL granted, NSString *error) {
     if (!granted) { reply(nil, error); return; }
@@ -87,9 +159,11 @@ static void list_reminders(NSDictionary *args, DshNativeReply reply) {
       EKEventStore *store = DshEventStore();
       // Unfinished ones are what "what do I have to do" means; finished ones are
       // only asked for on purpose.
-      NSPredicate *predicate = wantCompleted
-        ? [store predicateForRemindersInCalendars:nil]
-        : [store predicateForIncompleteRemindersWithDueDateStarting:nil ending:nil calendars:nil];
+      NSPredicate *predicate = onlyCompleted
+        ? [store predicateForCompletedRemindersWithCompletionDateStarting:nil ending:nil calendars:nil]
+        : wantCompleted
+          ? [store predicateForRemindersInCalendars:nil]
+          : [store predicateForIncompleteRemindersWithDueDateStarting:nil ending:nil calendars:nil];
       // This fetch is already asynchronous, so it does not block the queue it
       // was asked on.
       [store fetchRemindersMatchingPredicate:predicate completion:^(NSArray<EKReminder *> *found) {
@@ -97,26 +171,51 @@ static void list_reminders(NSDictionary *args, DshNativeReply reply) {
           reply(nil, @"the reminders could not be read");
           return;
         }
-        NSArray<EKReminder *> *sorted = [found sortedArrayUsingComparator:^NSComparisonResult(EKReminder *a, EKReminder *b) {
-          NSDate *left = due_date(a), *right = due_date(b);
-          // Undated ones last: a list that opens with everything undated buries
-          // whatever is actually due.
-          if (left == nil && right == nil) return [a.title ?: @"" compare:b.title ?: @""];
-          if (left == nil) return NSOrderedDescending;
-          if (right == nil) return NSOrderedAscending;
-          return [left compare:right];
+        // Ranges are applied here rather than in the predicate, so that they mean
+        // the same whichever reminders were fetched. A reminder without the date
+        // a range is about is outside it.
+        NSArray<EKReminder *> *matching = found;
+        if (dueRange || completionRange) {
+          matching = [found filteredArrayUsingPredicate:
+                      [NSPredicate predicateWithBlock:^BOOL(EKReminder *reminder, NSDictionary *bindings) {
+            if (dueRange && !in_range(due_date(reminder), fromDate, toDate)) return NO;
+            if (completionRange && !in_range(reminder.completionDate, completedFromDate, completedToDate)) return NO;
+            return YES;
+          }]];
+        }
+        NSArray<EKReminder *> *sorted = [matching sortedArrayUsingComparator:^NSComparisonResult(EKReminder *a, EKReminder *b) {
+          NSDate *left = byCompletion ? a.completionDate : due_date(a);
+          NSDate *right = byCompletion ? b.completionDate : due_date(b);
+          // Ones without the date last in either order: a list that opens with
+          // everything undated buries whatever is actually due.
+          if (left == nil && right != nil) return NSOrderedDescending;
+          if (left != nil && right == nil) return NSOrderedAscending;
+          if (left != nil && right != nil) {
+            NSComparisonResult byDate = latestFirst ? [right compare:left] : [left compare:right];
+            if (byDate != NSOrderedSame) return byDate;
+          }
+          // Ties are settled by title and then id, so the order is the same on
+          // every call and paging with `offset` neither skips nor repeats one.
+          NSComparisonResult byTitle = [a.title ?: @"" compare:b.title ?: @""];
+          if (byTitle != NSOrderedSame) return byTitle;
+          return [a.calendarItemIdentifier ?: @"" compare:b.calendarItemIdentifier ?: @""];
         }];
 
         NSMutableArray *reminders = [NSMutableArray array];
-        for (EKReminder *reminder in sorted) {
-          if (reminders.count >= kMaxReminders) break;
-          [reminders addObject:reminder_json(reminder)];
+        for (NSUInteger index = offset; index < sorted.count && reminders.count < limit; index++) {
+          [reminders addObject:reminder_json(sorted[index])];
         }
-        reply(@{@"reminders": reminders,
-                @"total": @(sorted.count),
-                // (BOOL) for the same reason as caps_calendar.m: int 0/1 vs false.
-                @"truncated": @((BOOL)(sorted.count > reminders.count)),
-                @"auditSummary": [NSString stringWithFormat:@"· %lu", (unsigned long)sorted.count]}, nil);
+        NSUInteger next = offset + reminders.count;
+        NSMutableDictionary *result = [@{
+          @"reminders": reminders,
+          @"total": @(sorted.count),
+          @"offset": @(offset),
+          // (BOOL) for the same reason as caps_calendar.m: int 0/1 vs false.
+          @"truncated": @((BOOL)(next < sorted.count)),
+          @"auditSummary": [NSString stringWithFormat:@"· %lu", (unsigned long)sorted.count],
+        } mutableCopy];
+        if (next < sorted.count) result[@"nextOffset"] = @(next);
+        reply(result, nil);
       }];
     });
   });

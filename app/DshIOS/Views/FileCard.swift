@@ -111,3 +111,26 @@ struct FileCard: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+/// A file sent with a message: a tap opens it in the file preview, read from where the
+/// engine stored it, with Quick Look and sharing (导出、用其他 App 打开) in its menu.
+/// A picture of the conversation, or a ref that names no stored file, leaves just the card.
+struct SentFileCard: View {
+    let attachment: Attachment
+    @Environment(\.fileLinkScope) private var scope
+    @State private var open = false
+
+    var body: some View {
+        let card = FileCard(name: attachment.name ?? String(localized: "附件"), bytes: attachment.bytes)
+        if let scope, let path = attachment.storedPath {
+            Button { Haptics.tap(); open = true } label: { card.contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous)) }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("打开预览"))
+                .sheet(isPresented: $open) {
+                    FilePreviewSheet(sessionId: scope.sessionId, path: path, root: nil, lines: nil)
+                }
+        } else {
+            card
+        }
+    }
+}

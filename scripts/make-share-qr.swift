@@ -1,8 +1,8 @@
 #!/usr/bin/env swift
 // The QR code on the share poster (ShareAppPage) is a fixed picture: the link it points at
-// never changes at runtime. Run this again after changing `AppLinks.site`:
+// never changes at runtime. Run this again after changing `AppLinks.appStore`:
 //
-//   swift scripts/make-share-qr.swift https://fish.deepseek1024.com
+//   swift scripts/make-share-qr.swift https://apps.apple.com/app/id6830703602
 //
 // Writes app/DshIOS/Assets.xcassets/ShareQRCode.imageset/share-qr.png: black modules on
 // transparent, no quiet zone (the poster leaves its own margin), level M, 16 px a module.

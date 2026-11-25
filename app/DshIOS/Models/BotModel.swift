@@ -37,6 +37,30 @@ struct BotInfo: Identifiable, Hashable {
 }
 
 /// One group chat.
+/// A row of the Bot page's list: a Bot's chat or a group, listed together.
+enum BotListEntry: Identifiable {
+    case bot(BotInfo), room(RoomInfo)
+
+    var id: String {
+        switch self {
+        case .bot(let bot): "bot:\(bot.id)"
+        case .room(let room): "room:\(room.id)"
+        }
+    }
+    var pinned: Bool {
+        switch self {
+        case .bot(let bot): bot.pinned
+        case .room(let room): room.pinned
+        }
+    }
+    var sessionId: String {
+        switch self {
+        case .bot(let bot): bot.sessionId
+        case .room(let room): room.sessionId
+        }
+    }
+}
+
 struct RoomInfo: Identifiable, Hashable {
     let json: JSON
     var id: String { json["id"].string ?? "" }
@@ -109,6 +133,10 @@ final class BotModel {
     private(set) var rounds: [JSON] = []
     /// The group whose rounds `rounds` follows.
     private(set) var roundsRoom: String?
+    /// The rows of group rounds read from the group's book (`group-rows`), by the round's call id:
+    /// `{rows, open, active, speaking}`. `open` is the newest round, whose rows grow as the group
+    /// goes on; `active` says its members are at work, `speaking` who is answering.
+    private(set) var relayRows: [String: JSON] = [:]
     /// Open the scheduled tasks of the Bot or group whose chat asked (its ＋ tray).
     var scheduleRequest: BotComposer?
     /// Open a side question on the Bot whose chat asked (its ＋ tray).
@@ -119,8 +147,14 @@ final class BotModel {
     var openRequest: BotOpenRequest?
     /// Approvals already announced, so each rings once.
     @ObservationIgnored private var announcedApprovals: Set<String> = []
-    /// The chat on screen (a Bot's or a group's id): what waits there needs no announcement.
+    /// The chat on screen (a Bot's or a group's id), kept by the root view: what waits there
+    /// needs no announcement.
     var visibleChat: String?
+    /// Its session: a turn that ends there is read as it lands.
+    var visibleSession: String? {
+        guard let visibleChat else { return nil }
+        return bot(visibleChat)?.sessionId ?? room(visibleChat)?.sessionId
+    }
 
     @ObservationIgnored private var revision: Double?
     @ObservationIgnored private var liveKey: String?
@@ -159,6 +193,16 @@ final class BotModel {
     var mainBotId: String? { team["mainBotId"].string }
     var mainBot: BotInfo? { bots.first { $0.id == mainBotId } ?? bots.first }
     func bot(_ id: String) -> BotInfo? { bots.first { $0.id == id } }
+    /// The Bot whose own chat `sessionId` is, current part or earlier.
+    func botOwning(_ sessionId: String) -> BotInfo? { bots.first { $0.sessionId == sessionId || $0.parts.contains(sessionId) } }
+    /// The chat a Session of the team is shown in: its Bot's, or its group's (a member's Session
+    /// there included). Nil for a Session the team does not run.
+    func route(ofSession sessionId: String) -> BotRoute? {
+        guard !sessionId.isEmpty else { return nil }
+        if let bot = botOwning(sessionId) { return .bot(bot.id) }
+        if let room = rooms.first(where: { $0.sessionId == sessionId || $0.sessions.contains(sessionId) }) { return .room(room.id) }
+        return nil
+    }
     /// The Bots that take the user's work first; the first is `mainBotId`.
     var mainBotIds: [String] { team["mainBotIds"].array.compactMap(\.string) }
     func isMain(_ bot: BotInfo) -> Bool { mainBotIds.contains(bot.id) }
@@ -167,12 +211,12 @@ final class BotModel {
         if a.pinned != b.pinned { return a.pinned }
         return (app.sessions[a.sessionId]?.updatedAt ?? .distantPast) > (app.sessions[b.sessionId]?.updatedAt ?? .distantPast)
     }
-    /// The Bot list's order: pinned first, then the main Bots in their order, then the most recently active.
-    func listOrder(_ a: BotInfo, _ b: BotInfo) -> Bool {
+    /// The Bot list's order: pinned first, then the most recently active.
+    func listOrder(_ a: BotInfo, _ b: BotInfo) -> Bool { listOrder(.bot(a), .bot(b)) }
+    /// The Bot page's one list, Bots and groups together in the same order: pinned first, then
+    /// the most recently active, whichever kind it is. A main Bot has no place of its own.
+    func listOrder(_ a: BotListEntry, _ b: BotListEntry) -> Bool {
         if a.pinned != b.pinned { return a.pinned }
-        let main = mainBotIds
-        let ia = main.firstIndex(of: a.id) ?? .max, ib = main.firstIndex(of: b.id) ?? .max
-        if ia != ib { return ia < ib }
         return (app.sessions[a.sessionId]?.updatedAt ?? .distantPast) > (app.sessions[b.sessionId]?.updatedAt ?? .distantPast)
     }
     /// The models this DSH serves: `{ref, name, providerName, needsKey?}`.
@@ -316,6 +360,12 @@ final class BotModel {
         return bot.id == mainBotId && (shape == nil || shape == "whale") && bot.json["avatar"]["image"].isNull
     }
 
+    /// The Bot shows a picture (a photo the user gave it, or the app's own 大肥鱼), not one of the
+    /// drawn characters.
+    func showsPicture(_ bot: BotInfo) -> Bool {
+        usesAppMark(bot) || bot.avatarImage.flatMap(BotPicture.image) != nil
+    }
+
     /// The card a Bot is waiting on, in its own chat: `{id, question, detail?, options:[{label, description?}], multiSelect}`.
     func question(of bot: BotInfo) -> JSON? { team["questions"][bot.sessionId].nonNull }
 
@@ -398,9 +448,15 @@ final class BotModel {
         if let key = team["modelsKey"].string { payload["models"] = .string(key) }
         do {
             let value = try await call("state", .object(payload))
+            // A reply fading into the chat on screen is not stalled by what its turn's end changed here.
+            await app.arrivalLanded()
             // Each write tells every view that reads it, so only a change is written.
             if !reachable { reachable = true }
-            if value["unchanged"].bool != true, team != value { team = value }
+            if value["unchanged"].bool != true, team != value {
+                team = value
+                // Which sessions are Bot chats and which belong to groups decides where voice messages go.
+                VoiceMessageSync.shared.sync()
+            }
             if !value["activity"].isNull, activity != value["activity"].object { activity = value["activity"].object }
             if !value["work"].isNull, work != value["work"] { work = value["work"]; announceApprovals() }
             for key in Self.liveKeys where !value[key].isNull && live[key] != value[key] { live[key] = value[key] }
@@ -528,6 +584,28 @@ final class BotModel {
     }
 
     func round(_ callId: String) -> JSON? { rounds.first { $0["callId"].string == callId } }
+
+    /// Read a ranged round's rows from the group's book. `roomId` may be the group's Session.
+    func loadRows(of relay: RoomRelay, roomId: String) async {
+        guard var payload = relay.range else { return }
+        payload["roomId"] = .string(roomId)
+        guard let value = try? await call("group-rows", .object(payload)), value != relayRows[relay.call.id] else { return }
+        relayRows[relay.call.id] = value
+    }
+
+    /// What a round shows: its rows from the book, or the replies an older result carries.
+    func replies(of relay: RoomRelay) -> [JSON] {
+        relay.range == nil ? relay.replies : relayRows[relay.call.id]?["rows"].array ?? []
+    }
+
+    /// How many rows the rounds read so far hold: it grows as members speak.
+    var relayRowCount: Int { relayRows.values.reduce(0) { $0 + $1["rows"].array.count } }
+
+    /// A ranged round is read and closed, and nobody spoke in it: there is nothing to draw.
+    func rowsEmpty(_ relay: RoomRelay) -> Bool {
+        guard relay.range != nil, let view = relayRows[relay.call.id] else { return false }
+        return view["open"].bool == false && view["rows"].array.isEmpty
+    }
     var speaking: [String] { rounds.flatMap { $0["speaking"].array.compactMap(\.string) } }
 
     /// The tool a member runs in the open group's round, and what it works on. Not the words

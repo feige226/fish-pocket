@@ -305,6 +305,18 @@ static void pick_files(NSDictionary *args, DshNativeReply reply) {
                    "such as pdf — or leave 'types' out and the user can pick any file.", name]);
       return;
     }
+    // `pick` brings in copies, and a folder cannot be one (see the top of this
+    // file). UIKit knows that too, but says it with an assertion that takes the
+    // whole app down — for `public.folder` on its own. In any other list it just
+    // offers a choice that cannot work. So a folder type is refused like an
+    // unknown one: the caller learns why, and nothing is shown.
+    if ([type conformsToType:UTTypeFolder]) {
+      reply(nil, [NSString stringWithFormat:
+                  @"'%@' is a folder type, and the picker can only bring in copies of files, not "
+                   "folders, so no picker was shown. Leave it out of 'types' — or leave 'types' out "
+                   "and the user can pick any file; pass multiple: true for several files.", name]);
+      return;
+    }
     [types addObject:type];
   }
   // The initializer has no "anything" spelling of its own, so absent `types`

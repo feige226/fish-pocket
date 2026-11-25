@@ -6,7 +6,7 @@ struct PluginStoreView: View {
     @Environment(AppModel.self) private var app
     /// The sidebar button, where this page is the split view's detail.
     var openSidebar: (() -> Void)?
-    @AppStorage("dsh.store.tab") private var tab = "discover"
+    @AppStorage("dsh.store.tab") private var tab = "installed"
     @State private var model = PluginStoreModel()
     @State private var managing = false
     @State private var searching = false
@@ -46,14 +46,16 @@ struct PluginStoreView: View {
             guard model.readiness == .ready else { return }
             await model.market.loadIndexes(app)
         }
-        .onChange(of: manager.marketEnabled) { _, enabled in if !enabled { model.marketTurnedOff() } }
+        .onChange(of: manager.marketEnabled) { _, enabled in
+            if !enabled { model.marketTurnedOff() } else if model.readiness == .off { Task { await model.prepare(app) } }
+        }
         .followSettings()
     }
 
     private var tabs: some View {
         HStack(spacing: 2) {
-            tabButton("发现", value: "discover")
             tabButton("已安装", value: "installed")
+            tabButton("发现", value: "discover")
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
@@ -79,25 +81,8 @@ struct PluginStoreView: View {
 
     private var menu: some View {
         Menu {
-            let indexes = model.market.indexes ?? []
-            if indexes.count > 1 {
-                Section("插件市场") {
-                    ForEach(indexes, id: \.self) { index in
-                        Button {
-                            model.market.selected = index["url"].string
-                            Task { await model.market.reload(app) }
-                        } label: {
-                            if index["url"].string == model.market.url {
-                                Label(model.market.label(index), systemImage: "checkmark")
-                            } else {
-                                Text(model.market.label(index))
-                            }
-                        }
-                    }
-                }
-            }
             Button { managing = true } label: { Label("索引源", systemImage: "list.bullet") }
-                .disabled(model.readiness != .ready)
+                .disabled(model.readiness != .ready && model.readiness != .off)
             Button {
                 app.pluginInstall.openDialog()
             } label: {
@@ -149,13 +134,7 @@ private struct StoreDiscoverPage: View {
             case .unavailable:
                 ContentUnavailableView("无法管理插件", systemImage: "puzzlepiece.extension", description: Text("当前无法安装或启停插件。"))
             case .off:
-                ContentUnavailableView {
-                    Label("插件市场已关闭", systemImage: "storefront")
-                } description: {
-                    Text("它的开关在「设置 → 插件 → 实验性插件」")
-                } actions: {
-                    Button("开启") { Task { await model.enable(app) } }.buttonStyle(.capsule(height: 44, fill: false))
-                }
+                noMarket
             case .ready:
                 ready
             }
@@ -189,22 +168,28 @@ private struct StoreDiscoverPage: View {
         }
     }
 
+    /// No market is built in: browsing starts from a source the user turns on.
     private var noMarket: some View {
         ContentUnavailableView {
-            Label("还没有插件市场", systemImage: "storefront")
+            Label("没有启用插件市场", systemImage: "storefront")
         } description: {
-            Text("恢复预置市场，或添加其他索引。")
+            Text("Fish Pocket 不提供插件市场。你可以自行启用第三方索引源浏览插件，也可以从 npm、Git 仓库直接安装。")
         } actions: {
-            Button("恢复预置市场") { Task { await model.restorePreset(app) } }.buttonStyle(.capsule(height: 44, fill: false))
-            Button("添加索引源", action: manage).font(.subheadline.weight(.medium)).foregroundStyle(Palette.secondary).hitTarget()
+            Button("选择索引源", action: manage).buttonStyle(.capsule(height: 44, fill: false))
+            Button("安装第三方插件") { app.pluginInstall.openDialog() }
+                .font(.subheadline.weight(.medium)).foregroundStyle(Palette.secondary).hitTarget()
         }
     }
 
-    private func failure(_ retry: @escaping () async -> Void) -> some View {
+    private func failure(_ reason: String? = nil, _ retry: @escaping () async -> Void) -> some View {
         ContentUnavailableView {
             Text("无法读取插件市场").font(.title3.weight(.semibold))
         } description: {
-            Text("检查网络后再试一次。已经安装的插件不受影响。")
+            if let reason {
+                Text("\(reason)\n已经安装的插件不受影响。")
+            } else {
+                Text("检查网络后再试一次。已经安装的插件不受影响。")
+            }
         } actions: {
             Button("重试") { Task { await retry() } }.buttonStyle(.capsule(.outline, height: 44, fill: false))
         }
@@ -213,11 +198,12 @@ private struct StoreDiscoverPage: View {
     private var browser: some View {
         VStack(spacing: 0) {
             searchField
-            if market.failure != nil, market.entries.isEmpty {
-                failure { await market.reload(app, refresh: true) }
+            if let reason = market.failure, market.entries.isEmpty {
+                failure(reason) { await market.reload(app, refresh: true) }
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
+                        if let reason = market.failure { failureBanner(reason) }
                         if !searching { StoreWebUINote(compact: true).padding(.horizontal, 16).padding(.top, 12) }
                         if !searching, !categories.isEmpty { categoryBar }
                         sectionHeader {
@@ -234,6 +220,32 @@ private struct StoreDiscoverPage: View {
                 .refreshable { await market.reload(app, refresh: true) }
             }
         }
+    }
+
+    /// A read that failed over a list already shown: at the top, where it is seen, not under the
+    /// plugins it leaves as they were.
+    private func failureBanner(_ reason: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(Palette.removed)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(reason).font(.footnote.weight(.medium)).foregroundStyle(Palette.ink)
+                Text(market.fromCache ? "下面是上次读到的列表，可能不是最新的。" : "下面是之前读到的列表。")
+                    .font(.caption).foregroundStyle(Palette.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                Task { await market.reload(app, refresh: true) }
+            } label: {
+                Text("重试").font(.footnote.weight(.semibold)).foregroundStyle(Palette.ink).hitTarget()
+            }
+            .buttonStyle(.plain)
+            .disabled(market.loading)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Palette.removed.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
     }
 
     private var searchField: some View {
@@ -281,7 +293,7 @@ private struct StoreDiscoverPage: View {
 
     private var trustLine: some View {
         Button(action: manage) {
-            Text("来自 \(localized(market.result?["title"] ?? .null) ?? "")。插件由社区作者发布，Fish Pocket 不审核。")
+            Text("来自第三方索引「\(localized(market.result?["title"] ?? .null) ?? "")」。Fish Pocket 不提供也不审核这些插件，请仔细甄别，只安装你信任的插件。")
                 .font(.footnote)
                 .foregroundStyle(Palette.secondary)
                 .multilineTextAlignment(.leading)
@@ -307,7 +319,7 @@ private struct StoreDiscoverPage: View {
         } else {
             if wide { trustLine.padding(.horizontal, 34).padding(.bottom, 10) }
             rows(market.entries.map(StoreEntry.init), lead: wide ? nil : AnyView(trustLine.padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 6)))
-            if let failure = market.failure {
+            if let failure = market.moreFailure {
                 Text(failure).font(.footnote).foregroundStyle(Palette.removed).padding(.horizontal, 34).padding(.top, 10)
             }
             if market.result?["nextOffset"].isNull == false {
@@ -433,7 +445,7 @@ private struct StoreDiscoverPage: View {
     }
 }
 
-/// A plugin's picture: its icon when it ships one, else a letter of its name. The preset index has
+/// A plugin's picture: its icon when it ships one, else a letter of its name. Most indexes have
 /// no icons, and one glyph repeated down a list would tell the rows apart less than this does.
 struct StoreArt: View {
     let name: String
@@ -476,16 +488,12 @@ private struct StoreRow: View {
                 HStack(spacing: 12) {
                     StoreArt(name: entry.name, icon: entry.icon)
                     VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(entry.displayName).font(.callout).foregroundStyle(Palette.ink).lineLimit(1)
-                            ForEach(entry.labels, id: \.self) { id in
-                                if let title = localized(metadata["labels"][id]["title"]) { PluginTag(text: title) }
-                            }
-                        }
+                        Text(entry.displayName).font(.callout).foregroundStyle(Palette.ink).lineLimit(1)
                         if let summary = entry.summary {
                             Text(summary).font(.footnote).foregroundStyle(Palette.secondary).lineLimit(1)
                         }
                         Text(meta).font(.caption).foregroundStyle(Palette.secondary).lineLimit(1)
+                        if !labels.isEmpty { tags.padding(.top, 2) }
                     }
                     Spacer(minLength: 0)
                 }
@@ -496,7 +504,30 @@ private struct StoreRow: View {
         }
         .padding(.leading, 14)
         .padding(.trailing, 12)
+        .padding(.vertical, 6)
         .frame(minHeight: wide ? 86 : 74)
+    }
+
+    /// The labels the market declares, by title. Some indexes give a plugin half a dozen (what it
+    /// may do): a line of their own, a few of them, so the name keeps its room.
+    private var labels: [String] { entry.labels.compactMap { localized(metadata["labels"][$0]["title"]) } }
+
+    /// As many whole tags as the row has room for, and a count of the rest.
+    private var tags: some View {
+        ViewThatFits(in: .horizontal) {
+            tagLine(3)
+            tagLine(2)
+            tagLine(1)
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .clipped()
+    }
+
+    private func tagLine(_ count: Int) -> some View {
+        HStack(spacing: 4) {
+            ForEach(labels.prefix(count), id: \.self) { PluginTag(text: $0).fixedSize() }
+            if labels.count > count { PluginTag(text: "+\(labels.count - count)").fixedSize() }
+        }
     }
 
     private var meta: String {
@@ -505,7 +536,7 @@ private struct StoreRow: View {
 
     @ViewBuilder
     private var action: some View {
-        switch entry.status {
+        switch model.status(entry, app) {
         case "installed": installedLink(String(localized: "已安装"))
         case "update-available": installedLink(String(localized: "有新版本"))
         case "provided": installedLink(String(localized: "随 DSH 提供"))
@@ -525,8 +556,8 @@ private struct StoreRow: View {
                         .hitTarget()
                 }
                 .buttonStyle(.plain)
-                .disabled(model.market.fromCache)
-                .opacity(model.market.fromCache ? 0.4 : 1)
+                .disabled(!model.installable(app))
+                .opacity(model.installable(app) ? 1 : 0.4)
                 .accessibilityLabel("安装 \(entry.displayName)")
             }
         }
@@ -695,48 +726,56 @@ private struct StorePackageRow: View {
 
 // MARK: - 索引源
 
-/// The index list, written whole with `setIndexes`. The preset is an ordinary source the user may
-/// remove; a row brings it back.
+/// The index list, written whole with `setIndexes`. The example sources are third-party: each is
+/// off until the user turns it on and confirms that, and is then an ordinary source of theirs.
 struct StoreSourcesSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     let model: PluginStoreModel
     @State private var draft = ""
+    @State private var confirming: ExampleIndex?
+    /// The example being turned on, for its spinner while the market starts.
+    @State private var turningOn: String?
 
     private var market: PluginMarketModel { model.market }
-    private var urls: [String] { (market.indexes ?? []).compactMap { $0["url"].string } }
+    private var urls: [String] { model.urls }
+    /// What the user added by address: the source in use, when it is not an example.
+    private var custom: [JSON] {
+        guard model.readiness == .ready else { return [] }
+        return (market.indexes ?? []).filter { PluginStoreCatalog.example($0["url"].string) == nil }
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(market.indexes ?? [], id: \.self) { index in
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text(title(index)).foregroundStyle(Palette.ink).lineLimit(1)
-                                if index["url"].string == PluginStoreCatalog.presetIndex { PluginTag(text: String(localized: "预置")) }
-                            }
-                            Text(index["url"].string ?? "").font(.caption).foregroundStyle(Palette.secondary).lineLimit(1)
-                            if let error = index["error"].string { Text(error).font(.caption).foregroundStyle(Palette.removed) }
-                        }
-                    }
-                    .onDelete { offsets in
-                        var next = urls
-                        next.remove(atOffsets: offsets)
-                        Task { _ = await market.saveSources(next, adding: false, app) }
-                    }
-                    if !model.hasPreset {
-                        Button {
-                            Task { await model.restorePreset(app) }
-                        } label: {
-                            Label("恢复预置市场", systemImage: "arrow.counterclockwise").foregroundStyle(Palette.ink)
-                        }
-                        .disabled(market.saving)
-                    }
+                    notice
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+                Section {
+                    ForEach(PluginStoreCatalog.examples) { exampleRow($0) }
+                    if draft.isEmpty, let failure = failureText { Text(failure).font(.caption).foregroundStyle(Palette.removed) }
+                } header: {
+                    Text("示例索引源")
                 } footer: {
-                    Text("打开「发现」时，App 会访问这里列出的地址。左滑可移除。")
+                    Text("列在这里只为方便你添加，默认不启用，不代表 Fish Pocket 推荐其中的内容。同一时间只能启用一个索引源，启用另一个会替换当前的。")
                 }
                 .groupedRow()
+                if !custom.isEmpty {
+                    Section {
+                        ForEach(custom, id: \.["url"]) { customRow($0) }
+                            .onDelete { offsets in
+                                let removed = offsets.compactMap { custom[$0]["url"].string }
+                                market.removeSources(removed, app)
+                            }
+                    } header: {
+                        Text("自己添加的")
+                    } footer: {
+                        Text("左滑可移除。")
+                    }
+                    .groupedRow()
+                }
                 Section {
                     // A string, not a key: a key's URL would read as a link, in link colour.
                     TextField(String("https://example.com/index.json"), text: $draft)
@@ -744,18 +783,18 @@ struct StoreSourcesSheet: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onChange(of: draft) { _, _ in market.clearSourceFailure() }
-                    if let failure = failureText { Text(failure).font(.caption).foregroundStyle(Palette.removed) }
+                    if !draft.isEmpty, let failure = failureText { Text(failure).font(.caption).foregroundStyle(Palette.removed) }
                     Button("添加") {
                         let url = draft.trimmingCharacters(in: .whitespaces)
                         Task {
-                            if await market.saveSources(urls + [url], adding: true, app) { draft = "" }
+                            if await model.use(url, app) { draft = "" }
                         }
                     }
-                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || market.saving)
+                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || model.busy)
                 } header: {
                     Text("添加索引源")
                 } footer: {
-                    Text("索引由第三方提供。只添加你信任的来源：其中的插件安装后以你的权限运行。")
+                    Text("打开「发现」时，App 会访问启用的索引源。索引由第三方提供，只添加你信任的来源：其中的插件安装后以你的权限运行。")
                 }
                 .groupedRow()
             }
@@ -763,8 +802,72 @@ struct StoreSourcesSheet: View {
             .navigationTitle("索引源")
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
+            .alert("启用第三方索引源？", isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }), presenting: confirming) { index in
+                Button("取消", role: .cancel) {}
+                Button("我已了解，启用") {
+                    turningOn = index.url
+                    Task {
+                        _ = await model.use(index.url, app)
+                        turningOn = nil
+                    }
+                }
+            } message: { index in
+                Text("「\(index.name)」（\(index.host)）是第三方运营的插件索引，这里只作为示例列出。Fish Pocket 不提供、不运营这个索引，也不审核或担保其中的插件。\n\n插件安装后会以你的权限在本机运行，可能读写文件、联网或执行命令。请仔细甄别插件的来源、作者和说明，只安装你信任的插件。安装和使用第三方插件的风险需由你自行承担，感谢理解。")
+            }
         }
-        .tint(Palette.ink)
+        .inkTint()
+    }
+
+    /// Before any switch: these are not ours, and what they list is for the user to judge.
+    private var notice: some View {
+        Label {
+            Text("Fish Pocket 不提供插件市场。下面的示例索引由第三方独立运营，我们不运营、不审核，也不对其中的插件作任何担保。是否启用、安装哪些插件，请你自行判断：仔细甄别插件的来源和作者，留意它能做什么，只安装你信任的插件。")
+                .font(.footnote)
+                .foregroundStyle(Palette.ink)
+        } icon: {
+            Image(systemName: "exclamationmark.shield").foregroundStyle(Palette.waiting)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.waiting.opacity(0.1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func exampleRow(_ index: ExampleIndex) -> some View {
+        let on = urls.contains(index.url)
+        let error = (market.indexes ?? []).first { $0["url"].string == index.url }?["error"].string.map { PluginMarketModel.indexProblem(message: $0) }
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(index.name).foregroundStyle(Palette.ink).lineLimit(1)
+                    PluginTag(text: String(localized: "第三方"))
+                }
+                Text(index.summary).font(.caption).foregroundStyle(Palette.secondary)
+                Text(index.host).font(.caption).foregroundStyle(Palette.faint).lineLimit(1)
+                if on, let error { Text(error).font(.caption).foregroundStyle(Palette.removed) }
+            }
+            Spacer(minLength: 0)
+            if turningOn == index.url, !on {
+                ProgressView().frame(width: 51)
+            } else {
+                Toggle(index.name, isOn: Binding(get: { on }, set: { value in
+                    if value {
+                        confirming = index
+                    } else {
+                        Task { _ = await model.use(nil, app) }
+                    }
+                }))
+                .labelsHidden()
+                .disabled(model.busy || model.readiness == .checking || model.readiness == .unavailable)
+            }
+        }
+    }
+
+    private func customRow(_ index: JSON) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title(index)).foregroundStyle(Palette.ink).lineLimit(1)
+            Text(index["url"].string ?? "").font(.caption).foregroundStyle(Palette.secondary).lineLimit(1)
+            if let error = index["error"].string { Text(PluginMarketModel.indexProblem(message: error)).font(.caption).foregroundStyle(Palette.removed) }
+        }
     }
 
     /// A source lists its host until it is read; the market on screen has been.

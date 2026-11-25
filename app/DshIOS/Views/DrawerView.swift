@@ -23,13 +23,12 @@ struct DrawerView: View {
         }
     }
 
-    /// What it is drawn as: the sidebar before iOS 18 (iPad, and the phone's drawer), or on the tab
-    /// bar the 会话 tab's list (search included) and the archive pushed on it.
+    /// What it is drawn as: the sidebar on an iPad before iOS 18 (a drawer where the window is narrow), on the tab
+    /// bar the 会话 tab's list (search included), or 设置 → 已归档会话 (`archive()`).
     enum Style { case sidebar, sessions, archived }
 
-    /// The pages of the 会话 tab's stack (`MainView`); the sidebar's own stack pushes only the archive.
+    /// The pages of the 会话 tab's stack (`MainView`).
     enum Route: Hashable {
-        case archived
         case session(String)
 
         var session: String? {
@@ -79,6 +78,9 @@ struct DrawerView: View {
 
     private static let ungrouped = ""
     private static let baseRows = 5
+    /// How many more sessions one tap on 「展开其余 n 个会话」 shows. The web adds five, which
+    /// is too few for a tap here.
+    private static let moreRows = 20
     private static let autoMaxRows = 50
     private static let searchLimit = 20
 
@@ -116,19 +118,14 @@ struct DrawerView: View {
                 miniAppsRow
                 phoneControlRow
                 connectorsRow
-                capabilitiesRow
                 webRow
+                shortcutsRow
                 remoteControlRow
                 sessionsHeader
                 if app.remote.expired { remoteExpiredRow }
                 if grouping == .time { timeList } else { groupList }
-                archivedEntry
             }
             .sessionList()
-            .refreshable {
-                await app.refreshSessions()
-                await app.remote.refresh()
-            }
             // Both bars float: the list scrolls under them, up to the screen's edges.
             .floatingBars(top: topBar, bottom: bottomBar)
             .background(Palette.background)
@@ -141,55 +138,41 @@ struct DrawerView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: Route.self) { _ in archivedPage }
         }
         .onChange(of: searchRequest) { openSearch() }
-        .fullScreenCover(isPresented: $searchOpen) { searchPage }
+        .fullScreenCover(isPresented: $searchOpen, onDismiss: { search = "" }) { searchPage }
     }
 
     // MARK: On the tab bar
 
-    /// The 会话 tab: the sessions alone, under the system's large title and search field. What the
-    /// sidebar also holds has tabs of its own (Bot, 工具); a new conversation and the view menu are
-    /// in the bar. While searching, the matches take the list's place. The stack around it is the
-    /// shell's, which pushes the conversation.
+    /// The 会话 tab: the sessions alone, under a small title. What the sidebar also holds has tabs
+    /// of its own (Bot, 工具); the view menu and a new conversation are in the bar, and the system's
+    /// search field is above the list, shown by pulling down.
+    /// The stack around it is the shell's, which pushes the conversation.
     private var sessionsTab: some View {
-        let query = search.trimmingCharacters(in: .whitespaces)
-        return List {
-            if searchActive || !query.isEmpty {
-                if !query.isEmpty { searchResults }
+        List {
+            if !search.trimmingCharacters(in: .whitespaces).isEmpty {
+                searchResults
             } else {
                 if let engineStatus {
                     Text(engineStatus).font(.footnote).foregroundStyle(Palette.secondary).padding(.horizontal, 12).plainRow()
                 }
                 if app.remote.expired { remoteExpiredRow }
                 if grouping == .time { timeList } else { groupList }
-                archivedEntry
             }
         }
         .sessionList()
-        .overlay(alignment: .top) {
-            if searchActive, query.isEmpty {
-                Text("搜索会话标题和消息内容")
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.secondary)
-                    .padding(.top, 48)
-                    .allowsHitTesting(false)
-            }
-        }
-        .refreshable {
-            await app.refreshSessions()
-            await app.remote.refresh()
-        }
         .background(Palette.background)
+        .tabEdgesSoftened()
         .navigationTitle(Self.sessionsTitle)
-        .navigationBarTitleDisplayMode(.large)
-        // Always in view, by choice: from iOS 27 the large title then starts folded into the bar
-        // (pulling down unfolds it). The other placement keeps the large title but hides the field.
-        .searchable(text: $search, isPresented: $searchActive, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索会话")
+        // A small title, as every tab's: a large one only takes room.
+        .navigationBarTitleDisplayMode(.inline)
+        // The system's field in the bar, out of sight above the list until it is pulled down; what
+        // is typed turns the list into the matches.
+        .searchable(text: $search, isPresented: $searchActive, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索会话")
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
-        // ⌘F and the like: the field of this tab.
+        // ⌘F and the like.
         .onChange(of: searchRequest) { searchActive = true }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { viewMenu(compact: true) }
@@ -261,7 +244,7 @@ struct DrawerView: View {
             .searchFieldAtBottom()
             .modifier(SearchPageClose(action: closeSearch))
         }
-        .tint(Palette.ink)
+        .inkTint()
         .opacity(searchShown ? 1 : 0)
         .presentationBackground(.clear)
         .onAppear { withAnimation(.easeOut(duration: 0.2)) { searchShown = true } }
@@ -292,6 +275,11 @@ struct DrawerView: View {
             searchShown = false
             searchActive = false
             withoutAnimation { searchOpen = false }
+        } else if style == .sessions, searchActive || !search.isEmpty {
+            // The 会话 tab's own field: back from the conversation, the list is whole again.
+            clearFocusedSearchField()
+            search = ""
+            searchActive = false
         }
         select(id)
     }
@@ -378,7 +366,6 @@ struct DrawerView: View {
                 Image(systemName: "puzzlepiece.extension").font(.callout).foregroundStyle(Palette.ink).frame(width: 22)
                 Text("插件").font(.subheadline.weight(pluginsSelected ? .medium : .regular)).foregroundStyle(Palette.ink)
                 Spacer()
-                if !pluginsSelected { Text("发现").font(.footnote).foregroundStyle(Palette.secondary) }
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 46)
@@ -390,8 +377,11 @@ struct DrawerView: View {
         .plainRow()
     }
 
-    /// What the agent can reach over MCP (GitHub, Notion…). The services come with the Bot plugin
-    /// but every conversation gets their tools, so the way in is here, not only in the Bot team's settings.
+    /// What the agent can reach: services over MCP (GitHub, Notion…) and, as a category of their
+    /// own, this phone's device capabilities. The MCP services come with the Bot plugin but every
+    /// conversation gets their tools, so the way in is here, not only in the Bot team's settings.
+    /// The row is always there: the device capabilities need no plugin, and if this row is hard to
+    /// find they are simply never switched on (docs/native-services.md §5.5).
     private var connectorsRow: some View {
         let team = app.botTeam
         let connected = team.status == .ready ? team.connectors.filter { $0["state"].string == "ready" }.count : 0
@@ -400,26 +390,7 @@ struct DrawerView: View {
                 Image(systemName: "point.3.connected.trianglepath.dotted").font(.callout).foregroundStyle(Palette.ink).frame(width: 22)
                 Text("连接器").font(.subheadline).foregroundStyle(Palette.ink)
                 Spacer()
-                Text(connected > 0 ? String(localized: "\(connected) 个已连接") : String(localized: "外部服务")).font(.footnote).foregroundStyle(Palette.secondary)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 46)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.bottom, 2)
-        .plainRow()
-    }
-
-    /// This phone's own capabilities. A row of their own: they need no plugin, and if the way in is
-    /// hard to find they are simply never switched on (docs/native-services.md §5.5).
-    private var capabilitiesRow: some View {
-        Button { Haptics.tap(); app.nativeCapabilitiesRequest = UUID() } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "iphone").font(.callout).foregroundStyle(Palette.ink).frame(width: 22)
-                Text("本机能力").font(.subheadline).foregroundStyle(Palette.ink)
-                Spacer()
-                Text("日历、健康、照片等").font(.footnote).foregroundStyle(Palette.secondary)
+                Text(connected > 0 ? String(localized: "\(connected) 个已连接") : String(localized: "服务和本机能力")).font(.footnote).foregroundStyle(Palette.secondary)
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 46)
@@ -435,9 +406,9 @@ struct DrawerView: View {
         Button { Haptics.tap(); app.miniAppsRequest = UUID() } label: {
             HStack(spacing: 12) {
                 Image(systemName: "apps.iphone").font(.callout).foregroundStyle(Palette.ink).frame(width: 22)
-                Text("小工具").font(.subheadline).foregroundStyle(Palette.ink)
+                Text(MiniAppsPage.tabTitle).font(.subheadline).foregroundStyle(Palette.ink)
                 Spacer()
-                Text(miniApps.apps.isEmpty ? String(localized: "小工具和小游戏") : String(localized: "\(miniApps.apps.count) 个小工具")).font(.footnote).foregroundStyle(Palette.secondary)
+                Text(miniApps.apps.isEmpty ? String(localized: "小工具和小游戏") : String(localized: "\(miniApps.apps.count) 个 Mini App")).font(.footnote).foregroundStyle(Palette.secondary)
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 46)
@@ -485,6 +456,24 @@ struct DrawerView: View {
                 Text("网页版").font(.subheadline).foregroundStyle(Palette.ink)
                 Spacer()
                 Text("插件界面").font(.footnote).foregroundStyle(Palette.secondary)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 46)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, 2)
+        .plainRow()
+    }
+
+    /// 快捷指令: what Siri and the Shortcuts app can open, and how to make an automation of it.
+    private var shortcutsRow: some View {
+        Button { Haptics.tap(); app.shortcutsRequest = UUID() } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "square.2.layers.3d").font(.callout).foregroundStyle(Palette.ink).frame(width: 22)
+                Text("快捷指令").font(.subheadline).foregroundStyle(Palette.ink)
+                Spacer()
+                Text("Siri 和自动化").font(.footnote).foregroundStyle(Palette.secondary)
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 46)
@@ -630,6 +619,7 @@ struct DrawerView: View {
         case .starting: String(localized: "引擎启动中")
         case .running: nil
         case .exited(let code): String(localized: "引擎已退出（\(code)）")
+        case .unsupported: String(localized: "这台设备运行不了引擎")
         }
     }
 
@@ -815,13 +805,13 @@ struct DrawerView: View {
         }
     }
 
-    /// 「展开其余 n 个会话」 five at a time (all when five or fewer remain), then 「收起」.
+    /// 「展开其余 n 个会话」 twenty at a time (all when twenty or fewer remain), then 「收起」.
     private func moreRow(_ group: SessionGroup, shown: Int) -> some View {
         let hidden = group.rows.count - shown
         return Button {
             withAnimation(.snappy(duration: 0.2)) {
                 if hidden > 0 {
-                    watermark[group.id] = hidden <= Self.baseRows ? group.rows.count : shown + Self.baseRows
+                    watermark[group.id] = hidden <= Self.moreRows ? group.rows.count : shown + Self.moreRows
                 } else {
                     watermark[group.id] = nil
                 }
@@ -967,23 +957,19 @@ struct DrawerView: View {
         allSessions(includeArchived: true).filter { app.isArchived($0.id) }.sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    /// The way to the archive, at the end of the list; nothing archived, nothing to see.
-    @ViewBuilder
-    private var archivedEntry: some View {
-        let count = archivedRows.count + remote.listed(archived: true).count
-        if count > 0 {
-            NavigationLink(value: Route.archived) {
-                HStack(spacing: 10) {
-                    Image(systemName: "archivebox").font(.system(size: 15)).foregroundStyle(Palette.secondary).frame(width: 22)
-                    Text("已归档").font(.subheadline).foregroundStyle(Palette.ink)
-                    Spacer(minLength: 4)
-                    Text("\(count)").font(.caption).foregroundStyle(Palette.faint)
-                }
-                .padding(.leading, 12)
-            }
-            .padding(.top, 8)
-            .plainRow()
-        }
+    /// 设置 → 已归档会话: the archive alone, local and remote. Its rows do not open (they offer to come back),
+    /// so nothing here selects or starts a conversation.
+    static func archive() -> DrawerView {
+        DrawerView(selection: nil, workspace: nil, rowFrames: DrawerRowFrames(),
+                   select: { _ in }, newConversation: { _ in }, openSettings: {}, openSchedules: {}, openCordis: {},
+                   openSignIn: {}, style: .archived)
+    }
+
+    /// How many conversations are archived, here and on the user's computers.
+    @MainActor static func archivedCount(_ app: AppModel) -> Int {
+        let local = (app.workspaces.flatMap { app.sessions(in: $0, includeArchived: true) } + app.sessions(in: nil, includeArchived: true))
+            .filter { app.isArchived($0.id) }.count
+        return local + app.remote.listed(archived: true).count
     }
 
     private var archivedPage: some View {
@@ -998,7 +984,7 @@ struct DrawerView: View {
         }
         .sessionList()
         .background(Palette.background)
-        .navigationTitle("已归档")
+        .navigationTitle("已归档会话")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Palette.background, for: .navigationBar)
     }
@@ -1177,7 +1163,7 @@ struct DrawerView: View {
             } label: {
                 Label(archived ? "取消归档" : "归档", systemImage: archived ? "tray.and.arrow.up" : "archivebox")
             }
-            .tint(Palette.ink)
+            .tint(Palette.swipe)
         }
         .contextMenu { menu(for: session) }
         .reportsFrame(session.id, to: rowFrames)
@@ -1250,7 +1236,7 @@ struct DrawerView: View {
             } label: {
                 Label(session.archived ? "取消归档" : "归档", systemImage: session.archived ? "tray.and.arrow.up" : "archivebox")
             }
-            .tint(Palette.ink)
+            .tint(Palette.swipe)
         }
         .contextMenu {
             if let openInWindow, !session.archived {
@@ -1340,7 +1326,7 @@ struct MachineTag: View {
 
 /// The way out of the search page on iPad from iOS 26: there the system puts the field in the
 /// bar, and it has no ✕ of its own to leave by as the phone's has (before iOS 26 it has 取消).
-private struct SearchPageClose: ViewModifier {
+struct SearchPageClose: ViewModifier {
     @Environment(\.horizontalSizeClass) private var sizeClass
     let action: () -> Void
 
@@ -1460,15 +1446,6 @@ private extension View {
         }
     }
 
-    /// From iOS 26 the search field sits at the bottom, by the keyboard, as the system's own apps have it.
-    @ViewBuilder
-    func searchFieldAtBottom() -> some View {
-        if #available(iOS 26.0, *) {
-            toolbar { DefaultToolbarItem(kind: .search, placement: .bottomBar) }
-        } else {
-            self
-        }
-    }
 
     /// A list row with no fill, separator or selection inset (headers, notes).
     func plainRow() -> some View {
@@ -1489,5 +1466,17 @@ private extension View {
         onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.set($0, of: id) }
             .onAppear { frames.setShown(id, true) }
             .onDisappear { frames.setShown(id, false) }
+    }
+}
+
+extension View {
+    /// From iOS 26 the search field sits at the bottom, by the keyboard, as the system's own apps have it.
+    @ViewBuilder
+    func searchFieldAtBottom() -> some View {
+        if #available(iOS 26.0, *) {
+            toolbar { DefaultToolbarItem(kind: .search, placement: .bottomBar) }
+        } else {
+            self
+        }
     }
 }

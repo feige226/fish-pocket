@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import IosSpeech, { BASE, credentialHeaders, tellApp } from '../plugins/ios-speech/index.mjs';
+import IosSpeech, { BASE, credentialHeaders } from '../plugins/ios-speech/index.mjs';
 
 /** A context with the given credential store and account, and the routes the plugin registers. */
 function fakeContext({ key, token } = {}) {
@@ -77,18 +77,4 @@ test('failures say what kind they are', async () => {
 
   const status = await routes.get('/api/ios-speech/status').fetch(new Request('http://x'));
   assert.deepEqual(await status.json(), { ready: true });
-});
-
-test('the agent reaches the app through its feed, and only while one is open', async () => {
-  assert.equal(tellApp('say', { text: 'nobody' }), false);
-  const { ctx, routes } = fakeContext();
-  new IosSpeech(ctx);
-  const abort = new AbortController();
-  const response = await routes.get('/api/ios-speech/feed').fetch(new Request('http://x', { signal: abort.signal }));
-  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-  assert.match((await reader.read()).value, /hello/);
-  assert.equal(tellApp('say', { text: '你好' }), true);
-  assert.equal((await reader.read()).value, 'event: say\ndata: {"text":"你好"}\n\n');
-  abort.abort();
-  assert.equal(tellApp('stop'), false);
 });

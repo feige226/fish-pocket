@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 struct Workspace: Identifiable, Hashable {
@@ -100,7 +100,7 @@ struct RenameRequest: Identifiable {
 /// Everything above one conversation: the engine connection, workspaces and
 /// their sessions. Views read it from the environment.
 @MainActor
-@Observable
+@Perceptible
 final class AppModel {
     let client: EngineClient
     let mux: StreamMux
@@ -112,14 +112,23 @@ final class AppModel {
     let remote = RemoteStore.shared
     /// This engine's conversations opened in this run (DSH's own, a Bot's chat, a group's), kept
     /// between visits as remote ones are. A new engine generation starts with none.
-    @ObservationIgnored private(set) lazy var localSessions = SessionKeeper<SessionModel>()
+    @PerceptionIgnored private(set) lazy var localSessions = SessionKeeper<SessionModel>()
 
     private(set) var workspaces: [Workspace] = []
     private(set) var pinned: [String] = []
     private(set) var archived: Set<String> = []
     private(set) var sessions: [String: SessionSummary] = [:]
-    /// Live per-session projections from `session/control` (title, todos, inbox…).
-    private(set) var control: [String: [String: JSON]] = [:]
+    /// `sessions` as the session lists read it (`sessions(in:)`). The lists are rebuilt whole from
+    /// it, so it is kept apart: a session starting or stopping reaches it with the next read of the
+    /// list (`refreshSessions`), a moment later, not with the status event, which lands among a
+    /// turn's first frames as the message just sent settles. Every other change to `sessions` is
+    /// followed by `syncListed()`.
+    private(set) var listed: [String: SessionSummary] = [:]
+    /// Live per-session projections from `session/control` (title, todos, inbox…), read through
+    /// `control(_:_:)`. Each value is observed by itself: the Host sends a frame for every event
+    /// it commits, a dozen in a turn's first second, and as one dictionary each of them redrew
+    /// every view that reads any session's projection (the list, the conversation, the composer).
+    @ObservationIgnored private var controlValues: [String: [String: Tracked<JSON?>]] = [:]
     /// Tool calls waiting for permission, by session (agent) id.
     private(set) var approvals: [String: [PendingApproval]] = [:]
     /// `user-questions/request` waterfalls this client holds, by session id: while one
@@ -147,7 +156,7 @@ final class AppModel {
     var pendingPrompts: [String: String] = [:]
     /// Files another app shared, waiting for a session's composer to attach them.
     var pendingFiles: [String: SharedFiles] = [:]
-    /// Sessions whose composer takes the keyboard when it appears (`dsh://new`).
+    /// Sessions whose composer takes the keyboard when it appears (`fishpocket://new`).
     var pendingFocus: Set<String> = []
     /// A session to open in the main view (set through `open(session:)`; the root view consumes it).
     var openRequest: (id: String, token: UUID)?
@@ -155,13 +164,12 @@ final class AppModel {
     var pluginStoreRequest: UUID?
     /// Open the engine's web version, where plugin interfaces live (the root view consumes it).
     var webRequest: UUID?
-    /// Open the device-capability screen, where the user grants and reviews them
-    /// (the root view consumes it).
-    var nativeCapabilitiesRequest: UUID?
     /// Open the connectors (the root view consumes it).
     var connectorsRequest: UUID?
     /// Open 操控手机, the iCTRL switch (the root view consumes it).
     var phoneControlRequest: UUID?
+    /// Open the 快捷指令 guide, the sidebar's row before iOS 18 on iPad (the root view consumes it).
+    var shortcutsRequest: UUID?
     /// The drawer's 我的应用 row: the shell opens the page.
     var miniAppsRequest: UUID?
     /// A credential step to open (set through `requestCredentials`; the root view consumes it).
@@ -181,21 +189,22 @@ final class AppModel {
     /// Bumped on every `ready`: a new connection generation, after which every
     /// view re-reads its baseline (emits missed while offline are not replayed).
     private(set) var generation = 0
-    /// Count of `emit`s seen per event name; read through `revision(_:)`.
-    private(set) var eventCounts: [String: Int] = [:]
+    /// Count of `emit`s seen per event name; read through `revision(_:)`. One observed value
+    /// per name, so that an event redraws only the views waiting on it.
+    @ObservationIgnored private var eventCounts: [String: Tracked<Int>] = [:]
 
-    @ObservationIgnored private var workspaceTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var eventsTask: Task<Void, Never>?
-    @ObservationIgnored private var controlTask: Task<Void, Never>?
-    @ObservationIgnored private var scheduleTask: Task<Void, Never>?
-    @ObservationIgnored private var eventsClientId: String?
+    @PerceptionIgnored private var workspaceTask: Task<Void, Never>?
+    @PerceptionIgnored private var refreshTask: Task<Void, Never>?
+    @PerceptionIgnored private var eventsTask: Task<Void, Never>?
+    @PerceptionIgnored private var controlTask: Task<Void, Never>?
+    @PerceptionIgnored private var scheduleTask: Task<Void, Never>?
+    @PerceptionIgnored private var eventsClientId: String?
     /// `api-session/status` from `$events`: the live running flag, which wins over
     /// `session/list` (that one can read idle while a tool call runs).
-    @ObservationIgnored private var runningStatus: [String: Bool] = [:]
-    @ObservationIgnored private var listeners: [UUID: (String, [JSON]) -> Void] = [:]
+    @PerceptionIgnored private var runningStatus: [String: Bool] = [:]
+    @PerceptionIgnored private var listeners: [UUID: (String, [JSON]) -> Void] = [:]
     /// Subagent children by parent, rebuilt with the list; rows ask per redraw.
-    @ObservationIgnored private(set) var childSessions: [String: [String]] = [:]
+    @PerceptionIgnored private(set) var childSessions: [String: [String]] = [:]
 
     init(launchURL: URL) {
         client = EngineClient(launchURL: launchURL)
@@ -205,6 +214,17 @@ final class AppModel {
         cordis.attach(self)
         DeepSeekSpeech.client = client
         ReadAloud.shared.onError = { [weak self] message in self?.showToast(message, tone: .warning) }
+        ReadAloud.shared.ownerFor = { [weak self] session in
+            session.flatMap { self?.botTeam.botOwning($0) }.map { .bot($0.id) } ?? session.map(VoiceOwner.session)
+        }
+        VoiceMessagePlayer.shared.onError = { [weak self] message in self?.showToast(message, tone: .warning) }
+        VolcSpeech.shared.onRuntimeKeyRefused = { [weak self] in
+            Task { await self?.fishPocket.repairRuntimeKey() }
+        }
+        fishPocket.onRuntimeKeyChange = { [weak self] in
+            guard let self else { return }
+            Task { await FishPocketImageGen.sync(in: self.settings) }
+        }
     }
 
     func connect() async {
@@ -218,9 +238,12 @@ final class AppModel {
             followRemoteEvents()
             followScheduleCatalog()
             account.follow()
-            Task { await fishPocket.start() }
+            Task {
+                await fishPocket.start()
+                await FishPocketImageGen.sync(in: settings)
+            }
             botTeam.start()
-            DeepSeekSpeech.followAgent()
+            VoiceMessageSync.shared.attach(self)
             BackgroundKeeper.shared.attach { [weak self] in await self?.refreshSessions() }
             LiveActivityController.shared.attach(self)
             WidgetSnapshotWriter.shared.attach(self)
@@ -238,10 +261,10 @@ final class AppModel {
     func sessions(in workspace: Workspace?, includeArchived: Bool = false) -> [SessionSummary] {
         let members: [SessionSummary]
         if let workspace {
-            members = workspace.sessionIds.compactMap { sessions[$0] }
+            members = workspace.sessionIds.compactMap { listed[$0] }
         } else {
             let grouped = Set(workspaces.flatMap(\.sessionIds))
-            members = sessions.values.filter { !grouped.contains($0.id) }
+            members = listed.values.filter { !grouped.contains($0.id) }
         }
         // The Bot team's sessions (its Bots' chats, the groups and their members' hidden
         // sessions) live on the Bot pages.
@@ -258,7 +281,7 @@ final class AppModel {
     }
 
     func title(of id: String) -> String {
-        if let title = control[id]?["title"]?.string, !title.isEmpty { return title }
+        if let title = control(id, "title")?.string, !title.isEmpty { return title }
         return sessions[id]?.displayTitle ?? String(localized: "新会话")
     }
 
@@ -277,13 +300,57 @@ final class AppModel {
 
     /// Waiting on the user: a tool approval or an open question.
     func isWaiting(_ id: String) -> Bool {
-        !(approvals[id] ?? []).isEmpty || !(questionRequests[id] ?? []).isEmpty || control[id]?["userQuestions"]?["active"].array.isEmpty == false
+        !(approvals[id] ?? []).isEmpty || !(questionRequests[id] ?? []).isEmpty || control(id, "userQuestions")?["active"].array.isEmpty == false
+    }
+
+    /// When what is animating into a conversation (a message just sent, a Bot's reply) is in place.
+    @ObservationIgnored private var arrivalEnds: ContinuousClock.Instant?
+
+    /// A message was sent and shows already (`PendingSubmission.showsBubble`): its bubble is rising.
+    func bubbleRises() { arrives(for: .milliseconds(350)) }
+
+    /// A Bot's reply, held back while it was written, fades into its chat (`AssistantTurnView`):
+    /// the length of that animation and a little more, for it to settle.
+    func replyArrives() { arrives(for: .milliseconds(350)) }
+
+    private func arrives(for duration: Duration) {
+        let end = ContinuousClock.now + duration
+        if arrivalEnds.map({ $0 < end }) ?? true { arrivalEnds = end }
+    }
+
+    /// Returns once that is in place. The engine answers a send within the bubble's rise, and ends a
+    /// turn as the reply fades in, with a burst of frames (the session's events, a projection for each,
+    /// its status, the Bots' state), and every one of them redraws most of the app: the animation would
+    /// stall on each. The streams wait here before a frame.
+    func arrivalLanded() async {
+        guard let arrivalEnds, arrivalEnds > .now else { return }
+        try? await Task.sleep(until: arrivalEnds, clock: .continuous)
+    }
+
+    /// The live value of one projection key of a session; nil until the Host has sent it.
+    func control(_ id: String, _ key: String) -> JSON? {
+        if let held = controlValues[id]?[key] { return held.value }
+        // Read before the Host sent it: the reader waits on this value, not on the others.
+        let held = Tracked<JSON?>(nil)
+        controlValues[id, default: [:]][key] = held
+        return held.value
+    }
+
+    private func setControl(_ id: String, _ key: String, _ value: JSON?) {
+        if let held = controlValues[id]?[key] { held.value = value } else { controlValues[id, default: [:]][key] = Tracked(value) }
+    }
+
+    private func eventCount(_ event: String) -> Tracked<Int> {
+        if let held = eventCounts[event] { return held }
+        let held = Tracked(0)
+        eventCounts[event] = held
+        return held
     }
 
     /// Changes whenever any of `events` is emitted or the connection is re-established:
     /// `.task(id: app.revision("schedule/changed")) { reload() }` re-reads on both.
     func revision(_ events: String...) -> Int {
-        events.reduce(generation * 100_000) { $0 + (eventCounts[$1] ?? 0) }
+        events.reduce(generation * 100_000) { $0 + eventCount($1).value }
     }
 
     /// Every `emit` from `$events`, for views that need the arguments (install logs…).
@@ -334,7 +401,9 @@ final class AppModel {
                 if let old = sessions[summary.id] { observeRunning(summary.id, from: old.running, to: summary.running) }
                 next[summary.id] = summary
             }
-            completionUnread.formIntersection(next.keys)
+            // Assigned, not changed in place: an equal value assigned redraws nothing, and this
+            // runs after each event of a turn.
+            completionUnread = completionUnread.intersection(next.keys)
             sessions = next
             childSessions = Dictionary(grouping: next.values.filter { $0.isSubagent && $0.parentId != nil }, by: { $0.parentId ?? "" })
                 .mapValues { $0.sorted { $0.updatedAt < $1.updatedAt }.map(\.id) }
@@ -345,7 +414,12 @@ final class AppModel {
         } catch {
             showToast(error.localizedDescription, tone: .warning)
         }
+        syncListed()
         await loadMissingTitles()
+    }
+
+    private func syncListed() {
+        if listed != sessions { listed = sessions }
     }
 
     /// Read one session's projections; no Agent is resumed.
@@ -357,9 +431,11 @@ final class AppModel {
     }
 
     /// A turn that ends while its session is not open leaves a completion reminder (`ui-session`).
+    /// A Bot's chat or a group on screen is open too: beside the Bot list, the reminder would
+    /// show on the row of the chat being read.
     private func observeRunning(_ id: String, from old: Bool, to running: Bool) {
         if running { completionUnread.remove(id) }
-        else if old && id != currentSession { completionUnread.insert(id) }
+        else if old && id != currentSession && id != botTeam.visibleSession { completionUnread.insert(id) }
     }
 
     /// One shared `schedule/catalog` read for the drawer and settings counts, the row clock
@@ -403,7 +479,7 @@ final class AppModel {
 
     /// Rows without cached projections carry no title; read them once (no agent is resumed).
     private func loadMissingTitles() async {
-        let missing = sessions.values.filter { $0.title == nil && !$0.blank && !$0.isSubagent && control[$0.id]?["title"] == nil }.map(\.id)
+        let missing = sessions.values.filter { $0.title == nil && !$0.blank && !$0.isSubagent && control($0.id, "title") == nil }.map(\.id)
         guard !missing.isEmpty else { return }
         let client = self.client
         let titles = await withTaskGroup(of: (String, String?).self) { group in
@@ -418,6 +494,7 @@ final class AppModel {
             return result
         }
         for (id, title) in titles { sessions[id]?.title = title }
+        syncListed()
     }
 
     /// Session rows change with every turn; coalesce refreshes requested in bursts.
@@ -425,6 +502,8 @@ final class AppModel {
         refreshTask?.cancel()
         refreshTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
+            // A turn's end asks for this as its reply fades in: the list waits for it too.
+            await arrivalLanded()
             guard !Task.isCancelled else { return }
             await refreshSessions()
         }
@@ -450,7 +529,9 @@ final class AppModel {
         switch frame["type"].string {
         case "baseline", "replace":
             workspaces = frame["value"]["items"].array.map(Workspace.init)
+            let before = archived
             archived = Set(frame["value"]["archivedSessionIds"].array.compactMap(\.string))
+            BrowserModel.releasePages(of: archived.subtracting(before))
             pinned = frame["value"]["pinnedSessionIds"].array.compactMap(\.string)
         case "upsert":
             let workspace = Workspace(frame["workspace"])
@@ -462,7 +543,10 @@ final class AppModel {
             let order = frame["workspaceIds"].array.compactMap(\.string)
             workspaces.sort { (order.firstIndex(of: $0.id) ?? .max) < (order.firstIndex(of: $1.id) ?? .max) }
         case "archived":
+            let before = archived
             archived = Set(frame["archivedSessionIds"].array.compactMap(\.string))
+            // Wherever it was archived from (here, the web, an agent), its browser lets its pages go.
+            BrowserModel.releasePages(of: archived.subtracting(before))
         case "pinned":
             pinned = frame["pinnedSessionIds"].array.compactMap(\.string)
         default:
@@ -471,21 +555,30 @@ final class AppModel {
         scheduleRefresh()
     }
 
-    /// Per-session projections for every visible session: a baseline, then single-key replacements.
+    /// Per-session projections for every visible session: a baseline, then the keys each event changed.
     private func followControl() {
         controlTask?.cancel()
         controlTask = Task {
             while !Task.isCancelled {
                 do {
                     for try await frame in mux.open("session/control", [:]) {
+                        await arrivalLanded()
                         switch frame["type"].string {
                         case "baseline":
-                            var next: [String: [String: JSON]] = [:]
-                            for (id, projection) in frame["value"]["projections"].object { next[id] = projection["values"].object }
-                            control = next
+                            let projections = frame["value"]["projections"].object.mapValues { $0["values"].object }
+                            // What the baseline no longer has goes back to unknown.
+                            for (id, held) in controlValues {
+                                for key in held.keys where projections[id]?[key] == nil { setControl(id, key, nil) }
+                            }
+                            for (id, values) in projections {
+                                for (key, value) in values { setControl(id, key, value) }
+                            }
                         case "projection":
-                            if let id = frame["sessionId"].string, let key = frame["key"].string {
-                                control[id, default: [:]][key] = frame["value"]
+                            // One frame per committed event, with every key it changed: `changes: [{key, val}]`.
+                            if let id = frame["sessionId"].string {
+                                for change in frame["changes"].array {
+                                    if let key = change["key"].string { setControl(id, key, change["val"]) }
+                                }
                             }
                         default:
                             break
@@ -511,6 +604,7 @@ final class AppModel {
                 do {
                     for try await frame in mux.open("$events", [:]) {
                         if frame["type"].string == "ready" { attempt = 0 }
+                        await arrivalLanded()
                         await handleRemoteEvent(frame)
                     }
                 } catch {
@@ -556,7 +650,7 @@ final class AppModel {
                 await respond(eventId, outcome: ["kind": "next"])
             }
         case "emit" where frame["event"].string == "api-session/status":
-            eventCounts["api-session/status", default: 0] += 1
+            eventCount("api-session/status").value += 1
             let args = frame["args"].array
             guard let id = args.first?.string, let running = args.dropFirst().first?.bool else { return }
             runningStatus[id] = running
@@ -564,13 +658,15 @@ final class AppModel {
                 observeRunning(id, from: old, to: running)
                 sessions[id]?.running = running
                 reportRunning()
+                // The lists hear of it with the read this asks for (`listed`).
+                scheduleRefresh()
             }
             if sessions[id] == nil { scheduleRefresh() }
         case "emit" where frame["event"].string?.hasPrefix("deepseek-account/") == true:
             account.handle(event: frame["event"].string ?? "")
         case "emit":
             let event = frame["event"].string ?? ""
-            eventCounts[event, default: 0] += 1
+            eventCount(event).value += 1
             let args = frame["args"].array
             for listener in listeners.values { listener(event, args) }
         case "cancel":
@@ -645,4 +741,13 @@ final class AppModel {
             return false
         }
     }
+}
+
+/// A value observed by itself, for state that is kept per key: the views that read one key are
+/// redrawn when it changes, and no others. Equatable, so that writing an equal value redraws
+/// nothing (the observation macro compares before it notifies).
+@Observable
+final class Tracked<Value: Equatable> {
+    var value: Value
+    init(_ value: Value) { self.value = value }
 }

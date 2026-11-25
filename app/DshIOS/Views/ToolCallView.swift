@@ -123,6 +123,7 @@ enum ToolStyle {
         case "create_goal", "get_goal", "update_goal": return "flag"
         case "exit_plan_mode": return "list.bullet.clipboard"
         case "present", "present_files": return "shippingbox"
+        case "send_voice_message": return "waveform"
         case "schedule", "create_schedule", "schedule_create", "schedule_list", "schedule_delete", "schedule_update": return "clock"
         case "job_list", "job_output", "job_kill": return "gearshape.2"
         case "run_code", "workflow", "ralph": return "chevron.left.forwardslash.chevron.right"
@@ -138,6 +139,11 @@ enum ToolStyle {
         case "request_connector", "list_connectors": return "point.3.connected.trianglepath.dotted"
         case "mail_send", "mail_search", "mail_read": return "envelope"
         case "list_capabilities", "save_capability", "delete_capability": return "puzzlepiece"
+        // dsh-image-gen.
+        case "generate_image", "generate_images": return "photo.badge.plus"
+        case "edit_image": return "wand.and.stars"
+        case "find_inspiration": return "lightbulb"
+        case "canvas_state", "view_canvas": return "scribble"
         default: return name.hasPrefix("mcp__") ? "server.rack" : "wrench.and.screwdriver"
         }
     }
@@ -145,12 +151,12 @@ enum ToolStyle {
     /// The web's row titles; they stay the same while running and once done.
     private static let titles: [String: String] = [
         "bash": String(localized: "运行命令"), "pwsh": String(localized: "运行命令"), "read": String(localized: "读取"), "read_file": String(localized: "读取"), "read_image": String(localized: "读取图片"),
-        "write": String(localized: "写入"), "write_file": String(localized: "写入"), "edit": String(localized: "编辑"), "str_replace": String(localized: "编辑"), "str_replace_editor": String(localized: "编辑"), "multi_edit": String(localized: "编辑"),
+        "write": String(localized: "写入"), "write_file": String(localized: "写入"), "edit": String(localized: "编辑"), "str_replace": String(localized: "编辑"), "str_replace_editor": String(localized: "编辑"), "multi_edit": String(localized: "编辑"), "apply_patch": String(localized: "编辑"),
         "glob": String(localized: "查找文件"), "grep": String(localized: "搜索文件内容"), "web_search": String(localized: "网页搜索"), "web_fetch": String(localized: "网页获取"),
         "todo_write": String(localized: "更新任务清单"), "ask_user_question": String(localized: "提问"), "skill": String(localized: "加载技能"),
-        "exit_plan_mode": String(localized: "计划"), "present": String(localized: "交付文件"), "run_code": String(localized: "代码"),
-        "subagent": String(localized: "创建子智能体"), "list_subagent_models": String(localized: "查看可用模型"), "list_agents": String(localized: "查看子智能体"), "send_message": String(localized: "发送消息"),
-        "interrupt_agent": String(localized: "中断智能体"), "wait_agent": String(localized: "等待子智能体"), "spawn_teammate": String(localized: "创建队友"),
+        "exit_plan_mode": String(localized: "计划"), "present": String(localized: "交付文件"), "send_voice_message": String(localized: "语音消息"), "run_code": String(localized: "代码"),
+        "subagent": String(localized: "创建子智能体"), "subagent_fork": String(localized: "派生子智能体"), "list_subagent_models": String(localized: "查看可用模型"), "list_agents": String(localized: "查看子智能体"), "send_message": String(localized: "发送消息"),
+        "interrupt_agent": String(localized: "中断智能体"), "wait_agent": String(localized: "等待消息"),
         "team_task_create": String(localized: "创建团队任务"), "team_task_get": String(localized: "读取团队任务"), "team_task_update": String(localized: "更新团队任务"), "team_task_list": String(localized: "查看团队任务"),
         "job_list": String(localized: "查看后台任务"), "job_output": String(localized: "读取任务输出"), "job_kill": String(localized: "取消后台任务"),
         "create_goal": String(localized: "创建目标"), "get_goal": String(localized: "查看目标"), "update_goal": String(localized: "更新目标"),
@@ -166,6 +172,8 @@ enum ToolStyle {
         "remember": String(localized: "记下来"), "forget": String(localized: "从记忆里去掉"), "recall": String(localized: "翻记忆"),
         "request_secret": String(localized: "请求密钥"), "list_secrets": String(localized: "查看密钥"), "request_connector": String(localized: "请求连接服务"), "list_connectors": String(localized: "查看连接器"),
         "mail_send": String(localized: "发邮件"), "list_capabilities": String(localized: "查看能力"), "save_capability": String(localized: "保存能力"), "delete_capability": String(localized: "删除能力"),
+        "generate_image": String(localized: "生成图片"), "generate_images": String(localized: "批量生成图片"), "edit_image": String(localized: "编辑图片"),
+        "find_inspiration": String(localized: "查找灵感"), "canvas_state": String(localized: "查看画布"), "view_canvas": String(localized: "查看画布选区"),
         "terminal_open": String(localized: "创建终端"), "terminal_read": String(localized: "读取终端"), "terminal_list": String(localized: "查看终端"), "terminal_signal": String(localized: "发送终端信号"), "terminal_close": String(localized: "关闭终端"),
     ]
 
@@ -210,7 +218,7 @@ struct ToolDetailSheet: View {
             .navigationTitle(ToolStyle.name(of: call))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { copyButton(row.copies) }
+                ToolbarItem(placement: .navigationBarLeading) { copyButton(row.copies) }
             }
             .closeButton(dismiss)
         }

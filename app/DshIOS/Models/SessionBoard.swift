@@ -37,7 +37,7 @@ struct SessionBoard {
         for id in app.sessions.keys.sorted() where app.isWaiting(id) {
             let owner = root(id)
             guard entries[owner] == nil else { continue }
-            let question = app.control[id]?["userQuestions"]?["active"].array.first?["questions"].array.first?["question"].string
+            let question = app.control(id, "userQuestions")?["active"].array.first?["questions"].array.first?["question"].string
                 ?? app.questionRequests[id]?.first?.questions.first?.question
             entries[owner] = Entry(phase: .question, detail: question)
         }

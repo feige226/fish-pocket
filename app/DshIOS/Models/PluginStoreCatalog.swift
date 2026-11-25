@@ -1,9 +1,35 @@
 import Foundation
 
 /// What the store itself decides; everything about a plugin comes from its market index.
+///
+/// Fish Pocket provides no market and, like DSH, opens on none. 索引源 lists two third-party indexes
+/// as examples, so the user need not type an address, but neither is read until the user turns it on
+/// and confirms that it is a third party's, not ours.
 enum PluginStoreCatalog {
-    /// The market a fresh install opens on.
-    static let presetIndex = "https://api.dshfind.com/market/dsh-index.json"
+    static let examples: [ExampleIndex] = [
+        ExampleIndex(
+            url: "https://cdn.jsdelivr.net/gh/realguan/dsh-plugin-market@dist/dsh-index.json",
+            name: "dsh-market",
+            summary: String(localized: "社区维护的 DSH 插件目录，发布在 GitHub 上，通过 jsDelivr 访问。")
+        ),
+        ExampleIndex(
+            url: "https://api.dshfind.com/market/dsh-index.json",
+            name: "dshfind",
+            summary: String(localized: "社区维护的 DSH 插件目录，由 dshfind.com 提供。")
+        ),
+    ]
+
+    static func example(_ url: String?) -> ExampleIndex? { examples.first { $0.url == url } }
+}
+
+/// A third-party index the app offers to add for the user. It is theirs once added, like any other.
+struct ExampleIndex: Identifiable {
+    let url: String
+    let name: String
+    let summary: String
+
+    var id: String { url }
+    var host: String { URLComponents(string: url)?.host ?? url }
 }
 
 /// A market listing as the store shows it. Index fields follow the format's rules; the rest of

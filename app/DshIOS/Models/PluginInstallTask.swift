@@ -121,6 +121,8 @@ final class PluginInstallTask {
     /// The Host's step of that update: `checking`, `removing`, `installing` or `restoring`.
     private(set) var updateStep: String?
     @ObservationIgnored private var updateRegistry: String?
+    /// The git spec of a `github:` install: `updateBundle` requires it in 0.2.2-rc.3.
+    @ObservationIgnored private var updateSpec: String?
     @ObservationIgnored private var listener: UUID?
 
     init(app: AppModel) {
@@ -196,16 +198,25 @@ final class PluginInstallTask {
         run()
     }
 
+    /// The spec `updateBundle` takes for a git-installed bundle; nil for a registry or path one.
+    static func gitSpec(_ spec: String) -> String? {
+        let trimmed = spec.trimmingCharacters(in: .whitespacesAndNewlines)
+        let git = trimmed.hasPrefix("github:") || trimmed.hasPrefix("git+")
+            || trimmed.hasPrefix("https://github.com/") || trimmed.hasPrefix("git@github.com:")
+        return git ? trimmed : nil
+    }
+
     /// 更新到 x, the way the web's plugin page updates: the Host checks the version on the registry and
     /// installs it with the same switch (`pluginManager/updateBundle`). Without hot reload, as here, the
     /// running version is not removed first, so a failed install leaves it as it was. The install inside
     /// carries this request's id, so its progress, output and cancelling are the install sheet's own.
-    func updateTo(name: String, title: String, from: String, to: String, registry: String?) {
+    func updateTo(name: String, title: String, from: String, to: String, registry: String?, spec: String? = nil) {
         guard requestId == nil && !busy else { show(); return }
         reset()
         update = (name, from, to)
         updateRegistry = registry
-        spec = "\(name)@\(to)"
+        updateSpec = spec.flatMap(Self.gitSpec)
+        self.spec = "\(name)@\(to)"
         confirmed = (title, to)
         show()
         Task { await startUpdate() }
@@ -223,6 +234,9 @@ final class PluginInstallTask {
         updateStep = "checking"
         var options: [String: JSON] = ["requestId": .string(id)]
         if let updateRegistry { options["registry"] = .string(updateRegistry) }
+        // 0.2.2-rc.3 wants the pinned git spec for a bundle the registry lists as `update: 'git'`,
+        // and refuses one for any other kind of bundle.
+        if let updateSpec { options["spec"] = .string(updateSpec) }
         do {
             let answer = try await app.client.call("pluginManager/updateBundle", [
                 "name": .string(update.name), "version": .string(update.to), "options": .object(options),
@@ -295,6 +309,7 @@ final class PluginInstallTask {
         update = nil
         updateStep = nil
         updateRegistry = nil
+        updateSpec = nil
         requestId = nil
     }
 
@@ -741,9 +756,9 @@ final class PluginInstallTask {
     func retry() {
         guard phase == .failed else { return }
         if let update {
-            let registry = updateRegistry, title = confirmed?.title ?? update.name
+            let registry = updateRegistry, spec = updateSpec, title = confirmed?.title ?? update.name
             reset()
-            updateTo(name: update.name, title: title, from: update.from, to: update.to, registry: registry)
+            updateTo(name: update.name, title: title, from: update.from, to: update.to, registry: registry, spec: spec)
             return
         }
         specAgain()

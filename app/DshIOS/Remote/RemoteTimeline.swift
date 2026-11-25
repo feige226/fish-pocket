@@ -2,29 +2,54 @@ import Foundation
 
 /// A file a remote message carries; its bytes come from the server on demand.
 struct RemoteAttachment: Identifiable, Hashable {
+    /// Where the bytes are, by the rules the server's own web app follows.
+    enum Source: Hashable {
+        /// A message this phone just sent.
+        case local(Data)
+        /// Kept by the account's server: a link relative to it.
+        case server(String)
+        /// Only on the computer, at this path (a picture pasted into the agent there): read through the connector.
+        case device(root: String?, path: String)
+    }
+
     var id: String
     var name: String
     var mediaType: String
-    /// Where the server serves it, relative to the server.
-    var link: String?
-    /// Bytes already here: a message this phone just sent.
-    var data: Data?
+    var size: Int?
+    var source: Source
 
-    var isImage: Bool { mediaType.hasPrefix("image/") }
+    var isImage: Bool {
+        if mediaType.lowercased().hasPrefix("image/") { return true }
+        return ["png", "apng", "jpg", "jpeg", "gif", "webp", "avif", "heic", "heif", "tiff", "bmp"]
+            .contains((name as NSString).pathExtension.lowercased())
+    }
 
-    init?(_ json: JSON) {
+    init?(_ json: JSON, sessionId: String) {
         guard let id = json["fileId"].string ?? json["id"].string ?? json["name"].string else { return nil }
         self.id = id
-        name = json["name"].string ?? String(localized: "附件")
+        let path = json["path"].string ?? json["filePath"].string
+        name = json["name"].string ?? path.map { ($0 as NSString).lastPathComponent } ?? String(localized: "附件")
         mediaType = json["mediaType"].string ?? json["mimeType"].string ?? "application/octet-stream"
-        link = json["openUrl"].string ?? json["downloadUrl"].string
+        size = json["size"].int ?? json["byteSize"].int
+        let preset = json["openUrl"].string ?? json["downloadUrl"].string
+        // An upload (`file_…`) is served by the session's own route: the links the record carries
+        // point at the connector's side, which a user token cannot open.
+        let stored = "/api/v2/sessions/\(RemoteClient.encode(sessionId))/attachments/\(RemoteClient.encode(id))/open"
+        if id.hasPrefix("file_") {
+            source = .server(stored)
+        } else if let path, !path.isEmpty, preset == nil, json["optimistic"].bool != true {
+            source = .device(root: json["root"].string, path: path)
+        } else {
+            source = .server(preset ?? stored)
+        }
     }
 
     init(upload: RemoteUpload, id: String) {
         self.id = id
         name = upload.name
         mediaType = upload.mediaType
-        data = upload.data
+        size = upload.data.count
+        source = .local(upload.data)
     }
 }
 
@@ -47,12 +72,15 @@ enum RemoteRow: Identifiable, Hashable {
     case user(id: String, text: String, attachments: [RemoteAttachment], delivery: RemotePendingMessage.Delivery?)
     case turn(RemoteTurn)
     case notice(id: String, text: String, isError: Bool)
+    /// A file the agent made on the computer, opened from there on a tap.
+    case file(id: String, path: String)
 
     var id: String {
         switch self {
         case .user(let id, _, _, _): "u-\(id)"
         case .turn(let turn): "t-\(turn.id)"
         case .notice(let id, _, _): "n-\(id)"
+        case .file(let id, _): "f-\(id)"
         }
     }
 }
@@ -66,6 +94,7 @@ struct RemoteTimelineBuilder {
         case user(text: String, attachments: [RemoteAttachment])
         case blocks([AssistantBlock], streaming: Bool)
         case notice(text: String, isError: Bool, reconnect: Bool)
+        case file(path: String)
         case turnStart
         case turnEnd(closed: String?)
         case hidden
@@ -116,6 +145,9 @@ struct RemoteTimelineBuilder {
                 // A run of reconnect attempts reads as its latest one.
                 if reconnect, case .notice(let id, _, _)? = rows.last, next[id]?.piece.isReconnect == true { rows.removeLast() }
                 rows.append(.notice(id: item.id, text: text, isError: isError))
+            case .file(let path):
+                close()
+                rows.append(.file(id: item.id, path: path))
             case .blocks(let blocks, let streaming):
                 // Servers keep no turn markers in the timeline: a turn runs from the first record
                 // after a user message to the next one, or to a record of another turn.
@@ -162,7 +194,7 @@ struct RemoteTimelineBuilder {
             let text = messageText(content)
             switch item.role {
             case "user":
-                let attachments = content["attachments"].array.compactMap(RemoteAttachment.init)
+                let attachments = content["attachments"].array.compactMap { RemoteAttachment($0, sessionId: item.sessionId) }
                 return text.isEmpty && attachments.isEmpty ? .hidden : .user(text: text, attachments: attachments)
             case "assistant", nil:
                 if text.isEmpty { return .hidden }
@@ -177,8 +209,9 @@ struct RemoteTimelineBuilder {
             case "diff": return .hidden
             case "file_change": return .blocks(toolCalls(item).map(AssistantBlock.tool), streaming: false)
             default:
-                guard let path = first(content["path"], content["filePath"], content["title"], content["name"]) else { return .hidden }
-                return .notice(text: String(localized: "生成了文件 \((path as NSString).lastPathComponent)"), isError: false, reconnect: false)
+                if let path = first(content["path"], content["filePath"], content["file"]) { return .file(path: path) }
+                guard let title = first(content["title"], content["name"]) else { return .hidden }
+                return .notice(text: String(localized: "生成了文件 \((title as NSString).lastPathComponent)"), isError: false, reconnect: false)
             }
         default:
             if item.isReasoning {

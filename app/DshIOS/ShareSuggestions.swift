@@ -6,8 +6,18 @@ import Intents
 /// Plain conversations stay out: 新对话 is not a conversation someone sends to.
 @MainActor
 enum ShareSuggestions {
-    /// A message went to `sessionId`: tell the system when it is a Bot's chat or a group's.
+    /// A message went to `sessionId`: tell the system when it is a Bot's chat or a group's. A moment
+    /// later, not at once: reading the avatar and building the intent take the main thread for tens
+    /// of milliseconds on a phone, and at once that falls in the rise of the message's bubble.
     static func didSend(in sessionId: String, app: AppModel) {
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            await app.arrivalLanded()
+            donateSend(in: sessionId, app: app)
+        }
+    }
+
+    private static func donateSend(in sessionId: String, app: AppModel) {
         let team = app.botTeam
         if let bot = team.bots.first(where: { $0.sessionId == sessionId }), !bot.hidden {
             let image = ShareTargets.avatarURL(of: bot.id).flatMap { try? Data(contentsOf: $0) }.map { INImage(imageData: $0) }

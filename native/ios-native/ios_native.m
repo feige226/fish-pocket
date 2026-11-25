@@ -72,7 +72,6 @@ typedef struct {
 static const dsh_capability CAPABILITIES[] = {
   {"device",   dsh_native_device,   {"info", NULL}, NULL, {NULL}, false},
   {"notify",   dsh_native_notify,   {"schedule", "cancel", "pending", NULL}, "notifications", {NULL}, false},
-  {"speak",    dsh_native_speak,    {"say", "stop", NULL}, NULL, {NULL}, false},
   {"calendar", dsh_native_calendar, {"list", "calendars", "create", "update", "delete", NULL}, "calendar",
    {"create", "update", "delete", NULL}, false},
   {"reminders", dsh_native_reminders, {"list", "create", "complete", "delete", NULL}, "reminders",
@@ -487,14 +486,14 @@ static napi_value invoke(napi_env env, napi_callback_info info) {
     finish(call, nil,
            [NSString stringWithFormat:
             @"the user has not switched '%@' on for this app yet. Nothing was read or changed. Tell "
-             "them they can turn it on themselves under Device capabilities on the app's Explore "
-             "tab (in the sidebar before iOS 18) — only they can do it.", capabilityName]);
+             "them they can turn it on themselves under Device capabilities in Connectors on the app's Explore "
+             "tab (in the sidebar on an iPad before iOS 18) — only they can do it.", capabilityName]);
     return promise;
   }
 
   // Only the capabilities iOS itself guards, or that this app gates itself, are
   // recorded, and only when they succeeded. That is what the list is for — "what reached my data" — and
-  // recording `device.info` or every `speak.say` would push the one calendar
+  // recording every `device.info` would push the one calendar
   // read the user is looking for out of the ring.
   BOOL audited = cap->systemPermission != NULL || cap->appGated;
   NSString *auditedCapability = capabilityName;

@@ -33,7 +33,7 @@ struct PluginReportSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
         }
-        .tint(Palette.ink)
+        .inkTint()
         .interactiveDismissDisabled(sending)
     }
 
@@ -247,7 +247,7 @@ struct PluginReportsPage: View {
             .closeButton(dismiss)
             .task { await reports.refreshReceipts() }
         }
-        .tint(Palette.ink)
+        .inkTint()
     }
 
     private func tone(_ status: String) -> Color {

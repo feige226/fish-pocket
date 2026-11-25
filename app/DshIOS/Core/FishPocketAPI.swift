@@ -44,8 +44,10 @@ struct FishPocketError: LocalizedError {
 struct FishPocketHTTP: Sendable {
     let base: URL
 
-    func send(_ method: String, _ path: String, body: JSON? = nil, bearer: String? = nil) async throws -> JSON {
-        var request = URLRequest(url: base.appending(path: path))
+    func send(_ method: String, _ path: String, query: [URLQueryItem] = [], body: JSON? = nil, bearer: String? = nil) async throws -> JSON {
+        var url = base.appending(path: path)
+        if !query.isEmpty { url.append(queryItems: query) }
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 30
         // Every answer is current state (a balance, a takedown list): never one kept from before.

@@ -3,9 +3,11 @@
 # stream the app's console: DEVELOPMENT_TEAM=<team> run-device.sh [device-id]
 # The device defaults to the first paired, available iPhone.
 # FISH_POCKET_API_URL=https://… turns on the Fish Pocket account against that API;
-# unset, the feature stays hidden.
+# unset, the feature stays hidden. `.env.local` can set it (scripts/local-env.sh).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
+source "$root/scripts/local-env.sh"
+local_env_load "$root"
 : "${DEVELOPMENT_TEAM:?set DEVELOPMENT_TEAM to your signing team id}"
 device="${1:-$(xcrun devicectl list devices 2>/dev/null | awk '/available \(paired\)/ && /iPhone/ {for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F-]{36}$/) {print $i; exit}}')}"
 [ -n "$device" ] || { echo "no paired iPhone found" >&2; exit 1; }

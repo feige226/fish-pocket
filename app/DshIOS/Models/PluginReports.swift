@@ -1,11 +1,11 @@
 import Foundation
-import Observation
+import Perception
 
 /// Reporting a market plugin, and the takedown list that follows from reviewed reports. Both live on
 /// the Fish Pocket service; without it (forks, local builds) there is no report entry and nothing is
 /// taken down.
 @MainActor
-@Observable
+@Perceptible
 final class PluginReports {
     static let shared = PluginReports()
 
@@ -79,8 +79,8 @@ final class PluginReports {
 
     private(set) var takedowns: [String: Takedown] = [:]
     private(set) var receipts: [Receipt] = []
-    @ObservationIgnored private var takedownsReadAt: Date?
-    @ObservationIgnored private var reading: Task<Void, Never>?
+    @PerceptionIgnored private var takedownsReadAt: Date?
+    @PerceptionIgnored private var reading: Task<Void, Never>?
 
     var available: Bool { FishPocketAPI.available }
 

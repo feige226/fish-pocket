@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// A Bot's page, drawn as 设置 is: who it is and how it works (all editable here), with its
 /// scheduled tasks and what it remembers one tap further in.
 struct BotDetailView: View {
@@ -25,6 +26,8 @@ struct BotDetailView: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack(path: $path) {
             Group {
@@ -44,7 +47,10 @@ struct BotDetailView: View {
                         Text("它的私聊、记忆和定时任务都会删掉，它也会退出所有群聊。")
                     }
                 } else {
-                    ContentUnavailableView("这个 Bot 已不在团队里", systemImage: "person.slash")
+                    VStack(spacing: 10) {
+                        Image(systemName: "person.slash").font(.largeTitle).foregroundStyle(Palette.secondary)
+                        Text("这个 Bot 已不在团队里").font(.headline).foregroundStyle(Palette.secondary)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .navigationTitle(team.bot(botId)?.name ?? String(localized: "Bot"))
@@ -61,7 +67,8 @@ struct BotDetailView: View {
             .botSchedules(schedules, app: app)
         }
         .settingsStyle()
-    }
+    
+        }}
 
     /// The Bot's face, what it is for, and what it is up to. A tap on the face changes it.
     private func header(_ bot: BotInfo) -> some View {
@@ -115,6 +122,9 @@ struct BotDetailView: View {
                             note: "每一轮工作都会先读这段说明。改了之后它会收到通知，按新说明继续。") { await team.update(bot, ["instructions": .string($0)]) }
             } label: {
                 row("工作说明", "doc.text", bot.instructions.isEmpty ? String(localized: "未填写") : ToolCall.firstLine(bot.instructions))
+            }
+            NavigationLink { VoicePickerPage(owner: .bot(bot.id)) } label: {
+                row("声音", "waveform", VoiceChoices.shared.summary(of: .bot(bot.id)))
             }
         }
         Section {
@@ -290,11 +300,14 @@ struct BotSchedulesPage: View {
     let schedules: BotSchedules
 
     var body: some View {
+        WithPerceptionTracking {
+
         List { BotScheduleSection(schedules: schedules) }
             .groupedList()
             .navigationTitle("定时任务")
             .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 }
 
 /// What a Bot remembers: a summary, a way to ask or change it in plain words, the entries
@@ -307,6 +320,8 @@ struct BotMemoryPage: View {
     @State private var loading = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let bot = app.botTeam.bot(botId)
         let entries = memory["entries"].array
         List {
@@ -348,7 +363,8 @@ struct BotMemoryPage: View {
         .navigationTitle("记忆")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-    }
+    
+        }}
 
     private func origin(of entry: JSON) -> String {
         var parts: [String] = []

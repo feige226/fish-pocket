@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './style.css';
 import { t } from './i18n.js';
 
-const FRUIT = ['🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍑', '🍍', '🥝', '🍌', '🥥', '🍒'];
-// Columns and rows: every level is an even number of cards.
-const LEVELS = [[3, 4], [4, 4], [4, 5]];
+const FRUIT = ['🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍑', '🍍', '🥝', '🍌', '🍒', '🫐'];
+const PAIRS = 6;
 const BEST_KEY = 'fruit-flip.best';
-const LEVEL_KEY = 'fruit-flip.level';
 
-function deal(level) {
-  const [cols, rows] = LEVELS[level];
-  const pairs = (cols * rows) / 2;
-  const fruit = [...FRUIT].sort(() => Math.random() - 0.5).slice(0, pairs);
+function deal() {
+  const fruit = [...FRUIT].sort(() => Math.random() - 0.5).slice(0, PAIRS);
   const cards = [...fruit, ...fruit].map((face, index) => ({ id: index, face, matched: false }));
   for (let i = cards.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -20,127 +16,118 @@ function deal(level) {
   return cards;
 }
 
-const read = (key, fallback) => {
+/// The fewest moves so far. An earlier version kept one per level: its first level was this board.
+function loadBest() {
   try {
-    const value = JSON.parse(localStorage.getItem(key));
-    return value ?? fallback;
+    const saved = JSON.parse(localStorage.getItem(BEST_KEY));
+    if (typeof saved === 'number') return saved;
+    return saved?.[0]?.moves ?? null;
   } catch {
-    return fallback;
+    return null;
   }
-};
-
-const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
 
 /// Three stars for close to perfect play, fewer as moves pile up.
-const stars = (moves, pairs) => (moves <= pairs * 1.5 ? 3 : moves <= pairs * 2.2 ? 2 : 1);
+const stars = (moves) => (moves <= PAIRS * 1.5 ? 3 : moves <= PAIRS * 2.4 ? 2 : 1);
 
 export default function App() {
-  const [level, setLevel] = useState(() => read(LEVEL_KEY, 0));
-  const [cards, setCards] = useState(() => deal(read(LEVEL_KEY, 0)));
+  // A new round is a new deck: the cards are dealt in again.
+  const [round, setRound] = useState(0);
+  const [cards, setCards] = useState(deal);
   const [open, setShown] = useState([]);
   // Two quick taps land before a render: the second must see the first.
   const openRef = useRef([]);
-  const setOpen = (cards) => {
-    openRef.current = cards;
-    setShown(cards);
+  const setOpen = (next) => {
+    openRef.current = next;
+    setShown(next);
   };
+  const [miss, setMiss] = useState([]);
   const [moves, setMoves] = useState(0);
-  const [started, setStarted] = useState(null);
-  const [now, setNow] = useState(Date.now());
-  const [best, setBest] = useState(() => read(BEST_KEY, {}));
+  const [best, setBest] = useState(loadBest);
   const [result, setResult] = useState(null);
   const busy = useRef(false);
+  const timers = useRef([]);
+  const later = (run, delay) => timers.current.push(setTimeout(run, delay));
 
-  const [cols, rows] = LEVELS[level];
-  const pairs = cards.length / 2;
-  const seconds = started ? Math.floor(((result ? result.at : now) - started) / 1000) : 0;
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
-  useEffect(() => {
-    if (!started || result) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(timer);
-  }, [started, result]);
-
-  const start = (next = level) => {
-    setLevel(next);
-    localStorage.setItem(LEVEL_KEY, JSON.stringify(next));
-    setCards(deal(next));
-    setOpen([]);
-    setMoves(0);
-    setStarted(null);
-    setResult(null);
+  const start = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
     busy.current = false;
+    setCards(deal());
+    setOpen([]);
+    setMiss([]);
+    setMoves(0);
+    setResult(null);
+    setRound((count) => count + 1);
   };
 
   const flip = (index) => {
     const current = openRef.current;
     if (busy.current || current.includes(index) || cards[index].matched) return;
-    if (!started) {
-      setStarted(Date.now());
-      setNow(Date.now());
-    }
     const next = [...current, index];
     setOpen(next);
     if (next.length < 2) return;
 
-    setMoves((count) => count + 1);
+    const total = moves + 1;
+    setMoves(total);
     const [a, b] = next;
     busy.current = true;
     if (cards[a].face === cards[b].face) {
-      setTimeout(() => {
+      later(() => {
         const updated = cards.map((card, i) => (i === a || i === b ? { ...card, matched: true } : card));
         setCards(updated);
         setOpen([]);
         busy.current = false;
-        if (updated.every((card) => card.matched)) finish(moves + 1);
-      }, 320);
+        if (updated.every((card) => card.matched)) later(() => finish(total), 520);
+      }, 380);
     } else {
-      setTimeout(() => {
+      later(() => setMiss(next), 420);
+      later(() => {
+        setMiss([]);
         setOpen([]);
         busy.current = false;
-      }, 800);
+      }, 900);
     }
   };
 
   const finish = (total) => {
-    const at = Date.now();
-    const time = Math.floor((at - (started || at)) / 1000);
-    const previous = best[level];
-    const record = !previous || total < previous.moves || (total === previous.moves && time < previous.time);
+    const record = best == null || total < best;
     if (record) {
-      const updated = { ...best, [level]: { moves: total, time } };
-      setBest(updated);
-      localStorage.setItem(BEST_KEY, JSON.stringify(updated));
+      setBest(total);
+      localStorage.setItem(BEST_KEY, JSON.stringify(total));
     }
-    setResult({ at, moves: total, time, record });
+    setResult({ moves: total, record });
   };
 
-  const record = best[level];
+  const found = cards.filter((card) => card.matched).length / 2;
 
   return (
-    <main className="stand">
-      <div className="levels" role="tablist">
-        {t.levels.map((name, index) => (
-          <button key={name} role="tab" aria-selected={index === level} className={index === level ? 'on' : ''} onClick={() => start(index)}>
-            {name}
-          </button>
-        ))}
-      </div>
+    <main className="table">
+      <header className="score">
+        <div>
+          <span>{t.moves}</span>
+          <b key={moves} className={moves ? 'tick' : ''}>{moves}</b>
+        </div>
+        <ol className="found" aria-label={`${found}/${PAIRS}`}>
+          {Array.from({ length: PAIRS }, (_, n) => <li key={n} className={n < found ? 'on' : ''} />)}
+        </ol>
+        <div>
+          <span>{t.best}</span>
+          <b>{best ?? '–'}</b>
+        </div>
+      </header>
 
-      <dl className="score">
-        <div><dt>{t.moves}</dt><dd>{moves}</dd></div>
-        <div><dt>{t.time}</dt><dd>{clock(seconds)}</dd></div>
-        <div><dt>{t.best}</dt><dd>{record ? record.moves : '–'}</dd></div>
-      </dl>
-
-      <div className="board" style={{ '--cols': cols, '--rows': rows }}>
+      <div className="board" key={round}>
         {cards.map((card, index) => {
           const up = card.matched || open.includes(index);
           return (
             <button
               key={card.id}
-              className={`card${up ? ' up' : ''}${card.matched ? ' matched' : ''}`}
-              onClick={() => flip(index)}
+              className={`card${up ? ' up' : ''}${card.matched ? ' matched' : ''}${miss.includes(index) ? ' miss' : ''}`}
+              style={{ '--order': index }}
+              onPointerDown={() => flip(index)}
               aria-label={up ? card.face : t.hidden}
             >
               <span className="card-inner">
@@ -152,30 +139,55 @@ export default function App() {
         })}
       </div>
 
-      <p className="hint">{started ? '' : t.hint}</p>
+      <footer className="foot">
+        {moves === 0 ? (
+          <p className="hint">{t.hint}</p>
+        ) : (
+          <button className="restart" onClick={start}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+            {t.restart}
+          </button>
+        )}
+      </footer>
 
-      <button className="restart" onClick={() => start()}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
-        {t.restart}
-      </button>
-
-      {result && (
-        <div className="won" role="dialog" aria-label={t.won}>
-          <div className="won-card">
-            <div className="stars" aria-label={`${stars(result.moves, pairs)}/3`}>
-              {[1, 2, 3].map((n) => (
-                <span key={n} className={n <= stars(result.moves, pairs) ? 'lit' : ''}>★</span>
-              ))}
-            </div>
-            <h2>{t.won}</h2>
-            <p className="won-line">
-              {t.moves} {result.moves}　{t.time} {clock(result.time)}
-            </p>
-            {result.record && <p className="won-best">{t.newBest}</p>}
-            <button className="again" onClick={() => start()}>{t.again}</button>
-          </div>
-        </div>
-      )}
+      {result && <Won result={result} fruit={cards.map((card) => card.face)} onAgain={start} />}
     </main>
+  );
+}
+
+/// The round's end: fruit rains down behind a card with the score.
+function Won({ result, fruit, onAgain }) {
+  const rain = useMemo(
+    () => Array.from({ length: 18 }, (_, n) => ({
+      face: fruit[n % fruit.length],
+      left: 4 + ((n * 37) % 92),
+      delay: (n % 9) * 0.12,
+      length: 2.2 + ((n * 7) % 10) / 8,
+      size: 26 + ((n * 13) % 22),
+    })),
+    [],
+  );
+  const earned = stars(result.moves);
+  return (
+    <div className="won" role="dialog" aria-label={t.won}>
+      <div className="rain" aria-hidden="true">
+        {rain.map((drop, n) => (
+          <span key={n} style={{ left: `${drop.left}%`, fontSize: drop.size, animationDelay: `${drop.delay}s`, animationDuration: `${drop.length}s` }}>{drop.face}</span>
+        ))}
+      </div>
+      <div className="won-card">
+        <div className="stars" aria-label={`${earned}/3`}>
+          {[1, 2, 3].map((n) => (
+            <svg key={n} viewBox="0 0 24 24" className={n <= earned ? 'lit' : ''} style={{ '--order': n }} aria-hidden="true">
+              <path d="M12 2.6l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" strokeLinejoin="round" />
+            </svg>
+          ))}
+        </div>
+        <h2>{t.won}</h2>
+        <p className="won-line">{t.inMoves(result.moves)}</p>
+        {result.record && <p className="won-best">{t.newBest}</p>}
+        <button className="again" onClick={onAgain}>{t.again}</button>
+      </div>
+    </div>
   );
 }

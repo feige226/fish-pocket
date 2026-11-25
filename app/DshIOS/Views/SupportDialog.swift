@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// The ask for a Star or a share (`SupportPrompt`): a small card in the middle of the
-/// screen, the shape of the system's prompts. Only its buttons close it, so a tap meant
-/// for the conversation can't spend the ask unseen.
+/// The ask for a rating or a share (`SupportPrompt`): a small card in the middle of the
+/// screen, the shape of the system's prompts. A rating on the App Store helps most, so it
+/// leads; the open-source repository is a quiet line under the rest, and opening it leaves the
+/// card up so they can come back and rate. Only its buttons close it, so a tap meant for the
+/// conversation can't spend the ask unseen.
 struct SupportDialog: View {
-    let star: () -> Void
+    let rate: () -> Void
     let share: () -> Void
+    let repository: () -> Void
     let later: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
@@ -22,17 +25,30 @@ struct SupportDialog: View {
                     .foregroundStyle(Palette.ink)
                     .padding(.top, 16)
                     .accessibilityAddTraits(.isHeader)
-                Text("它是一个开源项目。点个 Star 或分享给朋友，能让更多人发现它。")
+                Text("觉得好用的话，去 App Store 给个评分，或者分享给朋友，能让更多人发现它。")
                     .font(.subheadline)
                     .foregroundStyle(Palette.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
                 VStack(spacing: 8) {
-                    Button(action: star) { Label("在 GitHub 点 Star", systemImage: "star.fill") }
+                    Button(action: rate) { Label("去 App Store 评分", systemImage: "star.fill") }
                         .buttonStyle(.capsule(height: 48))
                     Button(action: share) { Label("分享给朋友", systemImage: "square.and.arrow.up") }
                         .buttonStyle(.capsule(.secondary, height: 48))
+                    Button(action: repository) {
+                        Label {
+                            Text("代码完全开源")
+                        } icon: {
+                            Image("Connectors/github").resizable().scaledToFit().frame(width: 14, height: 14)
+                        }
+                    }
+                        .font(.footnote)
+                        .foregroundStyle(Palette.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
                     Button("以后再说", action: later)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Palette.secondary)
@@ -53,16 +69,5 @@ struct SupportDialog: View {
         }
     }
 
-    private var icon: some View {
-        Group {
-            if let image = UIImage(named: "AppIcon") {
-                Image(uiImage: image).resizable()
-            } else {
-                Image("LaunchMark").resizable().scaledToFit()
-            }
-        }
-        .frame(width: 68, height: 68)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .accessibilityHidden(true)
-    }
+    private var icon: some View { AppIconMark(size: 68) }
 }

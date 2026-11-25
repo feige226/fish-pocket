@@ -21,6 +21,8 @@ final class BrowserModel {
         fileprivate var savedTitle: String?
         /// When it was last in front or used by the agent, to choose which page to let go.
         fileprivate var used = Date()
+        /// How its page looked when the chat last drew it in small (`BrowserThumbnail.swift`).
+        var thumbnail: UIImage?
 
         fileprivate init(id: String) { self.id = id }
 
@@ -56,6 +58,14 @@ final class BrowserModel {
     @ObservationIgnored private let storageKey: String
     @ObservationIgnored private var restorableSelected = 0
     @ObservationIgnored private var nextId = 1
+    /// The chat's small picture of the tab in front (`BrowserThumbnail.swift`): how many chats show
+    /// it, what takes one every few seconds while they do, the one picture being taken, whether the
+    /// page changed since, and when the last was taken.
+    @ObservationIgnored var thumbnailWatchers = 0
+    @ObservationIgnored var thumbnailTicker: Task<Void, Never>?
+    @ObservationIgnored var thumbnailTask: Task<Void, Never>?
+    @ObservationIgnored var thumbnailDue = false
+    @ObservationIgnored var thumbnailTaken = Date.distantPast
 
     var selected: Tab? { tabs.first { $0.id == selectedId } }
     /// The address of the tab in front.
@@ -219,6 +229,17 @@ final class BrowserModel {
             }
             guard let (model, stale) = candidates.min(by: { $0.1.used < $1.1.used }) else { return }
             model.letGo(stale)
+        }
+    }
+
+    /// These conversations were archived: their pages go, so they no longer run or hold memory. The
+    /// tabs stay, and so does the set kept across launches, so a page comes back if it is opened
+    /// again, as after 撤销. A page the user is looking at right now stays until it is put away
+    /// (`WorkbenchBrowser`).
+    static func releasePages(of archived: Set<String>) {
+        for id in archived {
+            guard let model = registry.models[id] else { continue }
+            for tab in model.tabs where tab.page?.onScreen == false { model.letGo(tab) }
         }
     }
 

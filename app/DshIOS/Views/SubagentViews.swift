@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The top-bar title of a child session (`SubagentHeaderLineage`): its label, and a
 /// menu of the ancestors, the siblings and its own children. The parent's catalog is
 /// the sibling list; a child with no parent left in the list shows its title alone.
@@ -8,6 +9,8 @@ struct SubagentSwitcher: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let chain = app.lineage(of: sessionId)
         let ancestors = chain.dropLast()
         let siblings = ancestors.last.map { app.subagentEntries(of: $0) } ?? []
@@ -43,14 +46,15 @@ struct SubagentSwitcher: View {
         .task {
             for id in ancestors { await app.refreshProjections(of: id) }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func entries(_ entries: [JSON]) -> some View {
         ForEach(entries.filter { $0["mode"].string != "external" }, id: \.self) { entry in
             let id = entry["id"].string ?? ""
             Button { if id != sessionId { app.open(session: id) } } label: {
-                let label = entry["label"].string ?? id
+                let label = entry["label"].string ?? entry["name"].string ?? id
                 if id == sessionId { Label(label, systemImage: "checkmark") } else { Text(label) }
             }
         }
@@ -59,6 +63,7 @@ struct SubagentSwitcher: View {
 
 /// 「N 个子智能体」: the children of a session. A row pushes that child's page, with
 /// its usage and the next level; opening the child's session is there or a swipe away.
+/// With Agent teamwork on, the team's shared tasks follow the children.
 struct SubagentCatalogSheet: View {
     let rootId: String
     @Environment(AppModel.self) private var app
@@ -67,17 +72,22 @@ struct SubagentCatalogSheet: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let entries = app.subagentEntries(of: rootId)
+        let board = app.teamBoard(of: rootId)
+        let hasBoard = !board.tasks.isEmpty || board.failure != nil
         NavigationStack {
             List {
                 ForEach(entries, id: \.self) { entry in
                     SubagentRow(entry: entry, open: open)
                 }
                 .groupedRow()
+                if hasBoard { TeamBoardSection(tasks: board.tasks, failure: board.failure) }
             }
             .groupedList()
             .overlay {
-                if entries.isEmpty {
+                if entries.isEmpty, !hasBoard {
                     if loading {
                         Text("正在加载子智能体…").font(.subheadline).foregroundStyle(Palette.secondary)
                     } else if failed {
@@ -88,13 +98,14 @@ struct SubagentCatalogSheet: View {
                     }
                 }
             }
-            .navigationTitle(Text("\(entries.count) 个子智能体"))
+            .navigationTitle(entries.isEmpty && hasBoard ? Text("任务板") : Text("\(entries.count) 个子智能体"))
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
             .task { await load() }
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 
     private func open(_ id: String) {
         dismiss()
@@ -105,6 +116,77 @@ struct SubagentCatalogSheet: View {
         loading = true
         failed = !(await app.refreshProjections(of: rootId))
         loading = false
+    }
+}
+
+/// The team's shared tasks (`agentTeam.tasks`), read-only: the agents create, take and finish
+/// them. A row opens to its description and who holds it.
+private struct TeamBoardSection: View {
+    let tasks: [JSON]
+    let failure: String?
+    @State private var expanded: String?
+
+    /// 「2 已完成 · 1 进行中 · 3 待处理」, without the counts that are zero.
+    private var progress: String {
+        let completed = tasks.filter { $0["status"].string == "completed" }.count
+        let active = tasks.filter { $0["status"].string == "in_progress" }.count
+        let pending = tasks.count - completed - active
+        var parts: [String] = []
+        if completed > 0 { parts.append(String(localized: "\(completed) 已完成")) }
+        if active > 0 { parts.append(String(localized: "\(active) 进行中")) }
+        if pending > 0 { parts.append(String(localized: "\(pending) 待处理")) }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        Section {
+            if let failure {
+                Label("任务记录无效：\(failure)", systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(Palette.removed)
+            }
+            ForEach(tasks, id: \.["id"]) { task in
+                let id = task["id"].string ?? ""
+                DisclosureGroup(isExpanded: Binding(get: { expanded == id }, set: { expanded = $0 ? id : nil })) {
+                    if let description = task["description"].string, !description.isEmpty {
+                        Text(description).font(.footnote).foregroundStyle(Palette.secondary)
+                    }
+                    LabeledContent("负责人", value: task["ownerName"].string ?? task["ownerId"].string ?? String(localized: "未分配"))
+                        .font(.footnote)
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        mark(task).frame(width: 14)
+                        Text(task["subject"].string ?? id).font(.subheadline).foregroundStyle(Palette.ink).lineLimit(expanded == id ? nil : 2)
+                    }
+                }
+                // As the children's rows above: the section is one card, without rules.
+                .listRowSeparator(.hidden)
+            }
+        } header: {
+            HStack {
+                Text("共享任务")
+                Spacer()
+                Text(progress).font(.footnote)
+            }
+        }
+        .groupedRow()
+    }
+
+    /// Waiting on other tasks, underway, done, or free to start.
+    @ViewBuilder
+    private func mark(_ task: JSON) -> some View {
+        switch task["status"].string {
+        case "in_progress":
+            StatusDot(state: .running)
+        case "completed":
+            Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(Palette.ink)
+                .accessibilityLabel("已完成")
+        default:
+            if task["ready"].bool == false {
+                Circle().fill(Palette.waiting).frame(width: 7, height: 7).accessibilityLabel("被依赖阻塞")
+            } else {
+                Circle().fill(Palette.faint).frame(width: 7, height: 7).accessibilityLabel("待处理")
+            }
+        }
     }
 }
 
@@ -123,7 +205,11 @@ private struct SubagentFacts {
     }
 
     var id: String { entry["id"].string ?? "" }
-    var label: String { entry["label"].string ?? id }
+    /// What the child was created to do; a child without a description goes by its name.
+    var label: String { entry["label"].string ?? name ?? id }
+    /// The name its creator addresses it by (`reviewer`), unique among its siblings. A child
+    /// from before 0.2.2-rc.3 has none.
+    var name: String? { entry["name"].string.flatMap { $0.isEmpty || $0 == id ? nil : $0 } }
     var title: String? { summary?.title.flatMap { $0.isEmpty ? nil : $0 } }
     var external: Bool { entry["mode"].string == "external" }
     var migration: Bool { summary?.migrationRequired == true }
@@ -197,6 +283,8 @@ private struct SubagentRow: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let facts = SubagentFacts(entry: entry, app: app)
         NavigationLink {
             SubagentDetail(entry: entry, open: open)
@@ -209,9 +297,10 @@ private struct SubagentRow: View {
                 .frame(width: 14)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(facts.label).font(.subheadline).foregroundStyle(Palette.ink).lineLimit(1)
-                    // The title gives way to the state, which never breaks (「已/完成」 on a narrow screen).
+                    // The name gives way to the state, which never breaks (「已/完成」 on a narrow screen).
+                    // A child without a name shows its session's title there, as before it had one.
                     HStack(spacing: 0) {
-                        if let title = facts.title { Text(verbatim: title + " · ").lineLimit(1) }
+                        if let name = facts.name ?? facts.title { Text(verbatim: name + " · ").lineLimit(1) }
                         Text(facts.state).lineLimit(1).layoutPriority(1)
                     }
                     .font(.caption).foregroundStyle(Palette.secondary)
@@ -221,7 +310,7 @@ private struct SubagentRow: View {
         .swipeActions {
             if !facts.external {
                 Button { open(facts.id) } label: { Label("打开会话", systemImage: "bubble.left") }
-                    .tint(Palette.ink)
+                    .tint(Palette.swipe)
             }
         }
         .contextMenu {
@@ -229,7 +318,8 @@ private struct SubagentRow: View {
                 Button { open(facts.id) } label: { Label("打开会话", systemImage: "bubble.left") }
             }
         }
-    }
+    
+        }}
 }
 
 /// One child: its state and usage, 打开会话 under the thumb, and its own children.
@@ -239,11 +329,14 @@ private struct SubagentDetail: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let facts = SubagentFacts(entry: entry, app: app)
         let children = app.subagentEntries(of: facts.id)
         List {
             Section {
                 if let title = facts.title { Text(title).font(.callout) }
+                if let name = facts.name { LabeledContent("名称", value: name) }
                 LabeledContent("状态", value: facts.state)
                 if !facts.external { LabeledContent("模式", value: facts.mode) }
                 if let tokens = facts.tokens { LabeledContent("Tokens", value: SubagentFacts.formatTokens(tokens)) }
@@ -273,7 +366,8 @@ private struct SubagentDetail: View {
             }
         }
         .task { await app.refreshProjections(of: facts.id) }
-    }
+    
+        }}
 }
 
 /// In place of the composer when a child cannot take messages (`SubagentReadOnlyComposer`).
@@ -282,6 +376,8 @@ struct SubagentReadOnlyNotice: View {
     let detail: LocalizedStringKey
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 4) {
             Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.secondary)
             Text(detail).font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center)
@@ -291,7 +387,8 @@ struct SubagentReadOnlyNotice: View {
         .padding(.vertical, 8)
         .background(Palette.field, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 extension SessionModel {

@@ -1,10 +1,14 @@
 import SwiftUI
 
+import Perception
 /// Add a workspace (`directory-browser`): browse folders under the engine's `~/Documents` level
 /// by level, or make one, and open the current level. The folders are the engine's to
 /// read: a system folder picker returns paths outside the sandbox it cannot reach, and
 /// the engine's own home is not somewhere users keep projects.
 struct NewWorkspaceView: View {
+    /// Where the new workspace goes instead of a new conversation in it: a picker that asked for
+    /// one (导入 DeepSeek 会话) keeps its own page and selects it.
+    var onCreated: ((String) -> Void)?
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
     @State private var stack: [String] = []
@@ -24,13 +28,15 @@ struct NewWorkspaceView: View {
     private var listing: DirectoryListing? { levels[current] }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack(path: $stack) {
             level(documents, title: String(localized: "文稿"))
                 .navigationDestination(for: String.self) { path in
                     level(path, title: (path as NSString).lastPathComponent)
                 }
         }
-        .tint(Palette.ink)
+        .inkTint()
         .interactiveDismissDisabled(busy)
         .sheetNotices()
         .alert("新建文件夹", isPresented: $creating) {
@@ -49,7 +55,8 @@ struct NewWorkspaceView: View {
         } message: {
             Text(failure ?? "")
         }
-    }
+    
+        }}
 
     private func level(_ path: String, title: String) -> some View {
         DirectoryLevelView(path: path, showHidden: showHidden, reload: reload) { listing in
@@ -100,7 +107,11 @@ struct NewWorkspaceView: View {
             let value = try await app.client.call("workspace/create", ["request": ["path": .string(path)]])
             Haptics.success()
             dismiss()
-            app.newSessionRequest = NewSessionRequest(workspaceId: value["workspace"]["workspaceId"].string)
+            if let onCreated {
+                if let id = value["workspace"]["workspaceId"].string { onCreated(id) }
+            } else {
+                app.newSessionRequest = NewSessionRequest(workspaceId: value["workspace"]["workspaceId"].string)
+            }
         } catch {
             Haptics.error()
             failure = error.localizedDescription
@@ -135,6 +146,8 @@ private struct DirectoryLevelView: View {
     @State private var slow = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if let failure {
                 Text(failure).font(.footnote).foregroundStyle(Palette.removed).groupedRow()
@@ -167,7 +180,8 @@ private struct DirectoryLevelView: View {
             }
         }
         .task(id: "\(path)-\(reload)") { await load() }
-    }
+    
+        }}
 
     private func load() async {
         failure = nil

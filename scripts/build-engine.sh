@@ -22,8 +22,10 @@ cp -R "$src/skills" "$out/skills"
 
 nm="$out/node_modules"
 before=$(du -sk "$nm" | cut -f1)
-# Native code: Mach-O/ELF addons and executables for other platforms.
-find "$nm" -type f \( -name '*.node' -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.dll' -o -name '*.exe' \) -delete
+# Native code: Mach-O/ELF addons and executables for other platforms, and the static
+# libraries a package ships to link its own addon against (libreoffice-kit's prebuilds).
+find "$nm" -type f \( -name '*.node' -o -name '*.dylib' -o -name '*.so' -o -name '*.so.*' -o -name '*.dll' -o -name '*.exe' \
+  -o -name '*.a' -o -name '*.lib' \) -delete
 # Platform packages npm still placed (no `os` field) and native-only stacks.
 rm -rf "$nm"/@deepseek-ai/libreoffice-kit-* "$nm"/sherpa-onnx-* "$nm"/@img/sharp-* \
        "$nm"/node-pty/build "$nm"/node-pty/deps "$nm"/node-pty/prebuilds "$nm"/node-pty/third_party \
@@ -48,7 +50,7 @@ find "$nm" -type f \( -name '*.md' -o -name '*.markdown' \) ! \( "${own[@]}" \) 
 find "$nm" -type d \( -name test -o -name tests -o -name __tests__ -o -name docs -o -name example -o -name examples \) \
   ! \( "${own[@]}" \) -prune -exec rm -rf {} +
 # Any remaining Mach-O would fail App Store validation and cannot load anyway.
-{ find "$nm" -type f -size +1k -print0 | xargs -0 file --mime-type 2>/dev/null | grep -E 'application/x-(mach-binary|executable|sharedlib)' || true; } | cut -d: -f1 | while read -r f; do rm -f "$f"; done
+{ find "$nm" -type f -size +1k -print0 | xargs -0 file --mime-type 2>/dev/null | grep -E 'application/x-(mach-binary|executable|sharedlib|archive)' || true; } | cut -d: -f1 | while read -r f; do rm -f "$f"; done
 # Bin links into what was pruned above: a dangling link in the bundle fails App Store validation.
 find "$nm" -type l ! -exec test -e {} \; -delete
 # Apache-2.0 notices a bundled package leaves out of its npm tarball ship beside it.

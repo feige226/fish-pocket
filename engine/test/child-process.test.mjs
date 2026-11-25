@@ -157,6 +157,45 @@ test('output to a file descriptor is in the file once the child exits', async ()
   }
 });
 
+test('a descriptor that cannot be written loses the output, not the child', async () => {
+  const dir = tmp();
+  const target = path.join(dir, 'read-only.txt');
+  fs.writeFileSync(target, '');
+  // Opened for reading: every write to it fails.
+  const fd = fs.openSync(target, 'r');
+  const uncaught = [];
+  const record = (error) => uncaught.push(error);
+  process.on('uncaughtException', record);
+  try {
+    const child = cp.spawn('node', ['-e', 'for (let i = 0; i < 50; i++) console.log("line", i)'], { cwd: dir, stdio: ['ignore', fd, fd] });
+    const [code] = await new Promise((r) => child.on('exit', (...a) => r(a)));
+    assert.equal(code, 0);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(uncaught, []);
+  } finally {
+    process.off('uncaughtException', record);
+    fs.closeSync(fd);
+  }
+});
+
+test('our own stdout and stderr given as descriptors go through our streams', async () => {
+  const dir = tmp();
+  const seen = { stdout: '', stderr: '' };
+  const originals = { stdout: process.stdout.write, stderr: process.stderr.write };
+  for (const name of ['stdout', 'stderr']) process[name].write = (chunk) => { seen[name] += Buffer.from(chunk).toString(); return true; };
+  try {
+    const child = cp.spawn('node', ['-e', 'console.log("to-out"); console.error("to-err")'], { cwd: dir, stdio: ['ignore', process.stderr, 1] });
+    await new Promise((r) => child.on('close', r));
+    const sync = cp.spawnSync('node', ['-e', 'console.log("sync-out")'], { cwd: dir, stdio: ['ignore', 2, 'pipe'] });
+    assert.equal(sync.status, 0);
+  } finally {
+    for (const name of ['stdout', 'stderr']) process[name].write = originals[name];
+  }
+  assert.match(seen.stderr, /to-out/);
+  assert.match(seen.stdout, /to-err/);
+  assert.match(seen.stderr, /sync-out/);
+});
+
 test('shell options may follow -c, as bash parses them', async () => {
   const dir = tmp();
   // Claude Code's Bash tool: <shell> -c -l <command>.

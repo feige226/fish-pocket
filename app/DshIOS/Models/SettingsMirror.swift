@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 /// The engine's settings as every settings page reads them (`settings/describe`),
@@ -11,12 +11,12 @@ import SwiftUI
 /// `llm/adapters-updated` and every reconnect; pages attach `.followSettings()`
 /// to drive that, and a burst of events coalesces into one read.
 @MainActor
-@Observable
+@Perceptible
 final class SettingsMirror {
     /// The events that invalidate the describe answer (and the credential states derived from it).
     static let events = ["settings/document-updated", "credentials/reference-updated", "llm/adapters-updated"]
 
-    @ObservationIgnored private let client: EngineClient
+    @PerceptionIgnored private let client: EngineClient
 
     /// The latest `settings/describe` value: `{writable, hasDocument, namespaces:[…]}`.
     private(set) var view: JSON?
@@ -28,12 +28,12 @@ final class SettingsMirror {
     /// Bumped whenever a read or a write folds in, so derived caches can key on it.
     private(set) var stamp = 0
 
-    @ObservationIgnored private var loadedRevision: Int?
-    @ObservationIgnored private var inflight: Task<Void, Never>?
+    @PerceptionIgnored private var loadedRevision: Int?
+    @PerceptionIgnored private var inflight: Task<Void, Never>?
     /// An event landed during a read, which may predate it: read once more after.
-    @ObservationIgnored private var rereadPending = false
+    @PerceptionIgnored private var rereadPending = false
     /// Writes to one namespace go out one at a time, as `ConfigForm`'s write queue does.
-    @ObservationIgnored private var writeChains: [String: Task<Void, Never>] = [:]
+    @PerceptionIgnored private var writeChains: [String: Task<Void, Never>] = [:]
 
     init(client: EngineClient) {
         self.client = client
@@ -239,6 +239,7 @@ enum SharedModelKey {
     nonisolated(unsafe) static var plugins: UInt8 = 0
     nonisolated(unsafe) static var install: UInt8 = 0
     nonisolated(unsafe) static var bots: UInt8 = 0
+    nonisolated(unsafe) static var imageGen: UInt8 = 0
 }
 
 extension AppModel {
@@ -254,8 +255,10 @@ private struct FollowSettings: ViewModifier {
     @Environment(AppModel.self) private var app
 
     func body(content: Content) -> some View {
+        WithPerceptionTracking {
         content.task(id: app.settingsRevision) { await app.settings.refresh(revision: app.settingsRevision) }
-    }
+    
+        }}
 }
 
 extension View {

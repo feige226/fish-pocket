@@ -9,6 +9,11 @@ enum Palette {
     static let link = Color(uiColor: .link)
     static let onInk = Color("OnInk")
     static let secondary = Color("TextSecondary")
+    /// A swipe action's button. The system draws its label white, and the ink is near white in
+    /// dark mode, which hid 归档 and 取消归档: there it is the secondary grey, as 置顶 is.
+    static let swipe = Color(uiColor: UIColor { traits in
+        UIColor(named: traits.userInterfaceStyle == .dark ? "TextSecondary" : "Ink") ?? .label
+    })
     static let faint = Color("TextFaint")
     /// Composer and command blocks.
     static let field = Color("Field")
@@ -21,6 +26,8 @@ enum Palette {
     static let stroke = Color("Stroke")
     static let running = Color("StatusRunning")
     static let waiting = Color("StatusWaiting")
+    /// The one color of the drawn icons on 探索: the piece of each that says what it does.
+    static let spot = Color("Spot")
     static let addedBackground = Color("DiffAddBackground")
     static let added = Color("DiffAddText")
     static let removedBackground = Color("DiffDeleteBackground")
@@ -107,84 +114,46 @@ extension ButtonStyle where Self == CapsuleButtonStyle {
 }
 
 extension EnvironmentValues {
-    /// 设置 and the pages under it wear the system's own list look: its background, separators
-    /// and switch. Set on the settings stack and on the sheets that open one of its pages directly;
-    /// every other screen keeps the monochrome look.
+    /// 设置 and the pages under it wear the system's own list look: its background and separators.
+    /// Set on the settings stack and on the sheets that open one of its pages directly; every other
+    /// screen keeps the monochrome look.
     @Entry var systemLists = false
 }
 
-/// The monochrome switch: ink track with a page-coloured knob when on, so it
-/// reads in both appearances (the system knob is always white). Under 设置 it is the system's.
-struct MonoToggleStyle: ToggleStyle {
+/// Every switch in the app: the system's, in its green. Left to the page's ink tint, the track is
+/// black, and in the dark white under the white knob: one white block, on or off hard to tell.
+/// Set on the window, so a plain `Toggle` gets it; but under an explicit `.tint(…)` the window's
+/// style no longer reaches the switch, so the ink is always set with `inkTint()`, which sets this
+/// style again with it. A new switch, not `Toggle(configuration)`: that one keeps the page's tint.
+/// In a menu the toggle stays a checkmark.
+struct AppSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
-        Row(configuration: configuration)
-    }
-
-    private struct Row: View {
-        @Environment(\.systemLists) private var system
-        let configuration: Configuration
-
-        var body: some View {
-            if system {
-                // The ink tint of the page would paint the track black, and white in the dark.
-                Toggle(isOn: configuration.$isOn) { configuration.label }
-                    .toggleStyle(.switch)
-                    .tint(.green)
-            } else {
-                HStack(spacing: 16) {
-                    configuration.label
-                    Spacer(minLength: 0)
-                    MonoSwitch(isOn: configuration.$isOn)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isToggle)
-                .accessibilityValue(configuration.isOn ? Text("开") : Text("关"))
-                .accessibilityAction { configuration.isOn.toggle() }
-            }
-        }
+        Toggle(isOn: configuration.$isOn) { configuration.label }
+            .toggleStyle(.switch)
+            .tint(.green)
     }
 }
 
+extension ToggleStyle where Self == AppSwitchStyle {
+    static var appSwitch: AppSwitchStyle { AppSwitchStyle() }
+}
+
+extension View {
+    /// The app's ink for what can be tapped, keeping the switches green (`AppSwitchStyle`).
+    func inkTint() -> some View { tint(Palette.ink).toggleStyle(.appSwitch) }
+}
+
 /// The switch alone, for rows that lay out their own label (plugins).
-struct MonoSwitch: View {
-    @Environment(\.systemLists) private var system
+struct AppSwitch: View {
     @Binding var isOn: Bool
     var label: Text?
 
     var body: some View {
-        if system {
-            Toggle(isOn: $isOn) { label ?? Text("") }
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .tint(.green)
-        } else {
-            mono
-        }
+        Toggle(isOn: $isOn) { label ?? Text("") }
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .tint(.green)
     }
-
-    private var mono: some View {
-        Capsule()
-            .fill(isOn ? Palette.ink : Palette.control)
-            .frame(width: 48, height: 28)
-            .overlay(alignment: isOn ? .trailing : .leading) {
-                Circle()
-                    .fill(isOn ? Palette.background : Palette.faint)
-                    .frame(width: 22, height: 22)
-                    .padding(3)
-            }
-            .animation(.snappy(duration: 0.2), value: isOn)
-            .contentShape(Capsule())
-            .onTapGesture { isOn.toggle(); Haptics.select() }
-            .accessibilityElement()
-            .accessibilityLabel(label ?? Text(""))
-            .accessibilityAddTraits(.isToggle)
-            .accessibilityValue(isOn ? Text("开") : Text("关"))
-            .accessibilityAction { isOn.toggle() }
-    }
-}
-
-extension ToggleStyle where Self == MonoToggleStyle {
-    static var mono: MonoToggleStyle { MonoToggleStyle() }
 }
 
 /// Running / waiting indicator: the only colour besides diffs.
@@ -246,10 +215,10 @@ extension View {
     func groupedList() -> some View { modifier(GroupedListStyle()) }
 
     /// A settings page and everything pushed or presented from it, as 设置 is drawn: the system's
-    /// grouped lists, separators and switches, with the app's ink for what can be tapped. Goes on
-    /// the navigation stack (or the sheet's content), so the pages inside inherit it.
+    /// grouped lists and separators, with the app's ink for what can be tapped. Goes on the
+    /// navigation stack (or the sheet's content), so the pages inside inherit it.
     func settingsStyle() -> some View {
-        environment(\.systemLists, true).toggleStyle(.mono).tint(Palette.ink)
+        environment(\.systemLists, true).inkTint()
     }
 
     /// A picker's value in the grey of the other rows' values; the page's ink tint would paint it black.
@@ -258,6 +227,18 @@ extension View {
 
     /// The background of a page that puts something of its own (tabs, an empty state) around a `groupedList()`.
     func pageBackground() -> some View { modifier(PageBackground()) }
+
+    /// A tab's own list, between the title bar and the tab bar: from iOS 26 both bars are
+    /// see-through and what scrolls under them softens, as on the system's pages. Left to the
+    /// system the bottom edge stayed sharp, and the top was a frosted band ending in a line.
+    @ViewBuilder
+    func tabEdgesSoftened() -> some View {
+        if #available(iOS 26.0, *) {
+            scrollEdgeEffectStyle(.soft, for: [.top, .bottom])
+        } else {
+            self
+        }
+    }
 
     /// A conversation's top bar. From iOS 26 it is the system's see-through bar: the messages
     /// run up under its buttons, sharp, and blur only under the status bar, above them, so the
@@ -317,6 +298,18 @@ extension View {
             glassEffect(.regular, in: shape)
         } else {
             background(Palette.field, in: shape)
+        }
+    }
+
+    /// A text field in a bar answers only on its lines; the bar's room above and below them,
+    /// `beyond` past the field's own frame, puts the caret in it too. With one line that room is
+    /// most of the bar, and a tap there went nowhere: it took a second tap. A UIKit tap, as a
+    /// SwiftUI one this close to the bottom of the screen arrives late on a device.
+    func focusesOnTap(_ focus: FocusState<Bool>.Binding, beyond: CGFloat = 0) -> some View {
+        background {
+            FocusTap { focus.wrappedValue = true }
+                .padding(.vertical, -beyond)
+                .accessibilityHidden(true)
         }
     }
 
@@ -469,6 +462,22 @@ func clearFocusedTextInput() {
     }
 }
 
+/// The same for the system's search field, when code ends its search (a match was picked).
+/// Left alone, the field commits what a Chinese input method was composing as it closes and
+/// writes it back to the binding just emptied: the list stays on the matches, with the field
+/// out of sight. Only a search field: beside a conversation the keyboard may be the composer's.
+@MainActor
+func clearFocusedSearchField() {
+    guard let field = UIResponder.focused as? UISearchTextField else { return }
+    field.unmarkText()
+    field.text = ""
+}
+
+extension UIResponder {
+    /// The text view holding the keyboard, if one does (a multi-line SwiftUI field is one).
+    @MainActor static var focusedTextView: UITextView? { focused as? UITextView }
+}
+
 private extension UIResponder {
     static weak var found: UIResponder?
 
@@ -511,6 +520,11 @@ struct DrawerButton: View {
 /// A blur under the system status bar alone, fading out above the bar's own buttons: what scrolls
 /// up there stays out of the clock's way, while the messages under the title stay sharp.
 private struct StatusBarSoftening: View {
+    /// The conversation reaches the top of the window, where the status bar is. A column that
+    /// starts lower has none over it (an iPad's, under the floating tab bar; a sheet's): there
+    /// the blur showed as a lighter band of its own, behind the tab bar and beside a list with none.
+    @State private var underStatusBar = false
+
     var body: some View {
         // The window's top inset is the status bar (or the Dynamic Island's band); this view's own
         // inset also holds the navigation bar, which is left clear.
@@ -522,7 +536,10 @@ private struct StatusBarSoftening: View {
                                  startPoint: .top, endPoint: .bottom))
             .frame(height: height + 10)
             .frame(maxWidth: .infinity, alignment: .top)
+            // Read here, inside: outside `ignoresSafeArea` the frame is the safe area's, below the bars.
+            .onGeometryChange(for: Bool.self) { $0.frame(in: .global).minY < 1 } action: { underStatusBar = $0 }
             .ignoresSafeArea(edges: .top)
+            .opacity(underStatusBar ? 1 : 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -532,5 +549,28 @@ private struct StatusBarSoftening: View {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? scenes.first?.windows.first
         return window?.safeAreaInsets.top ?? 54
+    }
+}
+
+/// The tap behind a bar's text field (`focusesOnTap`).
+private struct FocusTap: UIViewRepresentable {
+    let tapped: () -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.addGestureRecognizer(UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tap)))
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) { context.coordinator.tapped = tapped }
+
+    func makeCoordinator() -> Coordinator { Coordinator(tapped: tapped) }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var tapped: () -> Void
+        init(tapped: @escaping () -> Void) { self.tapped = tapped }
+        @objc func tap() { tapped() }
     }
 }

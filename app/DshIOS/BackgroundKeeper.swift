@@ -31,6 +31,8 @@ final class BackgroundKeeper {
     var continuedEnabled: Bool { UserDefaults.standard.bool(forKey: Self.continuedKey) }
 
     private var inBackground = false
+    /// A voice call is on (`setCallActive`).
+    private var callActive = false
     /// Between losing focus and going to the background: the last moment a continued task can be submitted.
     private var leaving = false
     private var running: [String] = []
@@ -71,7 +73,15 @@ final class BackgroundKeeper {
     func settingsChanged() {
         if !continuedEnabled { finishContinued() }
         guard inBackground else { return }
-        if enabled { audio.start() } else { audio.stop() }
+        if enabled && !callActive { audio.start() } else { audio.stop() }
+    }
+
+    /// A voice call keeps the app running with its own audio session, which the silent audio's
+    /// would replace: none while it lasts, and back once it ends off screen.
+    func setCallActive(_ active: Bool) {
+        callActive = active
+        guard inBackground else { return }
+        if active { audio.stop() } else if enabled { audio.start() }
     }
 
     func scenePhaseChanged(to phase: ScenePhase) {
@@ -87,7 +97,7 @@ final class BackgroundKeeper {
             guard !inBackground else { return }
             inBackground = true
             beginGrace()
-            if enabled { audio.start() }
+            if enabled && !callActive { audio.start() }
             poll()
         default:
             // Still in the foreground: submit for what is running, and refresh for

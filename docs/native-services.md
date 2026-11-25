@@ -508,7 +508,7 @@ engine/plugins/ios-native/
 （✅ = 已落地，⬜ = 待建。）
 
 - 服务 `ctx.iosNative`：引擎自己的工具走的那条路。插件够得到（拦不住，见 §5.3），但**不是 API**，不承诺跨版本稳定，见 §5.6。
-- 工具：给引擎本体用的那套（`device_info`、`notify`、`speak`、`calendar_list` …）。
+- 工具：给引擎本体用的那套（`device_info`、`notify`、`calendar_list` …）。朗读（`speak`）后来拿掉了：和语音消息（`send_voice_message`）功能重叠，模型常常选错。
 - 在 `engine/ios.patch.yml` 的 `insert` 里加一行挂上。
 - addon 不在（桌面开发机）时 `binding()` 返回 null，插件就不注册工具——和 `git` 在没有 addon 时"根本不是一个命令"一致。
 
@@ -638,12 +638,12 @@ audit: { capability, op, callerClaim, at, summary? }   # callerClaim = 自报的
 
 - **弹窗是一次性的。** iOS 对一个 App 一生只问一次。没人应答时 App 被重启，后续请求直接拿到「已拒绝」，只能回系统设置救（§7.1 的教训）。把这唯一一次花在"用户没在看"的时刻，是拿用户的权限去赌。
 - **插件触发的弹窗没有上下文。** 用户看到"Fish Pocket 想访问你的日历"，但不知道是谁想要、为什么现在要——而 §2.2 已经证明我们**没法**在框里诚实地写出调用方。与其写一句可伪造的来源，不如根本不在那个时机问。
-- **拒绝比弹框更可转述。** 拒绝消息是写给模型的，模型会用用户的语言说出来："你还没开日历，可以去「探索 → 本机能力」里打开。" 这比一个突然出现的系统框更像一次解释。
+- **拒绝比弹框更可转述。** 拒绝消息是写给模型的，模型会用用户的语言说出来："你还没开日历，可以去「探索 → 连接器 → 本机能力」里打开。" 这比一个突然出现的系统框更像一次解释。
 
 代价和应对：
 
-- **入口不好找，能力就永远开不起来。** 所以它在「探索」页自成一项，和连接器并列（iOS 17 上在侧边栏），不只藏在设置里。
-- **拒绝消息里不能引用界面上的标题。** addon 那几个文件不翻译，而界面是三语的；写死「本机能力」四个字迟早和屏幕上的字对不上。所以消息描述位置（"the app's Explore tab (in the sidebar before iOS 18)"），让模型自己用用户的语言说。
+- **入口不好找，能力就永远开不起来。** 所以它在「探索」页自成一项，和连接器并列（iOS 17 的 iPad 上在侧边栏），不只藏在设置里。
+- **拒绝消息里不能引用界面上的标题。** addon 那几个文件不翻译，而界面是三语的；写死「本机能力」四个字迟早和屏幕上的字对不上。所以消息描述位置（"the app's Explore tab (in the sidebar on an iPad before iOS 18)"），让模型自己用用户的语言说。
 
 实现上只有一个入口会弹框：`DshNativeRequestPermission`（`ios_native.m`），它读的是和分发器同一张能力表，表里没有的 `systemPermission` 会被明确拒绝，而不是悄悄什么都不做。能力侧对应改成 `DshEventKitRequireAccess` / `require_authorization`——名字从 Request 改成 Require，就是为了让"这里不会弹框"这件事在调用点上看得见。
 
@@ -707,7 +707,7 @@ Apple 对 HealthKit 数据有硬条款：不得用于广告或基于使用的数
 | `app/DshIOS/PrivacyInfo.xcprivacy` | **待定，没动，见下。** |
 | `PRIVACY.md` | ✅ 已改：本机数据不另存、每次现读；使用记录留在本机可查可清；日历和提醒会随对话发给模型服务商（中英两版都改了） |
 | `engine/skills/ios-environment/SKILL.md` | ✅ 已改：日历和提醒两行、写操作要确认、`notify` 和 `reminders` 怎么选、被拒和「仅添加」怎么说 |
-| `docs/webui/parity.md` | ✅ 已改：新增 §3.3「本项目自有扩展」 |
+| `docs/webui/parity.md` | ✅ 已改：新增「本项目自有扩展」一节（现在是 §3.4；之后引擎升级插入 §3.3，顺延了编号） |
 | `docs/webui/settings-plugins.md` | ✅ 已改：`installTrust` 文案按 §4.1.1 加了本机能力那半句 |
 | `app/project.yml` + `InfoPlist.xcstrings` | ✅ 已改：日历和提醒两条用途描述，中英西三语 |
 

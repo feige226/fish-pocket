@@ -1,11 +1,12 @@
 import Foundation
 
-/// When to ask for a rating, a Star or a share, after Orca's star nag: only right after a turn
+/// When to ask for a rating or a share, after Orca's star nag: only right after a turn
 /// went well, a few turns in, and rarely; each ask starts the same wait, three days and the
 /// turns again. An App Store install is asked for a rating alone, once a version (Apple decides
-/// whether the sheet shows, and says nothing either way); the Star / share card is left to
-/// 设置 there. Other installs get the card instead: an ignored one waits twice the turns, the
-/// third is the last, and the first tap settles it, as GitHub can't say from here who has starred.
+/// whether the sheet shows, and says nothing either way); the card is left to 设置 there.
+/// Other installs get the card instead (rate on the App Store first, share, and a quiet line to the
+/// repository, which leaves the card up): an ignored one waits twice the turns, the third is the
+/// last, and rating or sharing settles it, as nothing here can tell who has rated.
 @MainActor
 enum SupportPrompt {
     enum Ask { case review, support }
@@ -41,7 +42,7 @@ enum SupportPrompt {
         return ask
     }
 
-    /// They went to the repository or the share page: never show the card again.
+    /// They went to the App Store or the share page: never show the card again.
     static func settle() { UserDefaults.standard.set(true, forKey: settledKey) }
 
     private static var version: String {
@@ -71,12 +72,18 @@ enum SupportPrompt {
 /// The app's links, and the message that passes them on.
 enum AppLinks {
     static let repository = URL(string: "https://github.com/\(UpdateChecker.repository)")!
-    /// The website, which sends each reader on to the App Store or the public beta. The share
-    /// poster's QR code is a picture of this link: scripts/make-share-qr.swift redraws it.
+    /// The website, which sends each reader on to the App Store or the public beta.
     static let site = URL(string: "https://fish.deepseek1024.com")!
-    /// The WeChat group's QR code at the bottom of 设置. It expires every 7 days; the website swaps
+    /// The app's App Store page, with no storefront so each reader lands in their own. The share
+    /// poster's QR code is a picture of this link: scripts/make-share-qr.swift redraws it.
+    static let appStore = URL(string: "https://apps.apple.com/app/id6830703602")!
+    /// The same page with the App Store's review sheet already open.
+    static let appStoreReview = URL(string: "https://apps.apple.com/app/id6830703602?action=write-review")!
+    /// The WeChat group's QR code at the foot of the 探索 tab. It expires every 7 days; the website swaps
     /// the picture at this same path, so the app always shows the current one without an update.
     static let wechatGroupCode = site.appending(path: "wechat-group.png")
+    /// The community's Discord server, next to the WeChat group.
+    static let discord = URL(string: "https://discord.gg/VSzN4jUwWm")!
     /// 本机能力 → 操控其他 App: installing iCTRL (SideStore, iLoader, Developer Mode) and its FAQ.
     /// The page lives on the website so it can follow those tools' releases without an app update.
     /// Chinese at /phone-control/, the site's other languages under their prefix; English for the rest.
@@ -96,8 +103,6 @@ enum AppLinks {
         #endif
         return site.appending(path: "add-to-home/")
     }
-    /// The App Store's 「撰写评论」 page for the app.
-    static let writeReview = URL(string: "https://apps.apple.com/app/id6830703602?action=write-review")!
 
     /// What 「链接」 on the share page sends.
     static var shareText: String {

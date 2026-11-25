@@ -1,8 +1,9 @@
 // Safe mode: the way back in when a third-party plugin keeps the engine from
 // coming up. The app has no interface until the engine prints its URL, so the
 // plugin page that would switch the plugin off is out of reach, and its data —
-// the plugin included — outlives a reinstall. The launch screen asks for it
-// (NodeEngine.requestSafeMode); main.mjs runs this and replaces the worker.
+// the plugin included — outlives a reinstall. It is the first of the launch
+// screen's repair steps (EngineRepair.swift; the rest are in recovery.mjs);
+// main.mjs runs it and replaces the worker.
 //
 // It does what switching each one off on the plugin page does: the package
 // leaves the profile's bundle list and stays installed, so it can be switched

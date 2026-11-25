@@ -2,16 +2,26 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// A bonus the Platform has credited but the user has not been shown yet.
-struct BonusNotice: Identifiable, Hashable {
-    let accountId: String
-    let orderId: String
-    let title: String
-    let message: String
-    let expiresAt: Date?
-    var id: String { orderId }
+/// A Platform notification the user has not been shown yet (a credited bonus,
+/// an announcement). 0.2.2-rc.3 replaced `account/getUnnotifiedBonuses` with
+/// `account/getNotifications`, which carries the same card plus its buttons.
+struct AccountNotification: Identifiable, Hashable {
+    /// One button of the card. `target` is `app_route` (with `route`) or `dismiss`.
+    struct Action: Identifiable, Hashable {
+        let label: String
+        let style: String
+        let target: String
+        let route: String?
+        var id: String { "\(label)|\(target)|\(route ?? "")" }
+    }
 
-    var expired: Bool { expiresAt.map { $0 <= Date() } ?? false }
+    let id: String
+    let title: String
+    let body: String
+    let displayUntil: Date?
+    let actions: [Action]
+
+    var expired: Bool { displayUntil.map { $0 <= Date() } ?? false }
 }
 
 /// The DeepSeek account the way the official web client tracks it
@@ -26,7 +36,7 @@ struct BonusNotice: Identifiable, Hashable {
 @Observable
 final class AccountModel {
     /// The engine build this client speaks for; account methods require it in `client`.
-    static let clientVersion = "0.2.2-rc.1"
+    static let clientVersion = "0.2.2-rc.4"
 
     @ObservationIgnored private let client: EngineClient
     @ObservationIgnored private let mux: StreamMux
@@ -37,15 +47,21 @@ final class AccountModel {
     /// `nil` while loading; then `{status:"ready", value}` or `{status:"failed"}`.
     private(set) var profile: JSON?
     private(set) var balance: JSON?
-    private(set) var bonuses: [BonusNotice] = []
-    /// One-shot shell notices: a toast line, or the no-balance prompt.
+    /// Unread Platform notifications, newest first; one card shows at a time.
+    private(set) var notifications: [AccountNotification] = []
+    /// One-shot shell notice: a toast line.
     var toast: String?
-    var quotaPrompt = false
 
     @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private var detailsGeneration = 0
     @ObservationIgnored private var initializedAttempt: String?
-    @ObservationIgnored private var acked: Set<String> = []
+    /// Cards already reported as displayed, so one is not reported twice.
+    @ObservationIgnored private var reported: Set<String> = []
+    /// Cards the user closed: a read that still lists one does not bring it back.
+    @ObservationIgnored private var dismissed: Set<String> = []
+    @ObservationIgnored private var pollTask: Task<Void, Never>?
+    /// Seconds between reads (`nextPollAfterSeconds`); the web starts from ten minutes.
+    @ObservationIgnored private var pollInterval: Double = 600
 
     init(client: EngineClient, mux: StreamMux) {
         self.client = client
@@ -112,7 +128,9 @@ final class AccountModel {
                 do {
                     for try await frame in mux.open("account/watch", [:]) {
                         streamFailed = false
-                        apply(frame)
+                        // 0.2.2-rc.3 sends `{type, state}` (type: snapshot | credentials-changed).
+                        let state = frame["state"]
+                        apply(state.object.isEmpty ? frame : state)
                     }
                 } catch {
                     if Task.isCancelled { return }
@@ -130,13 +148,14 @@ final class AccountModel {
             detailsGeneration += 1
             profile = nil
             balance = nil
-            bonuses = []
-            quotaPrompt = false
+            notifications = []
+            reported = []
+            dismissed = []
+            pollTask?.cancel()
+            pollTask = nil
             return
         }
-        if !wasSignedIn {
-            Task { await loadBonuses() }
-        }
+        if !wasSignedIn { pollNotifications() }
         // First frame of a finished sign-in: pick the account's default model, as the web client does.
         if phase == "succeeded", let id = attempt?["id"].string, initializedAttempt != id {
             initializedAttempt = id
@@ -159,11 +178,11 @@ final class AccountModel {
         balance = nextBalance
     }
 
-    /// Opening settings re-reads everything shown there, bonus notices included.
+    /// Opening settings re-reads everything shown there, the notification cards included.
     func refresh() async {
         guard signedIn else { return }
         async let details: Void = refreshDetails()
-        async let notices: Void = loadBonuses()
+        async let notices: Void = loadNotifications()
         _ = await (details, notices)
     }
 
@@ -173,50 +192,89 @@ final class AccountModel {
         return value
     }
 
-    // MARK: Bonus notices
+    // MARK: Platform notifications
 
-    private func loadBonuses() async {
-        guard let batch = try? await client.call("account/getUnnotifiedBonuses", ["client": clientInfo]), !batch.isNull else { return }
-        let accountId = batch["accountId"].string ?? ""
+    /// `account/getNotifications`: the unconsumed cards, their buttons, and when to ask again.
+    /// The card the user has already been shown stays in front until it is closed or runs out,
+    /// whatever a later read lists; the rest follow in the server's order.
+    private func loadNotifications() async {
+        guard let batch = try? await client.call("account/getNotifications", ["client": clientInfo]), !batch.isNull else { return }
+        if let seconds = batch["nextPollAfterSeconds"].double, seconds > 0 { pollInterval = seconds }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let plain = ISO8601DateFormatter()
-        bonuses = batch["bonuses"].array.compactMap { bonus in
-            guard let orderId = bonus["orderId"].string, !acked.contains(orderId) else { return nil }
-            let expires = bonus["expiresAt"].string.flatMap { $0.isEmpty ? nil : (iso.date(from: $0) ?? plain.date(from: $0)) }
-            let notice = BonusNotice(
-                accountId: accountId,
-                orderId: orderId,
-                title: bonus["title"].string ?? String(localized: "赠金已到账"),
-                message: bonus["message"].string ?? "",
-                expiresAt: expires
+        let offered: [AccountNotification] = batch["notifications"].array.compactMap { item in
+            guard let id = item["id"].string, !dismissed.contains(id) else { return nil }
+            let until = item["displayUntil"].string.flatMap { $0.isEmpty ? nil : (iso.date(from: $0) ?? plain.date(from: $0)) }
+            let actions = item["actions"].array.compactMap { action -> AccountNotification.Action? in
+                guard let label = action["label"].string, let target = action["target"]["type"].string else { return nil }
+                return AccountNotification.Action(
+                    label: label,
+                    style: action["style"].string ?? "secondary",
+                    target: target,
+                    route: action["target"]["name"].string
+                )
+            }
+            let notice = AccountNotification(
+                id: id,
+                title: item["title"].string ?? String(localized: "赠金已到账"),
+                body: item["body"].string ?? "",
+                displayUntil: until,
+                actions: actions
             )
             return notice.expired ? nil : notice
         }
+        let front = notifications.first.flatMap { shown in
+            reported.contains(shown.id) && !shown.expired ? offered.first { $0.id == shown.id } ?? shown : nil
+        }
+        let next = front.map { front in [front] + offered.filter { $0.id != front.id } } ?? offered
+        reported.formIntersection(next.map(\.id))
+        if next != notifications { notifications = next }
     }
 
-    /// A notice counts as shown once on screen: acknowledge it once, retrying failures with backoff.
-    func markShown(_ notice: BonusNotice) {
-        guard !acked.contains(notice.orderId) else { return }
-        acked.insert(notice.orderId)
-        let client = self.client, info = clientInfo
-        Task {
-            var delay = 1.0
+    /// Ask again while signed in: every ten minutes until the server names its own interval.
+    private func pollNotifications() {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                do {
-                    _ = try await client.call("account/ackBonusNotified", ["accountId": .string(notice.accountId), "orderId": .string(notice.orderId), "client": info])
-                    return // false means Platform will not take it: do not retry either.
-                } catch {
-                    try? await Task.sleep(for: .seconds(delay))
-                    delay = min(delay * 2, 60)
-                }
+                guard let self, self.signedIn else { return }
+                await self.loadNotifications()
+                try? await Task.sleep(for: .seconds(self.pollInterval))
             }
         }
     }
 
-    func dismiss(_ notice: BonusNotice) {
-        markShown(notice)
-        bonuses.removeAll { $0.id == notice.id }
+    /// A card counts as shown once on screen. Like the other two events it is reported once
+    /// and not again: the server decides what a report it never got means.
+    func markShown(_ notice: AccountNotification) {
+        guard reported.insert(notice.id).inserted else { return }
+        report(notice.id, "displayed")
+    }
+
+    func dismiss(_ notice: AccountNotification) {
+        dismissed.insert(notice.id)
+        report(notice.id, "dismissed")
+        notifications.removeAll { $0.id == notice.id }
+    }
+
+    /// A button on the card. One that closes it is a dismissal; any other is reported as a
+    /// click and leaves the card, answering with the page to open (`app_route` is the account page).
+    func act(_ notice: AccountNotification, _ action: AccountNotification.Action) -> URL? {
+        if action.target == "dismiss" {
+            dismiss(notice)
+            return nil
+        }
+        report(notice.id, "cta_clicked")
+        return action.route == "account" ? accountInfoURL ?? usageURL : nil
+    }
+
+    private func report(_ id: String, _ event: String) {
+        let client = self.client, info = clientInfo
+        Task {
+            _ = try? await client.call("account/reportNotificationEvent", [
+                "id": .string(id), "event": .string(event), "client": info,
+            ])
+        }
     }
 
     // MARK: Actions
@@ -255,15 +313,6 @@ final class AccountModel {
         default: break
         }
     }
-
-    /// A live turn ended on `QUOTA`/`ACCOUNT_QUOTA`: an account route asks to top up, anything else is a toast.
-    func reportQuota(code: String) {
-        if code == "ACCOUNT_QUOTA", signedIn, topUpURL != nil {
-            quotaPrompt = true
-        } else {
-            toast = String(localized: "当前请求的额度已用尽")
-        }
-    }
 }
 
 /// Platform Web's balance text: two decimals rounded down, grouped digits, and
@@ -293,10 +342,12 @@ private func grouped(_ value: Decimal, _ rounding: NSDecimalNumber.RoundingMode)
 struct TurnFailure {
     let code: String?
     let message: String
+    /// The provider's own words, as the engine recorded them.
+    let raw: String
 
     /// `reason` of a `turn/end`: a recorded error, a sign-out abort, or a turn closed by an engine restart.
     init?(reason: JSON) {
-        let code: String?, raw: String
+        var code: String?, raw: String
         switch reason["kind"].string {
         case "error":
             code = reason["error"]["code"].string
@@ -310,7 +361,11 @@ struct TurnFailure {
         default:
             return nil
         }
+        // new-api and one-api refuse an exhausted balance with 401/403, which the engine reads as a
+        // bad key. Their fixed codes and wording say otherwise; anything less certain stays as it is.
+        if code == "AUTH", Self.relayQuotaMarkers.contains(where: raw.contains) { code = "QUOTA" }
         self.code = code
+        self.raw = raw
         switch code {
         case "ACCOUNT_SIGNED_OUT": message = String(localized: "任务已因退出 DeepSeek 登录而停止。")
         case "INTERRUPTED": message = String(localized: "DSH 进程在本轮完成前退出（例如被强制结束、崩溃或关闭超时），重新启动后本轮已中止。未完成的工具调用结果未知。")
@@ -320,11 +375,32 @@ struct TurnFailure {
             message = raw.contains("Fish Pocket") ? String(localized: "Fish Pocket 余额不足，请充值后继续。") : String(localized: "当前请求的额度已用尽")
         case "AUTH":
             message = raw.contains("Fish Pocket") ? String(localized: "Fish Pocket 登录已失效，请重新登录。") : String(localized: "API 密钥无效")
+        // DeepSeek's safety review stopped the answer: "… content safety review: <DeepSeek's reason, if any>".
+        case "CONTENT_REFUSED":
+            let reason = raw.range(of: "safety review:").map { raw[$0.upperBound...].trimmingCharacters(in: .whitespaces) } ?? ""
+            message = reason.isEmpty
+                ? String(localized: "内容没有通过 DeepSeek 的安全审核，模型拒绝回答。")
+                : String(localized: "内容没有通过 DeepSeek 的安全审核，模型拒绝回答：\(reason)")
         default: message = raw.isEmpty ? String(localized: "本轮运行失败") : raw
         }
     }
 
     var isQuota: Bool { code == "QUOTA" || code == "ACCOUNT_QUOTA" }
+
+    /// What the provider said: the `message` of the body the engine quotes ("401: {…}"), else the text as is.
+    var providerMessage: String {
+        if let start = raw.firstIndex(of: "{"),
+           let body = try? JSONDecoder().decode(JSON.self, from: Data(raw[start...].utf8)),
+           let said = body["message"].string ?? body["error"]["message"].string, !said.isEmpty {
+            return said
+        }
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The balance errors of the two common open-source relays, word for word: new-api's and
+    /// one-api's `insufficient_user_quota`, new-api's `pre_consume_token_quota_failed`, and
+    /// one-api's token message.
+    private static let relayQuotaMarkers = ["insufficient_user_quota", "pre_consume_token_quota_failed", "该令牌额度已用尽"]
 
     /// The turn never reached a model for want of a working credential.
     enum CredentialProblem: Hashable { case missing, invalid }

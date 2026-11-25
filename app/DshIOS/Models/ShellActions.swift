@@ -9,21 +9,21 @@ extension AppModel {
 
     /// The session's durable title, if it has one (no 「新会话」 fallback).
     func durableTitle(of id: String) -> String? {
-        if let title = control[id]?["title"]?.string, !title.isEmpty { return title }
+        if let title = control(id, "title")?.string, !title.isEmpty { return title }
         if let title = sessions[id]?.title, !title.isEmpty { return title }
         return nil
     }
 
     /// The Agent preset the session is bound to (projection `agentPreset`).
     func presetId(of id: String) -> String? {
-        let value = control[id]?["agentPreset"] ?? sessions[id]?.projections["agentPreset"] ?? .null
+        let value = control(id, "agentPreset") ?? sessions[id]?.projections["agentPreset"] ?? .null
         return value.string ?? value["id"].string ?? value["agentPreset"].string
     }
 
     /// The compact waiting label of a row: 待审批 / 计划待审 / 待回答.
     func pendingLabel(of id: String) -> String? {
         if !(approvals[id] ?? []).isEmpty { return String(localized: "待审批") }
-        let active = control[id]?["userQuestions"]?["active"].array ?? []
+        let active = control(id, "userQuestions")?["active"].array ?? []
         guard !active.isEmpty else { return nil }
         let planReview = active.contains { call in call["questions"].array.contains { $0["intent"]["kind"].string == "plan-review" } }
         return planReview ? String(localized: "计划待审") : String(localized: "待回答")
@@ -39,13 +39,21 @@ extension AppModel {
     /// Direct children from the parent's `subagentCatalog` projection
     /// (`[{id, createdAt, mode, label?}]`), else from the session list.
     func subagentEntries(of parent: String) -> [JSON] {
-        for source in [control[parent]?["subagentCatalog"], projectionCache[parent]?["subagentCatalog"], sessions[parent]?.projections["subagentCatalog"]] {
+        for source in [control(parent, "subagentCatalog"), projectionCache[parent]?["subagentCatalog"], sessions[parent]?.projections["subagentCatalog"]] {
             if let entries = source?.array, !entries.isEmpty { return entries }
         }
         return (childSessions[parent] ?? []).compactMap { sessions[$0] }.map { child in
             ["id": .string(child.id), "mode": child.projections["subagent"]["mode"].isNull ? "unknown" : child.projections["subagent"]["mode"],
              "label": child.projections["subagent"]["label"]]
         }
+    }
+
+    /// A session's shared task board (`agentTeam.tasks`, without the deleted ones) and the Host's
+    /// complaint about its records, while Agent teamwork is on there; nothing while it is off.
+    func teamBoard(of id: String) -> (tasks: [JSON], failure: String?) {
+        let team = control(id, "agentTeam") ?? projectionCache[id]?["agentTeam"] ?? sessions[id]?.projections["agentTeam"] ?? .null
+        guard team["enabled"].bool == true else { return ([], nil) }
+        return (team["tasks"].array.filter { $0["status"].string != "deleted" }, team["failure"].string)
     }
 
     /// Children running now (the row's 「N 个子智能体运行中」).

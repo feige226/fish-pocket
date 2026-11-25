@@ -291,12 +291,18 @@ extension ToolCall {
             let queries = arguments["queries"].array.compactMap(\.string).filter { !$0.isEmpty }.map(Self.firstLine)
             if !queries.isEmpty { return queries.joined(separator: ", ") }
         }
+        // dsh-image-gen: what was asked for, not the first option alphabetically.
+        if displayName == "generate_images" {
+            let prompts = arguments["prompts"].array.compactMap(\.string).filter { !$0.isEmpty }.map(Self.firstLine)
+            if !prompts.isEmpty { return prompts.joined(separator: " · ") }
+        }
         let keys: [String] = switch displayName {
         case "bash", "pwsh": ["description", "command"]
         case "read", "read_image", "web_fetch": ["path", "file_path", "url"]
         case "web_search", "grep", "glob": ["query", "pattern", "url"]
         case "write", "edit": ["path", "file_path"]
         case "run_code": ["description"]
+        case "generate_image", "edit_image", "find_inspiration": ["prompt", "query"]
         default: []
         }
         for key in keys { if let value = arguments[key].string, !value.isEmpty { return Self.firstLine(value) } }
@@ -333,7 +339,7 @@ private struct FoldedLines<Line, Row: View>: View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array((open ? lines : Array(lines.prefix(cap))).enumerated()), id: \.offset) { _, line in row(line) }
             if lines.count > cap {
-                FoldButton(open: open, hidden: lines.count - cap) { withAnimation(.snappy) { open.toggle() } }
+                FoldButton(open: open, hidden: lines.count - cap) { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { open.toggle() } }
             }
         }
     }
@@ -724,7 +730,7 @@ struct TodoDiffCard: View {
             if diff.rows.isEmpty && diff.unchanged.isEmpty { Text("任务清单为空").font(.footnote).foregroundStyle(Palette.secondary) }
             ForEach(Array(diff.rows.enumerated()), id: \.offset) { _, row in rowView(row) }
             if !diff.unchanged.isEmpty {
-                Button { withAnimation(.snappy) { showUnchanged.toggle() } } label: {
+                Button { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { showUnchanged.toggle() } } label: {
                     Text("\(diff.unchanged.count) 项未变化").font(.caption).foregroundStyle(Palette.secondary).hitTarget()
                 }
                 .buttonStyle(.plain)

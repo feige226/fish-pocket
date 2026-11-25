@@ -60,6 +60,34 @@ enum WidgetPalette {
     }
 }
 
+extension View {
+    /// A filled shape behind a glyph or text: the black buttons, the composer field, a mini app's tile.
+    /// `content` is the colour drawn on the fill; nil keeps what the view already has.
+    func widgetFill(_ fill: some ShapeStyle, in shape: some Shape, content: Color? = nil) -> some View {
+        modifier(WidgetFill(fill: fill, content: content, shape: shape))
+    }
+}
+
+/// Tinted and clear home screens (`.accented`) and StandBy at night (`.vibrant`) drop the colours and
+/// keep only how opaque each view is, so an opaque fill and what sits on it would merge into one solid
+/// shape. Outside full colour the fill turns into a faint wash under full-strength content.
+private struct WidgetFill<Fill: ShapeStyle, S: Shape>: ViewModifier {
+    let fill: Fill
+    let content: Color?
+    let shape: S
+    @Environment(\.widgetRenderingMode) private var mode
+
+    func body(content view: Content) -> some View {
+        if mode != .fullColor {
+            view.foregroundStyle(.primary).background(Color.primary.opacity(0.2), in: shape)
+        } else if let content {
+            view.foregroundStyle(content).background(fill, in: shape)
+        } else {
+            view.background(fill, in: shape)
+        }
+    }
+}
+
 /// The brand mark, as on the Live Activity.
 struct FishMark: View {
     var size: CGFloat = 14
@@ -103,9 +131,8 @@ struct InkCapsule: View {
             Image(systemName: "plus").font(.system(size: 13, weight: .bold))
             Text(title).font(.subheadline.weight(.semibold))
         }
-        .foregroundStyle(WidgetPalette.onInk)
         .frame(maxWidth: .infinity, minHeight: height)
-        .background(WidgetPalette.ink, in: Capsule())
+        .widgetFill(WidgetPalette.ink, in: Capsule(), content: WidgetPalette.onInk)
     }
 }
 

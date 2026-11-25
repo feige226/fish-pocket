@@ -78,6 +78,7 @@ final class BrowserPage: NSObject {
         // As in Safari, a pinch zooms every page, including one that asks not to be zoomed
         // (`user-scalable=no`, `maximum-scale=1`), as most mobile sites do.
         configuration.ignoresViewportScaleLimits = true
+        configuration.applicationNameForUserAgent = Self.safariMobileSuffix
         // 我的应用, so the agent can look at an app it made: `fishapp://<id>/`.
         configuration.setURLSchemeHandler(MiniAppServer.preview, forURLScheme: MiniAppServer.scheme)
         configuration.userContentController.add(
@@ -227,6 +228,31 @@ final class BrowserPage: NSObject {
         return nil
     }
 
+    /// The version a site with no choice gets, as WebKit picks it: mobile on a phone, desktop on an iPad unless
+    /// its window is narrow. Picked here rather than left to WebKit so the user agent can be set to match.
+    private var desktopByDefault: Bool {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return false }
+        return webView.window?.traitCollection.horizontalSizeClass != .compact
+    }
+
+    // MARK: User agent
+
+    /// The user agent goes out as Safari's on this device, word for word. WebKit's own leaves out Safari's
+    /// `Version/… Safari/…`, and some sites take a browser without it for an outdated one: bilibili's
+    /// desktop site sends it to a 「浏览器版本过低」 page.
+    ///
+    /// Safari's version is the system's, major and minor (`Version/27.2`); the `Safari/` numbers have not
+    /// moved in years. WebKit adds the application name to both versions' user agents, so it carries the
+    /// mobile ending, and a desktop page is sent with the whole of Safari's desktop user agent instead.
+    private static let safariVersion: String = {
+        let parts = UIDevice.current.systemVersion.split(separator: ".")
+        return "\(parts.first ?? "0").\(parts.count > 1 ? parts[1] : "0")"
+    }()
+    private static let safariMobileSuffix = "Version/\(safariVersion) Mobile/15E148 Safari/604.1"
+    /// WebKit's desktop user agent, a Mac's, frozen like Safari's own, with Safari's ending.
+    private static let safariDesktopUserAgent =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(safariVersion) Safari/605.1.15"
+
     /// An IP address rather than a name: IPv6 has colons, IPv4 is all numbers.
     private static func isAddress(_ host: String) -> Bool {
         host.contains(":") || host.split(separator: ".").allSatisfy { $0.allSatisfy(\.isNumber) }
@@ -368,9 +394,11 @@ extension BrowserPage: WKNavigationDelegate, WKUIDelegate {
         preferences: WKWebpagePreferences,
         decisionHandler: @escaping @MainActor (WKNavigationActionPolicy, WKWebpagePreferences) -> Void
     ) {
-        if navigationAction.targetFrame?.isMainFrame ?? true, let url = navigationAction.request.url,
-           let desktop = Self.asksForDesktop(url) {
+        if navigationAction.targetFrame?.isMainFrame ?? true, let url = navigationAction.request.url {
+            let desktop = Self.asksForDesktop(url) ?? desktopByDefault
             preferences.preferredContentMode = desktop ? .desktop : .mobile
+            webView.customUserAgent = desktop ? Self.safariDesktopUserAgent : nil
+            cachedUserAgent = nil
         }
         // A link marked `download` is saved, not shown.
         decisionHandler(navigationAction.shouldPerformDownload ? .download : .allow, preferences)
@@ -395,7 +423,10 @@ extension BrowserPage: WKNavigationDelegate, WKUIDelegate {
     func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
         download.delegate = self
     }
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { sendEffects() }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        sendEffects()
+        looksChanged()
+    }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
 
@@ -409,6 +440,7 @@ extension BrowserPage: WKNavigationDelegate, WKUIDelegate {
 /// A conversation's browser in the workbench or full screen: the tab in front, its bar, and the tabs.
 struct WorkbenchBrowser: View {
     let model: BrowserModel
+    @Environment(AppModel.self) private var app
 
     var body: some View {
         Group {
@@ -420,6 +452,16 @@ struct WorkbenchBrowser: View {
             }
         }
         .onChange(of: model.selectedId) { _, _ in model.reviveSelected() }
+        .onDisappear {
+            // The conversation was archived while its page was on screen, where it was left alone:
+            // once it is put away, it goes too. After a moment, when the page has left the window.
+            let id = model.sessionId
+            guard app.isArchived(id) else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                BrowserModel.releasePages(of: [id])
+            }
+        }
     }
 }
 
@@ -646,7 +688,14 @@ struct FullScreenBrowser: View {
                 .navigationTitle(Self.site(model.url) ?? String(localized: "浏览器"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar(.visible, for: .navigationBar)
-                .closeButton(action: close)
+                .toolbar {
+                    // Putting it away, not closing it: the pages stay open, and the agent goes on in
+                    // them. A ✕ here read as closing the browser. Tabs close from the tab button.
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: close) { Image(systemName: "chevron.down") }
+                            .accessibilityLabel("收起浏览器")
+                    }
+                }
         }
     }
 

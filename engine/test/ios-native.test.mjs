@@ -59,7 +59,7 @@ test('tool names are unique and stable', () => {
   assert.deepEqual(names.sort(),
     ['alarm', 'browser', 'calendar', 'clipboard', 'compose', 'contacts', 'device_info', 'files', 'health',
      'homekit', 'image_analysis', 'location', 'maps', 'music', 'notify', 'open_url', 'photos',
-     'reminders', 'speak', 'text_analysis', 'transcribe_audio', 'weather']);
+     'reminders', 'text_analysis', 'transcribe_audio', 'weather']);
 });
 
 test('no tool shares a name with one DSH registers itself', () => {
@@ -483,9 +483,6 @@ test('a tool rejects arguments its operation cannot use, before reaching the add
     /needs `afterSeconds`/,
   );
   await assert.rejects(TOOLS.notify.execute({ action: 'cancel' }, {}), /needs `id`/);
-  await assert.rejects(DEFINITIONS.speak.execute({ action: 'say' }, {}), /needs `text`/);
-  // No DeepSeek API key: the model is told to have the user add one.
-  await assert.rejects(DEFINITIONS.speak.execute({ action: 'say', text: 'x' }, {}), /设置 → 模型/);
 });
 
 test('renderers are pure and survive the shapes the addon can return', () => {

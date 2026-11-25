@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@deepseek-ai/dsh": "0.2.2-rc.1",
-    "ds-bot": "0.3.1",
+    "@deepseek-ai/dsh": "0.2.2-rc.4",
+    "ds-bot": "0.3.8",
+    "dsh-image-gen": "0.11.4",
     "iconv-lite": "0.7.3",
     "just-bash": "3.6.0",
     "node-addon-require-builtin-ios-arm64": "file:./shims/node-addon-require-builtin-ios-arm64",
@@ -12,7 +13,12 @@
     "yaml": "2.9.1"
   },
   "overrides": {
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.4",
+    "@deepseek-ai/dsh-scope": "0.2.2-rc.4",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.4",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.4",
+    "@deepseek-ai/dsh-web": "0.2.2-rc.4"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"

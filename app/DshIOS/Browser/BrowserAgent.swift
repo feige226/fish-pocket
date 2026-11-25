@@ -79,7 +79,10 @@ import WebKit
             page.presence.stop = { [weak app] in
                 Task { try? await app?.client.call("session/cancel", ["request": ["sessionId": .string(owner)]]) }
             }
-            defer { page.presence.ended() }
+            defer {
+                page.presence.ended()
+                page.looksChanged()
+            }
             if revived { page.attachIfDetached(); await page.settle(navigating: true) }
             switch op {
             case "open", "new_tab": return try await page.agentOpen(args["url"] as? String ?? "", desktop: args["desktop"] as? Bool)

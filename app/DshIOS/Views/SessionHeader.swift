@@ -1,8 +1,9 @@
 import SwiftUI
 
+import Perception
 /// The sheets the conversation's top bar opens.
 enum SessionHeaderSheet: String, Identifiable {
-    case subagents, jobs, reminders, logExport
+    case subagents, jobs, reminders, logExport, voice
     var id: String { rawValue }
 }
 
@@ -16,6 +17,7 @@ struct SessionTitleMenu: View {
     /// More icons share the bar: on a phone the title narrows so it stays between them.
     var crowded = false
     let shareImage: () -> Void
+    let chooseVoice: () -> Void
     let exportLog: () -> Void
     @Environment(AppModel.self) private var app
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -24,11 +26,14 @@ struct SessionTitleMenu: View {
     private var title: String { durableTitle ?? String(localized: "新会话") }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Menu {
             Section {
                 Button { app.renameRequest = RenameRequest(target: .session(sessionId), initial: durableTitle ?? "") } label: {
                     Label("重命名", systemImage: "pencil")
                 }
+                Button(action: chooseVoice) { Label("声音", systemImage: "waveform") }
                 Button { Task { await app.fork(session: sessionId, from: .current) } } label: {
                     Label("分叉会话", systemImage: "arrow.triangle.branch")
                 }
@@ -60,7 +65,8 @@ struct SessionTitleMenu: View {
         }
         .accessibilityLabel(Text("会话：\(title)"))
         .accessibilityHint("打开会话菜单")
-    }
+    
+        }}
 }
 
 /// Top-bar entries that only appear when there is something to show: subagents and this
@@ -86,6 +92,12 @@ struct SessionHeaderActions: View {
         let schedules = app.activeSchedules(of: sessionId)
         if !subagents.isEmpty {
             entries.append(Entry(sheet: .subagents, icon: "person.2", dot: running > 0, label: running > 0 ? Text("\(subagents.count) 个子智能体，正在运行") : Text("\(subagents.count) 个子智能体")))
+        } else {
+            // A team's task board lives under the subagents; with tasks and no member yet, it is the entry.
+            let board = app.teamBoard(of: sessionId)
+            if !board.tasks.isEmpty || board.failure != nil {
+                entries.append(Entry(sheet: .subagents, icon: "checklist", dot: false, label: Text("任务板")))
+            }
         }
         if !schedules.isEmpty {
             entries.append(Entry(sheet: .reminders, icon: "clock", dot: false, label: Text("\(schedules.count) 个提醒")))
@@ -94,6 +106,8 @@ struct SessionHeaderActions: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let entries = entries
         if entries.count > 1 {
             // A phone's bar has room for one more icon next to the workbench.
@@ -108,7 +122,8 @@ struct SessionHeaderActions: View {
         } else if let entry = entries.first {
             button(entry.icon, dot: entry.dot, label: entry.label) { open(entry.sheet) }
         }
-    }
+    
+        }}
 
     private func button(_ icon: String, dot: Bool, label: Text, action: @escaping () -> Void) -> some View {
         Button(action: action) { self.icon(icon, dot: dot) }

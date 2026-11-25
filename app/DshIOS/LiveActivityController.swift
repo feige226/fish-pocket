@@ -85,8 +85,14 @@ final class LiveActivityController {
         // reads the session list too: a change there comes back here to follow another.
         hold(Self.runningSessions(in: app).first?.id)
         let held = held
-        let next = withObservationTracking { Self.state(of: app, held: held) } onChange: { [weak self] in
-            Task { @MainActor in self?.observe() }
+        // A voice call has its own activity (`CallActivity`): the agent's waits until it ends.
+        let next = withObservationTracking { CallCenter.shared.active ? nil : Self.state(of: app, held: held) } onChange: { [weak self] in
+            // Not at once: what it reads changes with every piece of a reply as it streams, and
+            // the activity is not drawn that often. A few times a second is as fresh as it shows.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                self?.observe()
+            }
         }
         apply(next)
     }
@@ -221,7 +227,7 @@ final class LiveActivityController {
         let running = runningSessions(in: app)
         let approvals = app.approvals.filter { !$0.value.isEmpty }
         let questions = app.sessions.keys.filter { id in
-            app.control[id]?["userQuestions"]?["active"].array.isEmpty == false
+            app.control(id, "userQuestions")?["active"].array.isEmpty == false
         }.sorted()
         let away = app.remote.attention
         // A request not read yet is taken for an approval: that is what a session waits with, nearly always.
@@ -238,7 +244,7 @@ final class LiveActivityController {
         } else if let session = awayApproval {
             state = remote(session, phase: .approval, in: app)
         } else if let id = questions.first {
-            let question = app.control[id]?["userQuestions"]?["active"].array.first?["questions"].array.first?["question"].string
+            let question = app.control(id, "userQuestions")?["active"].array.first?["questions"].array.first?["question"].string
             state = State(phase: .question, sessionId: id, title: title(id, in: app), others: 0, detail: question, startedAt: .now)
         } else if let session = awayQuestion {
             state = remote(session, phase: .question, in: app)

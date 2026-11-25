@@ -67,16 +67,14 @@ export default {
     const briefing = defineTool({
       name: 'daily_briefing',
       description:
-        'Summarise the user\'s day on this device: phone state and today\'s calendar, optionally read '
-        + 'aloud. Use it for "how does my day look" and similar openers.',
-      parameters: {
-        speak: { type: 'boolean', description: 'also read the briefing out loud' },
-      },
+        'Summarise the user\'s day on this device: phone state and today\'s calendar. Use it for '
+        + '"how does my day look" and similar openers.',
+      parameters: {},
       output: {
         schema: { type: 'json' },
         render: (_args, value) => text(value.briefing),
       },
-      execute: async (args) => {
+      execute: async () => {
         const { from, to } = today();
         // Both calls go through exactly the same path the agent's own tools take.
         // A read of the calendar here raises the same system prompt, and lands in
@@ -87,8 +85,7 @@ export default {
           ctx.iosNative.invoke('reminders', 'list'),
         ]);
         const briefing = briefingText(device, calendar.events ?? [], reminders.reminders ?? []);
-        if (args.speak) await ctx.iosNative.invoke('speak', 'say', { text: briefing });
-        return { briefing, spoke: Boolean(args.speak) };
+        return { briefing };
       },
     });
 

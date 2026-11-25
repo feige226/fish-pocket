@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Keeps page-agent's effects on the page (`entry.js`: its glowing mask, pointer and panel) in step
 /// with the agent: shown while it works, gone once its turn ends or the user takes over. It draws
 /// nothing itself.
@@ -22,13 +23,16 @@ struct BrowserAgentOverlay: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Color.clear
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            .onChange(of: state, initial: true) { _, state in model.showEffects(state) }
-            .onChange(of: running) { _, now in
+            .onChangeCompat(of: state, initial: true) { _, state in model.showEffects(state) }
+            .onChangeCompat(of: running) { _, now in
                 // The turn is over: nothing is left at the page.
                 if !now, presence.action == nil { presence.finish() }
             }
-    }
+    
+        }}
 }

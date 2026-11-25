@@ -35,8 +35,27 @@
 - id: session-telemetry-otel
   disabled: true
 
-# LibreOffice ships macOS/Windows binaries and a wasm build; neither runs here.
-- id: office-to-pdf
+# Tells the model the user is in the DSH Web GUI at a 127.0.0.1 URL and how to
+# rebuild it from a source checkout (`pnpm run dev:web`). Here the user is in
+# the native interface and there is no checkout, so the prompt misleads every
+# session; ios-environment covers where things are and what the user sees.
+# Disabling drops anything an upgrade adds to it too: test/harness-dev-context
+# pins what it registers and fails when that changes.
+- id: harness-dev-context
+  disabled: true
+
+# LibreOffice ships macOS/Windows binaries and a wasm build; neither runs here
+# (scripts/build-engine.sh prunes them), so Office rendering, conversion and
+# recalculation are off, in the web UI's preview and for the model: the presets'
+# office_* tools need this service and stay unregistered without it. The Office
+# skills go with it: they turn those tools on and write files with python-docx
+# and python-pptx, which need lxml, a compiled extension pip cannot install
+# here (skills/ios-environment says so). 0.2.2-rc.3 renamed `office-to-pdf` to `office-kit`; a patch for an id
+# that no longer exists is skipped without a word at run time, so
+# test/ios-patch.test.mjs checks every id here against the composed profile.
+- id: office-kit
+  disabled: true
+- id: skill-office
   disabled: true
 
 # The first-use workspace lives under <Documents>/deepseek-harness; darwin
@@ -46,6 +65,13 @@
   config:
     documentsDirectory: !!js process.env.DSH_IOS_DOCUMENTS
 
+# An image is decoded whole to be checked and again to be scaled down, and the
+# engine lives inside the app's memory limit: a 48 MP photo holds several
+# hundred MB while that happens. One at a time, instead of the default two.
+- id: attachment-local
+  config:
+    imageCompressionConcurrency: 1
+
 # DS Bot is pinned to the version the app is tested with (plugins/ios-host/
 # pins.json), so its own updater is off: no update button, no DSH update offer.
 # The main Bot the plugin creates on a team's first start is named for the app
@@ -54,12 +80,21 @@
 # what it has). Applied after the profile layer, this
 # config replaces the profile's `bot` config. Without ds-bot installed, the
 # loader only warns that `bot` is absent.
+# Two things 0.3.8 turns on by itself stay off, as they were before it:
+# - memoryTidy: every half hour it has a model merge and move entries of the
+#   memories that changed. That spends the user's key or credits unasked, and the
+#   app has no screen for its undo (`memory-tidy-undo`).
+# - commandShield: it replaces every DSH slash command in a Bot's chat with an
+#   English refusal. The app already hides the ones a Bot must not run
+#   (BotComposer.hiddenCommands); the shield would only break /export there.
 - id: bot
   name: ds-bot
   config:
     updateCheck: false
     mainName: 大肥鱼
     mainRole: ''
+    memoryTidy: false
+    commandShield: false
 
 - insert:
     - id: subprocess-ios
@@ -78,6 +113,14 @@
     # (hold-to-talk, replies read aloud), sent with the stored DeepSeek key.
     - id: ios-speech
       name: ./plugins/ios-speech/index.mjs
+    # Voice calls from the app's call screen: a session on a call gets a note for the
+    # model each turn (answer briefly, aloud). The audio itself never reaches the engine.
+    - id: ios-call
+      name: ./plugins/ios-call/index.mjs
+    # Voice messages: a tool the agent answers with, drawn by the app as a voice bubble and read
+    # aloud there. Offered only where the user allows it (app settings); the engine makes no audio.
+    - id: ios-voice-message
+      name: ./plugins/ios-voice-message/index.mjs
     # Third model route next to the DeepSeek account and API-key routes: DeepSeek
     # models paid with Fish Pocket credits. Its own entry, never a profile in
     # llm-pi-ai's settings: config for llm-pi-ai here would override the user's

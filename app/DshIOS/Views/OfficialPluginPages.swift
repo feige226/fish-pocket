@@ -172,7 +172,8 @@ private struct StagedField: View {
             } else {
                 LabeledContent {
                     HStack(spacing: 6) {
-                        field(mirror).multilineTextAlignment(.trailing)
+                        // Wide enough for the numbers these hold; left unbounded it takes half the row and cuts a long title short.
+                        field(mirror).multilineTextAlignment(.trailing).frame(maxWidth: 120)
                         if let unit { Text(unit).foregroundStyle(Palette.secondary) }
                     }
                 } label: {
@@ -241,7 +242,7 @@ private struct OfficialForm<Content: View>: View {
                 withAnimation { proxy.scrollTo(failedField ?? Self.failure, anchor: .center) }
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
@@ -373,7 +374,6 @@ private struct SubagentSettingsPage: View {
                         conflicted = false
                         failed = false
                     }))
-                    .toggleStyle(.mono)
                     .id(Self.modelSelectionRow)
                     if conflicted { Text("设置已在其他位置更新。请放弃修改后重试。").font(.caption).foregroundStyle(Palette.removed) }
                 } header: {
@@ -438,7 +438,6 @@ private struct SubagentSettingsPage: View {
             conflicted = false
             failed = false
         }))
-        .toggleStyle(.mono)
     }
 
     private func beginDraft() {
@@ -490,123 +489,330 @@ private struct SubagentSettingsPage: View {
     }
 }
 
-/// PC-02: the search provider selection, its two sections and the key.
+/// PC-02: which provider searches the web and which one reads pages, each followed by the settings
+/// the selected provider has here. The menus list what the Host registers (`web/listProviders`),
+/// plugins' providers included, so a deployment whose default is a plugin's provider shows and
+/// selects right, and a newly installed one needs no change here.
 private struct WebSearchSettingsPage: View {
+    /// The two things the web service does; each selects its own provider.
+    private enum Capability: String {
+        case search, fetch
+
+        /// `web.searchProvider` / `web.fetchProvider`.
+        var provider: String { rawValue + "Provider" }
+        /// `web-deepseek-api.searchBilling` / `fetchBilling`.
+        var billing: String { rawValue + "Billing" }
+        /// The DeepSeek API's own endpoint and key reference for this capability.
+        var endpoint: [String] { [rawValue + "BaseURL", rawValue + "ApiKeyEnv"] }
+        /// The official providers, which a menu lists first, in the web page's order.
+        var official: [String] { self == .search ? ["deepseek-search-api", "deepseek-official"] : ["http", "deepseek-fetch-api"] }
+    }
+
+    /// What a section shows under its menu for the selected provider: the DeepSeek API's settings,
+    /// legacy Messages search's, a pointer to the plugin that owns the provider, or nothing.
+    private enum Panel { case api, legacy, plugin, plain }
+
+    /// One entry of a provider menu.
+    private struct Choice: Identifiable {
+        let id: String
+        var title: String?
+        var description: JSON = .null
+        /// Selected, but the Host does not register it.
+        var missing = false
+    }
+
     @Environment(AppModel.self) private var app
+    @State private var selection = StagedForm(ns: "web", specs: [.init(key: "searchProvider", kind: .text), .init(key: "fetchProvider", kind: .text)])
+    // The Search and Fetch APIs' own endpoints and key references are not fields of this form:
+    // they belong to the configuration file and override billing, so the page only reads them.
+    @State private var api = StagedForm(ns: "web-deepseek-api", specs: [
+        .init(key: "count", kind: .number { $0.rounded() == $0 && (1...50).contains($0) }, invalid: String(localized: "请填 1–50 的整数；留空表示使用默认值。")),
+        .init(key: "searchBilling", kind: .text),
+        .init(key: "fetchBilling", kind: .text),
+    ])
     @State private var messages = StagedForm(ns: "web-search-deepseek", specs: [
         .init(key: "baseURL", kind: .text),
-        .init(key: "maxUses", kind: .number { _ in true }),
+        .init(key: "maxUses", kind: .number(integerAtLeast(1)), invalid: String(localized: "请填正整数；留空表示使用默认值。")),
     ])
-    @State private var api = StagedForm(ns: "web-deepseek-api", specs: [
-        .init(key: "baseURL", kind: .text),
-        .init(key: "count", kind: .number { $0.rounded() == $0 && (1...50).contains($0) }, invalid: String(localized: "请填 1–50 的整数；留空表示使用默认值。")),
-    ])
-    @State private var selection = StagedForm(ns: "web", specs: [.init(key: "searchProvider", kind: .text), .init(key: "fetchProvider", kind: .text)])
+    /// The last `web/listProviders` answer; nil until one arrives.
+    @State private var providers: JSON?
+    @State private var providersFailed = false
+    @State private var providerRead = 0
     @State private var keyDraft = ""
     @State private var credential: JSON?
     @State private var saving = false
 
-    private static let providers = (
-        search: (api: "deepseek-search-api", messages: "deepseek-official"),
-        fetch: (api: "deepseek-fetch-api", messages: "http")
-    )
+    private static let billings = ["auto", "account", "api-key"]
 
     private var mirror: SettingsMirror { app.settings }
-    private var switchAvailable: Bool { mirror.serves("web") && mirror.serves("web-deepseek-api") }
-    private var searchApi: Bool { switchAvailable && selection.text("searchProvider", mirror) == Self.providers.search.api }
-    /// The section a key is written for: the selected one's reference, or the default.
+    /// The reference legacy search's key is written under.
     private var ref: String {
-        let ns = searchApi ? "web-deepseek-api" : "web-search-deepseek"
-        return mirror.namespace(ns)?["value"]["apiKeyEnv"].string.flatMap { $0.isEmpty ? nil : $0 } ?? "DEEPSEEK_API_KEY"
+        let named = mirror.namespace("web-search-deepseek")?["value"]["apiKeyEnv"].string
+        return named.flatMap { $0.isEmpty ? nil : $0 } ?? "DEEPSEEK_API_KEY"
     }
-    private var available: Bool { mirror.serves("web-search-deepseek") || mirror.serves("web-deepseek-api") }
-    private var dirty: Bool { messages.dirty || api.dirty || selection.dirty || !keyDraft.isEmpty }
-    private var invalid: Bool { messages.invalid || api.invalid }
+    private var dirty: Bool { selection.dirty || api.dirty || messages.dirty || !keyDraft.isEmpty }
+    private var invalid: Bool { api.invalid || messages.invalid }
+    private var failed: Bool { selection.failed || api.failed || messages.failed }
 
     var body: some View {
-        OfficialForm(title: "网页搜索", available: available, dirty: dirty, invalid: invalid, saving: saving, failed: messages.failed || api.failed || selection.failed, discard: discard, save: save) {
-            if switchAvailable {
+        OfficialForm(title: "网页搜索与获取", available: mirror.serves("web"), dirty: dirty, invalid: invalid, saving: saving, failed: failed, discard: discard, save: save) {
+            if providersFailed {
                 Section {
-                    Toggle("新版 Web 搜索 API", isOn: Binding(get: { searchApi }, set: { select($0) }))
-                        .toggleStyle(.mono)
-                        .disabled(invalid)
-                } footer: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("关闭时搜索通过 DeepSeek Messages 完成。")
-                        if let url = URL(string: String(localized: "https://api-docs.deepseek.com/zh-cn/guides/search")) {
-                            Link("功能与计费说明", destination: url)
-                        }
-                    }
+                    Text("提供方列表没读到，下面的选项可能不全。").font(.footnote).foregroundStyle(Palette.waiting)
+                    Button("重试") { Task { await loadProviders() } }
                 }
                 .groupedRow()
             }
-            Section {
-                SecureField(credential?["configured"].bool == true ? String(localized: "已配置，留空不修改") : String(localized: "输入 API Key"), text: $keyDraft)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .disabled(credential?["writable"].bool == false)
-            } header: {
-                Text("API Key")
-            } footer: {
-                Text(credential?["configured"].bool == true ? "密钥只保存在本机。" : "未配置时，只有 DeepSeek 账号模型的对话可以搜索。")
+            providerSection(.search)
+            switch panel(.search) {
+            case .api:
+                Section {
+                    StagedField(form: api, key: "count", title: "每次搜索结果数")
+                    billingPicker(.search)
+                } footer: {
+                    billingNote(.search)
+                }
+                .groupedRow()
+            case .legacy:
+                legacySection
+            case .plugin, .plain:
+                EmptyView()
             }
-            .groupedRow()
-            Section {
-                NavigationLink("高级") { advanced }
+            providerSection(.fetch)
+            if panel(.fetch) == .api {
+                Section {
+                    billingPicker(.fetch)
+                } footer: {
+                    billingNote(.fetch)
+                }
+                .groupedRow()
             }
-            .groupedRow()
         }
+        // Providers come and go with plugins, and a Host that starts serving `web` has ones not read yet.
+        .task(id: "\(app.revision("web/providers-changed"))#\(mirror.serves("web"))") { await loadProviders() }
         .task(id: "\(ref)#\(app.settingsRevision)") { await readCredential() }
     }
 
-    /// The endpoint and limits of the selected way of searching; staged with the page.
-    private var advanced: some View {
-        Form {
-            Section {
-                if searchApi {
-                    StagedField(form: api, key: "baseURL", title: "API 地址", keyboard: .URL)
-                    StagedField(form: api, key: "count", title: "每次搜索结果数")
-                } else {
-                    StagedField(form: messages, key: "baseURL", title: "API 地址", keyboard: .URL)
-                    StagedField(form: messages, key: "maxUses", title: "单次请求最多搜索次数")
-                }
-            } footer: {
-                Text(searchApi ? "地址含 API 前缀，留空用默认。结果数为 1–50 的整数。" : "地址含 API 前缀，留空用默认。")
+    // MARK: Providers
+
+    private func providerSection(_ capability: Capability) -> some View {
+        let entries = choices(capability)
+        let current = entries.first { $0.id == selected(capability) }
+        let shown = panel(capability)
+        return Section {
+            Picker("提供方", selection: Binding(get: { selected(capability) }, set: { select(capability, $0) })) {
+                if automatic(capability) { Text("自动选择").tag("") }
+                ForEach(entries) { entry in Text(name(entry)).tag(entry.id) }
             }
-            .groupedRow()
+            .pickerStyle(.menu)
+            .pickerValueTint()
+            // A field the change would hide stays in view while its value is invalid or was refused.
+            .disabled(invalid || failed)
+        } header: {
+            Text(capability == .search ? "网页搜索" : "网页获取")
+        } footer: {
+            VStack(alignment: .leading, spacing: 2) {
+                // What the provider says about itself: what it costs and what it cannot reach.
+                if let note = current.flatMap({ localized($0.description) }), !note.isEmpty {
+                    Text(note)
+                } else if current?.id == Self.builtInAuto {
+                    Text("先用当前对话那条模型线路自带的搜索，费用算在那条线路自己的 Key 或账号上；用不了时改为读取公开的搜索结果页，不另外收费。")
+                }
+                if capability == .search, shown == .api, let url = URL(string: String(localized: "https://api-docs.deepseek.com/zh-cn/guides/search")) {
+                    Link("功能与计费说明", destination: url)
+                }
+                if shown == .plugin { Text("由插件提供，到该插件自己的设置里配置。") }
+            }
         }
-        .tint(Palette.ink)
-        .groupedList()
-        .navigationTitle("高级")
-        .navigationBarTitleDisplayMode(.inline)
-        .keyboardDoneButton()
+        .groupedRow()
     }
 
-    private func discard() {
-        messages.discard()
-        api.discard()
-        selection.discard()
-        keyDraft = ""
+    /// The provider a capability stages: the draft, else the one in force; empty when nothing names one.
+    private func selected(_ capability: Capability) -> String { selection.text(capability.provider, mirror) }
+
+    /// A menu's entries: the registered official providers in the web page's order, the rest as
+    /// the Host lists them, and the selected id when the Host does not register it. Before a
+    /// list arrives the menu holds only the selected id.
+    private func choices(_ capability: Capability) -> [Choice] {
+        let chosen = selected(capability)
+        guard let listed = providers?[capability.rawValue].array else {
+            return chosen.isEmpty ? [] : [Choice(id: chosen)]
+        }
+        let first = capability.official
+        let official: [JSON] = first.compactMap { id in listed.first { $0["id"].string == id } }
+        let others: [JSON] = listed.filter { !first.contains($0["id"].string ?? "") }
+        var entries: [Choice] = (official + others).compactMap { info in
+            info["id"].string.map { Choice(id: $0, title: info["title"].string, description: info["description"]) }
+        }
+        if !chosen.isEmpty, !entries.contains(where: { $0.id == chosen }) { entries.append(Choice(id: chosen, missing: true)) }
+        return entries
     }
 
-    /// Stage both selections; a target equal to the composed value clears the override.
-    private func select(_ enabled: Bool) {
-        let base = mirror.namespace("web")?["base"]
-        for (field, target) in [("searchProvider", enabled ? Self.providers.search.api : Self.providers.search.messages),
-                                ("fetchProvider", enabled ? Self.providers.fetch.api : Self.providers.fetch.messages)] {
-            if base?[field].string == target { selection.reset(field, mirror) } else { selection.edit(field, target, mirror) }
+    /// A provider's name in the menu: the app's own for the official ones, else the title it
+    /// registered, else its id.
+    private func name(_ entry: Choice) -> String {
+        let name = Self.officialName(entry.id) ?? entry.title ?? entry.id
+        return entry.missing ? String(localized: "\(name)（未加载）") : name
+    }
+
+    private static func officialName(_ id: String) -> String? {
+        switch id {
+        case "deepseek-search-api": String(localized: "DeepSeek 搜索 API")
+        case "deepseek-official": String(localized: "DeepSeek（旧版）")
+        case "http": String(localized: "本机直接获取")
+        case "deepseek-fetch-api": String(localized: "DeepSeek 获取 API")
+        case builtInAuto: String(localized: "自动")
+        default: nil
         }
+    }
+
+    /// The search provider the built-in Bot plugin registers and makes the default here
+    /// (`ds-bot/web-search`). It names and describes nothing about itself, and has no settings
+    /// page of its own to point at, so the page speaks for it.
+    private static let builtInAuto = "auto"
+
+    /// Whether the menu offers automatic selection: the deployment composes no provider for the
+    /// capability, so clearing the stored choice lets the Host pick. Also while nothing is
+    /// selected, so the menu always has the entry it shows.
+    private func automatic(_ capability: Capability) -> Bool {
+        mirror.namespace("web")?["base"][capability.provider].string == nil || selected(capability).isEmpty
+    }
+
+    private func panel(_ capability: Capability) -> Panel {
+        let id = selected(capability)
+        let listed = providers?[capability.rawValue].array
+        // Until a list arrives every id counts as registered, so an official provider's settings do not wait for it.
+        guard !id.isEmpty, listed?.contains(where: { $0["id"].string == id }) ?? true else { return .plain }
+        switch (capability, id) {
+        case (.search, "deepseek-search-api"), (.fetch, "deepseek-fetch-api"):
+            return mirror.serves("web-deepseek-api") ? .api : .plain
+        case (.search, "deepseek-official"):
+            return mirror.serves("web-search-deepseek") ? .legacy : .plain
+        case (.fetch, "http"), (.search, Self.builtInAuto):
+            return .plain
+        default:
+            return listed == nil ? .plain : .plugin
+        }
+    }
+
+    /// Stage one selection. Automatic selection and a target equal to the composed value clear the
+    /// override, so the deployment's choice keeps applying instead of a stored copy of it.
+    private func select(_ capability: Capability, _ id: String) {
+        let field = capability.provider
+        if id.isEmpty || mirror.namespace("web")?["base"][field].string == id {
+            selection.reset(field, mirror)
+        } else {
+            selection.edit(field, id, mirror)
+        }
+        // A key typed for legacy search is not written once the page stops showing its field.
+        if panel(.search) != .legacy { keyDraft = "" }
+    }
+
+    /// Read the registered providers. Only the latest read lands; a failed one keeps the last list
+    /// and has the page say its menus may be incomplete.
+    private func loadProviders() async {
+        providerRead += 1
+        let read = providerRead
+        do {
+            let list = try await app.client.call("web/listProviders")
+            guard read == providerRead else { return }
+            providers = list
+            providersFailed = false
+        } catch {
+            guard read == providerRead, !Task.isCancelled else { return }
+            providersFailed = true
+        }
+    }
+
+    // MARK: Billing
+
+    /// The DeepSeek credential one API sends, and so who pays for it.
+    private func billingPicker(_ capability: Capability) -> some View {
+        Picker("计费方式", selection: Binding(get: { billing(capability) }, set: { selectBilling(capability, $0) })) {
+            Text("自动").tag("auto")
+            Text("DeepSeek 账号").tag("account")
+            Text("DeepSeek API Key").tag("api-key")
+        }
+        .pickerStyle(.menu)
+        .pickerValueTint()
+        .disabled(!endpointOverrides(capability).isEmpty)
+    }
+
+    @ViewBuilder
+    private func billingNote(_ capability: Capability) -> some View {
+        let fields = endpointOverrides(capability).joined(separator: String(localized: "、"))
+        if !fields.isEmpty {
+            Text("已被 \(fields) 覆盖，这里选的不生效。")
+        } else {
+            switch billing(capability) {
+            case "account": Text("要先登录 DeepSeek 账号。")
+            case "api-key": Text("用「模型」里填的 DeepSeek API Key，要先填好。")
+            default: Text("跟随当前对话用的 DeepSeek 账号或 API Key；对话用其他模型时，先用 API Key，没有再用已登录的账号。")
+            }
+        }
+    }
+
+    /// The staged billing; a section that carries none reads as `auto`.
+    private func billing(_ capability: Capability) -> String {
+        let text = api.text(capability.billing, mirror)
+        return Self.billings.contains(text) ? text : "auto"
+    }
+
+    /// Stage one billing; the composed one, `auto` when the deployment composes none, clears the override.
+    private func selectBilling(_ capability: Capability, _ target: String) {
+        let field = capability.billing
+        let composed = mirror.namespace("web-deepseek-api")?["base"][field].string ?? "auto"
+        if composed == target { api.reset(field, mirror) } else { api.edit(field, target, mirror) }
+    }
+
+    /// The API's own endpoint fields that are set. With any of them the provider uses that endpoint
+    /// and key whatever the billing, so the menu is locked and the note names them.
+    private func endpointOverrides(_ capability: Capability) -> [String] {
+        let section = mirror.namespace("web-deepseek-api")?["value"]
+        return capability.endpoint.filter { section?[$0].string?.isEmpty == false }
+    }
+
+    // MARK: Legacy Messages search
+
+    private var legacySection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("API Key").font(.caption).foregroundStyle(Palette.secondary)
+                SecureField(credential?["configured"].bool == true ? String(localized: "已配置，留空不修改") : String(localized: "输入 API Key"), text: $keyDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.callout)
+                    .disabled(credential?["writable"].bool == false)
+            }
+            StagedField(form: messages, key: "baseURL", title: "API 地址", keyboard: .URL)
+            StagedField(form: messages, key: "maxUses", title: "单次请求最多搜索次数")
+        } footer: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DeepSeek 账号模型的对话用已登录的账号搜索，其他对话用这个 Key，默认和「模型」里的 DeepSeek API Key 是同一个。")
+                Text("地址含 API 前缀，留空用默认。")
+            }
+        }
+        .groupedRow()
     }
 
     private func readCredential() async {
         credential = (try? await mirror.describeCredentials([ref]))?[ref]
     }
 
-    /// Provider sections before the selection, so a switch applies only once its endpoint landed.
+    // MARK: Saving
+
+    private func discard() {
+        selection.discard()
+        api.discard()
+        messages.discard()
+        keyDraft = ""
+    }
+
+    /// Provider settings before the selection, so a switch applies only once what it uses has landed.
     private func save() async -> Bool {
         saving = true
         defer { saving = false }
-        for form in [messages, api] where form.dirty {
+        for form in [api, messages] where form.dirty {
             guard await form.save(mirror) else { return false }
         }
         if selection.dirty, !(await selection.save(mirror)) { return false }

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Where the Bot pages go: the list, a Bot's own chat, a group chat.
-enum BotRoute: Hashable {
+/// Where the Bot pages go: the list, a Bot's own chat, a group chat. `Codable` for the one place
+/// its pages are read back out of a `NavigationPath` (`MainView.botStackInSplit`).
+enum BotRoute: Hashable, Codable {
     case bot(String)
     case room(String)
 }
@@ -281,10 +282,16 @@ extension BotModel {
 struct BotHomeView: View {
     @Environment(AppModel.self) private var app
     let openDrawer: (() -> Void)?
+    /// The chat beside the list, where they are side by side; nil where a row pushes its chat.
+    var selection: Binding<BotRoute?>?
+    /// Opens a chat or a group from the search page, which is over the list and not in its stack.
+    var open: (BotRoute) -> Void = { _ in }
     @State private var creating: CreateKind?
     @State private var settingsOpen = false
     @State private var showHidden = false
     @State private var query = ""
+    /// The search field has the focus.
+    @State private var searchActive = false
     /// What was said in the Bots' own chats that holds the search words, newest first.
     @State private var hits: [ChatHit] = []
     /// The chat pages read for this search, by Bot: read once while the search field is in use.
@@ -392,17 +399,16 @@ struct BotHomeView: View {
         hits = Array(found.sorted { $0.time > $1.time }.prefix(30))
     }
 
-    /// Pinned first, then the main Bots in their order, then the most recently active.
-    private var bots: [BotInfo] {
+    /// Pinned first, then the most recently active. The list
+    /// passes no words: what is typed on the search page filters that page only.
+    private func bots(matching needle: String = "") -> [BotInfo] {
         let team = app.botTeam
-        let needle = needle
         return team.bots.filter { (showHidden || !$0.hidden || !needle.isEmpty) && (needle.isEmpty || $0.name.lowercased().contains(needle) || $0.role.lowercased().contains(needle)) }
             .sorted(by: team.listOrder)
     }
 
-    private var rooms: [RoomInfo] {
+    private func rooms(matching needle: String = "") -> [RoomInfo] {
         let team = app.botTeam
-        let needle = needle
         return team.rooms.filter { room in
             (showHidden || !room.hidden || !needle.isEmpty)
                 && (needle.isEmpty || team.name(of: room).lowercased().contains(needle) || (room.preview ?? "").lowercased().contains(needle)
@@ -410,105 +416,194 @@ struct BotHomeView: View {
         }.sorted(by: team.listOrder)
     }
 
+    /// The system's search field is in the bar above the list, out of sight until the list is
+    /// pulled down, as the 会话 tab's is; what is typed turns the list into the matches.
     private var list: some View {
+        List { if needle.isEmpty { rows } else { searchRows } }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .tabEdgesSoftened()
+        .searchable(text: $query, isPresented: $searchActive, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索 Bot、群聊和私聊记录")
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+    }
+
+    // MARK: Search
+
+    /// What matches: Bots and groups by name, then what was said in the Bots' own chats.
+    @ViewBuilder
+    private var searchRows: some View {
         let team = app.botTeam
-        let hiddenCount = team.bots.filter(\.hidden).count + team.rooms.filter(\.hidden).count
-        return List {
-            if let reason = team.readOnly {
-                Section {
-                    Label("另一个 DSH 正在管理这支团队，这里暂时只能看。", systemImage: "lock")
-                        .font(.footnote).foregroundStyle(Palette.waiting)
-                        .accessibilityHint(reason)
-                }
-            }
-            if !bots.isEmpty { Section {
-                ForEach(bots) { bot in
-                    NavigationLink(value: BotRoute.bot(bot.id)) {
-                        HStack(spacing: 12) {
-                            BotAvatar(bot: bot, size: 44, live: true)
-                            BotRowText(title: bot.name, line: team.rowLine(for: bot), tag: team.isMain(bot) ? String(localized: "主 Bot") : nil)
-                            if bot.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(Palette.faint) }
-                            trailing(sessionId: bot.sessionId)
-                        }
-                        .padding(.vertical, 4)
-                        .opacity(bot.hidden ? 0.5 : 1)
-                    }
-                    // Only a left swipe: a right swipe is the one that opens the sidebar.
-                    .swipeActions(edge: .trailing) {
-                        if !team.isMain(bot) { hideButton(bot.id, hidden: bot.hidden) }
-                        pinButton(bot.id, pinned: bot.pinned)
-                    }
-                    .contextMenu {
-                        pinButton(bot.id, pinned: bot.pinned)
-                        // A main Bot takes the user's work, so it stays in sight.
-                        if !team.isMain(bot) { hideButton(bot.id, hidden: bot.hidden) }
-                        sessionButtons(bot.sessionId)
-                    }
-                }
-            } header: { Text("Bot") } }
-            if !rooms.isEmpty {
-                Section {
-                    ForEach(rooms) { room in
-                        NavigationLink(value: BotRoute.room(room.id)) {
-                            HStack(spacing: 12) {
-                                RoomAvatar(room: room, size: 44)
-                                BotRowText(title: team.name(of: room), line: room.preview.map { .text($0) } ?? .none)
-                                if room.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(Palette.faint) }
-                                trailing(sessionId: room.sessionId)
-                            }
-                            .padding(.vertical, 4)
-                            .opacity(room.hidden ? 0.5 : 1)
-                        }
-                        .swipeActions(edge: .trailing) {
-                            hideButton(room.id, hidden: room.hidden)
-                            pinButton(room.id, pinned: room.pinned)
-                        }
-                        .contextMenu {
-                            pinButton(room.id, pinned: room.pinned)
-                            hideButton(room.id, hidden: room.hidden)
-                            sessionButtons(room.sessionId)
-                        }
-                    }
-                } header: { Text("群聊") }
-            }
-            if !hits.isEmpty {
-                Section("私聊里说过的") {
-                    ForEach(hits) { hit in
-                        NavigationLink(value: BotRoute.bot(hit.botId)) {
-                            HStack(alignment: .top, spacing: 10) {
-                                BotAvatar(bot: team.bot(hit.botId), size: 28)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack(spacing: 6) {
-                                        Text(team.bot(hit.botId)?.name ?? "").font(.subheadline.weight(.semibold)).foregroundStyle(Palette.ink)
-                                        if hit.mine { Text("你说的").font(.caption2).foregroundStyle(Palette.faint) }
-                                        Spacer(minLength: 0)
-                                        if hit.time > 0 {
-                                            Text(Date(timeIntervalSince1970: hit.time / 1000), format: .dateTime.month().day().hour().minute()).font(.caption2).foregroundStyle(Palette.faint)
-                                        }
-                                    }
-                                    Text(hit.snippet).font(.footnote).foregroundStyle(Palette.secondary).lineLimit(2)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if !needle.isEmpty && bots.isEmpty && rooms.isEmpty && hits.isEmpty {
-                Section { Text("没有找到「\(query)」").font(.footnote).foregroundStyle(Palette.secondary) }
-            }
-            if hiddenCount > 0 && needle.isEmpty {
-                Section {
-                    Button(showHidden ? String(localized: "收起已隐藏的") : String(localized: "显示 \(hiddenCount) 个已隐藏的")) {
-                        withAnimation(.snappy) { showHidden.toggle() }
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(Palette.secondary)
+        let botList = bots(matching: needle)
+        let roomList = rooms(matching: needle)
+        if !botList.isEmpty {
+            Section("Bot") {
+                ForEach(botList) { bot in
+                    Button { pick(.bot(bot.id)) } label: { botRow(bot) }.buttonStyle(.plain)
                 }
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .searchable(text: $query, prompt: "搜索 Bot、群聊和私聊记录")
+        if !roomList.isEmpty {
+            Section("群聊") {
+                ForEach(roomList) { room in
+                    Button { pick(.room(room.id)) } label: { roomRow(room) }.buttonStyle(.plain)
+                }
+            }
+        }
+        if !hits.isEmpty {
+            Section("私聊里说过的") {
+                ForEach(hits) { hit in
+                    Button { pick(.bot(hit.botId)) } label: { hitRow(hit, team: team) }.buttonStyle(.plain)
+                }
+            }
+        }
+        if botList.isEmpty && roomList.isEmpty && hits.isEmpty {
+            Section { Text("没有找到「\(query)」").font(.footnote).foregroundStyle(Palette.secondary) }
+        }
+    }
+
+    /// A match picked: the search ends, and the chat opens.
+    private func pick(_ route: BotRoute) {
+        clearFocusedSearchField()
+        query = ""
+        searchActive = false
+        if let selection { selection.wrappedValue = route } else { open(route) }
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        let team = app.botTeam
+        let hiddenCount = team.bots.filter(\.hidden).count + team.rooms.filter(\.hidden).count
+        // One list, as a chat app's: a Bot's chat and a group side by side, in the same order.
+        let entries = (bots().map(BotListEntry.bot) + rooms().map(BotListEntry.room)).sorted(by: team.listOrder)
+        if let reason = team.readOnly {
+            Section {
+                Label("另一个 DSH 正在管理这支团队，这里暂时只能看。", systemImage: "lock")
+                    .font(.footnote).foregroundStyle(Palette.waiting)
+                    .accessibilityHint(reason)
+            }
+        }
+        if !entries.isEmpty { Section {
+            ForEach(entries) { entry in
+                switch entry {
+                case .bot(let bot): botListRow(bot)
+                case .room(let room): roomListRow(room)
+                }
+            }
+        }
+        // No title over it, so no line over its first row either.
+        .listSectionSeparator(.hidden, edges: .top) }
+        if hiddenCount > 0 {
+            Section {
+                Button(showHidden ? String(localized: "收起已隐藏的") : String(localized: "显示 \(hiddenCount) 个已隐藏的")) {
+                    withAnimation(.snappy) { showHidden.toggle() }
+                }
+                .font(.footnote)
+                .foregroundStyle(Palette.secondary)
+            }
+        }
+    }
+
+    /// A Bot's row: it can be pinned, and hidden unless it is a main Bot.
+    private func botListRow(_ bot: BotInfo) -> some View {
+        let team = app.botTeam
+        return row(.bot(bot.id)) { botRow(bot) }
+            // Only a left swipe: a right swipe is the one that opens the sidebar.
+            .swipeActions(edge: .trailing) {
+                if !team.isMain(bot) { hideButton(bot.id, hidden: bot.hidden) }
+                pinButton(bot.id, pinned: bot.pinned)
+            }
+            .contextMenu {
+                pinButton(bot.id, pinned: bot.pinned)
+                // A main Bot takes the user's work, so it stays in sight.
+                if !team.isMain(bot) { hideButton(bot.id, hidden: bot.hidden) }
+                sessionButtons(bot.sessionId)
+            }
+            .listRowBackground(pickedFill(.bot(bot.id)))
+    }
+
+    /// A group's row: it can be pinned and hidden.
+    private func roomListRow(_ room: RoomInfo) -> some View {
+        row(.room(room.id)) { roomRow(room) }
+            .swipeActions(edge: .trailing) {
+                hideButton(room.id, hidden: room.hidden)
+                pinButton(room.id, pinned: room.pinned)
+            }
+            .contextMenu {
+                pinButton(room.id, pinned: room.pinned)
+                hideButton(room.id, hidden: room.hidden)
+                sessionButtons(room.sessionId)
+            }
+            .listRowBackground(pickedFill(.room(room.id)))
+    }
+
+    private func botRow(_ bot: BotInfo) -> some View {
+        let team = app.botTeam
+        return HStack(spacing: 12) {
+            BotAvatar(bot: bot, size: 44, live: true)
+            BotRowText(title: bot.name, line: team.rowLine(for: bot), tag: team.isMain(bot) ? String(localized: "主 Bot") : nil)
+            if bot.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(Palette.faint) }
+            trailing(sessionId: bot.sessionId)
+        }
+        .padding(.vertical, 4)
+        .opacity(bot.hidden ? 0.5 : 1)
+        .contentShape(Rectangle())
+    }
+
+    private func roomRow(_ room: RoomInfo) -> some View {
+        HStack(spacing: 12) {
+            RoomAvatar(room: room, size: 44)
+            BotRowText(title: app.botTeam.name(of: room), line: room.preview.map { .text($0) } ?? .none)
+            if room.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(Palette.faint) }
+            trailing(sessionId: room.sessionId)
+        }
+        .padding(.vertical, 4)
+        .opacity(room.hidden ? 0.5 : 1)
+        .contentShape(Rectangle())
+    }
+
+    private func hitRow(_ hit: ChatHit, team: BotModel) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            BotAvatar(bot: team.bot(hit.botId), size: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(team.bot(hit.botId)?.name ?? "").font(.subheadline.weight(.semibold)).foregroundStyle(Palette.ink)
+                    if hit.mine { Text("你说的").font(.caption2).foregroundStyle(Palette.faint) }
+                    Spacer(minLength: 0)
+                    if hit.time > 0 {
+                        Text(Date(timeIntervalSince1970: hit.time / 1000), format: .dateTime.month().day().hour().minute()).font(.caption2).foregroundStyle(Palette.faint)
+                    }
+                }
+                Text(hit.snippet).font(.footnote).foregroundStyle(Palette.secondary).lineLimit(2)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// A row of the list. On its own it pushes its chat. Beside the chat (`selection`) it picks
+    /// what the chat column shows, as a button and not through the list's own selection: the
+    /// list marks its picked row in the tint once it has the focus (the tab come back to), and
+    /// the tint is the ink the names are written in: a white row in the dark, its name gone.
+    @ViewBuilder
+    private func row<Label: View>(_ route: BotRoute, @ViewBuilder label: () -> Label) -> some View {
+        if let selection {
+            Button { selection.wrappedValue = route } label: {
+                label().frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selection.wrappedValue == route ? .isSelected : [])
+        } else {
+            NavigationLink(value: route, label: label)
+        }
+    }
+
+    /// The fill of a row beside the chat: the picked one's mark, clear on the others, as the 会话
+    /// list has it; the list's own (nil) where rows push. Every row beside the chat has one from
+    /// the start: the list keeps up only a background the row had as its cell was made. One that
+    /// first came with the picking was drawn once and left so, and after light turned to dark
+    /// (or back) the picked row stayed light under a name now white.
+    private func pickedFill(_ route: BotRoute) -> Color? {
+        selection.map { $0.wrappedValue == route ? Palette.bubble : .clear }
     }
 
     @ViewBuilder
@@ -523,7 +618,7 @@ struct BotHomeView: View {
         Button { Task { await app.botTeam.setFlags(id, pinned: !pinned) } } label: {
             Label(pinned ? "取消置顶" : "置顶", systemImage: pinned ? "pin.slash" : "pin")
         }
-        .tint(Palette.ink)
+        .inkTint()
     }
 
     private func hideButton(_ id: String, hidden: Bool) -> some View {
@@ -536,7 +631,9 @@ struct BotHomeView: View {
     private func trailing(sessionId: String) -> some View {
         VStack(alignment: .trailing, spacing: 6) {
             if let date = app.sessions[sessionId]?.updatedAt {
-                Text(date, format: .relative(presentation: .numeric, unitsStyle: .narrow)).font(.caption2).foregroundStyle(Palette.faint)
+                // As the 会话 list says it. The system's relative format counts seconds, which stand still
+                // until the row is drawn again, and a reply stamped just ahead of this clock read "in 0 seconds".
+                Text(DrawerView.relative(date)).font(.caption2).foregroundStyle(Palette.faint)
             }
             if app.completionUnread.contains(sessionId) { Circle().fill(Palette.ink).frame(width: 8, height: 8) }
         }

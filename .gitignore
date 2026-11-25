@@ -9,3 +9,5 @@ engine/.dsh-home-host/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+# Local build settings (scripts/local-env.sh)
+.env.local

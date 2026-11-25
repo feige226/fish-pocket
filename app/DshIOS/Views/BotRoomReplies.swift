@@ -31,11 +31,31 @@ struct RoomRelayView: View {
 
     var body: some View {
         let team = app.botTeam
-        // Until the round settles its replies come from its progress, one as each member speaks.
-        let live = relay.settled ? nil : team.round(relay.call.id)
-        let replies = live?["replies"].array ?? relay.replies
-        let speaking = (live?["speaking"].array ?? []).compactMap { $0.string.flatMap(team.bot) }
-        VStack(alignment: .leading, spacing: 16) {
+        // ds-bot 0.3.8 settles the call at once and keeps the round's rows in the group's book.
+        let book = relay.range == nil ? nil : team.relayRows[relay.call.id]
+        // An older round's replies come from its progress until it settles, one as each member speaks.
+        let live = relay.range != nil || relay.settled ? nil : team.round(relay.call.id)
+        let replies = live?["replies"].array ?? team.replies(of: relay)
+        let speaking = (book?["speaking"].array ?? live?["speaking"].array ?? []).compactMap { $0.string.flatMap(team.bot) }
+        let working = book.map { $0["active"].bool == true } ?? (running && !relay.settled)
+        // A round nobody spoke in (a notice the group took in) draws nothing, as an older empty one.
+        if !team.rowsEmpty(relay) {
+            rows(replies, speaking: speaking, working: working, animated: live != nil || working)
+                // A closed round's rows do not change. The open one is read again on every team
+                // revision, and every second while its members work.
+                .task(id: relay.range == nil ? nil : team.team["revision"].double) {
+                    guard relay.range != nil, let roomId = timeline?.sessionId, team.relayRows[relay.call.id]?["open"].bool != false else { return }
+                    repeat {
+                        await team.loadRows(of: relay, roomId: roomId)
+                        try? await Task.sleep(for: .seconds(1))
+                    } while !Task.isCancelled && team.relayRows[relay.call.id]?["active"].bool == true
+                }
+        }
+    }
+
+    private func rows(_ replies: [JSON], speaking: [BotInfo], working: Bool, animated: Bool) -> some View {
+        let team = app.botTeam
+        return VStack(alignment: .leading, spacing: 16) {
             ForEach(Self.stack(replies)) { block in
                 let reply = block.reply
                 let bot = reply["botId"].string.flatMap(team.bot)
@@ -65,7 +85,7 @@ struct RoomRelayView: View {
             if relay.broken && replies.isEmpty {
                 Text("这一轮的回复显示不出来").font(.footnote).foregroundStyle(Palette.secondary)
             }
-            if running && !relay.settled {
+            if working {
                 if speaking.isEmpty {
                     BotShimmer(text: String(localized: "成员正在发言…")).frame(minHeight: 28)
                 }
@@ -74,8 +94,8 @@ struct RoomRelayView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         // While the round runs, a reply rises in where its member was typing.
-        .animation(live == nil ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: replies.count)
-        .animation(live == nil ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: speaking.map(\.id))
+        .animation(animated ? .spring(response: 0.4, dampingFraction: 0.8) : nil, value: replies.count)
+        .animation(animated ? .spring(response: 0.4, dampingFraction: 0.8) : nil, value: speaking.map(\.id))
     }
 
     /// What a reply that is not a message says (ds-bot's group round kinds).
@@ -115,6 +135,7 @@ struct RoomRelayView: View {
         case "ACCOUNT_SIGN_IN_REQUIRED", "ACCOUNT_SIGNED_OUT", "ACCOUNT_TOKEN_INVALID": String(localized: "DeepSeek 账号需要重新登录")
         case "RATE_LIMIT", "RATE_LIMITED": String(localized: "请求太频繁")
         case "NETWORK", "TIMEOUT": String(localized: "网络不通")
+        case "CONTENT_REFUSED": String(localized: "内容没有通过 DeepSeek 的安全审核")
         default: text.flatMap { $0.isEmpty ? nil : String($0.prefix(120)) } ?? String(localized: "运行出错了（\(code ?? "?")）")
         }
     }
@@ -204,7 +225,7 @@ struct RoomMessage: View {
             }
             ShareLink(item: text) { Label("分享", systemImage: "square.and.arrow.up") }
             ShareLink(item: MarkdownFile(name: name, text: text), preview: SharePreview(name)) { Label("存为 Markdown 文件", systemImage: "arrow.down.doc") }
-            Button { ReadAloud.shared.toggle(text) } label: {
+            Button { ReadAloud.shared.toggle(text, owner: bot.map { .bot($0.id) }) } label: {
                 ReadAloud.shared.speaking ? Label("停止朗读", systemImage: "speaker.slash") : Label("朗读", systemImage: "speaker.wave.2")
             }
             if let bot {

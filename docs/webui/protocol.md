@@ -1,9 +1,9 @@
 # DSH Web 客户端 ↔ 引擎：传输与数据协议
 
-> 适用版本：引擎已升级到 `@deepseek-ai/dsh@0.2.2-rc.1`（Host 发布标识 `{"version":"0.2.2-rc.1","commit":"c59d10a"}`）。**正文与附录 A 仍是 `0.2.1-rc.4`（`commit: ec17a2c`）的快照**：两版的方法表差异已逐条导出比对，见 §0.1；其余描述还没有重新复核。
+> 适用版本：引擎已升级到 `@deepseek-ai/dsh@0.2.2-rc.4`（Host 发布标识 `{"version":"0.2.2-rc.4"}`）。**正文与附录 A 仍是 `0.2.1-rc.4`（`commit: ec17a2c`）的旧快照**：`0.2.2-rc.1` 的相对变化见 §0.1，`0.2.2-rc.3` 相对 `0.2.2-rc.1` 的变化见 §0.2；`0.2.2-rc.4` 的方法表与 `0.2.2-rc.3` 相同（39 个包的 `typert.remote-client.js` 逐个比对，除版本号外没有差异）；其余描述还没有重新复核。
 > 来源：`engine/node_modules/@deepseek-ai/*` 的未压缩 JS / `.d.ts` / README（MIT），以及 2026-11-03 在 Mac 上实跑引擎（`DSH_IOS_PORT=3095`，无模型 Key）抓到的真实报文。
 > 本文目标：只看这一份文档就能写出与官方 Web 前端行为一致的 Swift 客户端。
-> 配套文件：[`rpc-methods.json`](rpc-methods.json)：`0.2.1-rc.4` 全部 144 个 Remote 方法的机器可读描述，含 wire 参数名、JSON Schema、结果 Schema、是否 stream，可直接拿来做 Swift Codable 代码生成。`0.2.2-rc.1` 共 193 个方法，这份文件还没有重新导出，差异见 §0.1。
+> 配套文件：[`rpc-methods.json`](rpc-methods.json)：`0.2.1-rc.4` 全部 144 个 Remote 方法的机器可读描述，含 wire 参数名、JSON Schema、结果 Schema、是否 stream，可直接拿来做 Swift Codable 代码生成。`0.2.2-rc.3` 共 224 个方法，这份文件还没有重新导出，差异见 §0.2。
 >
 > 示例里的 `<DATA>` 代表引擎数据目录，`<T>` / `<C>` 分别代表 launch token 和 cookie 值，均已脱敏。
 
@@ -18,7 +18,7 @@
 | 会话实时 | `session/follow` stream：先给 `snapshot`（窗口内的历史和投影），再推每条持久事件 `{type:'event', event}`，以及进程内的助手流帧 `{type:'assistant-stream', frame}`，用于 token 级增量。 |
 | 全局投影 | `session/control` stream：开头一份 `baseline`，之后是 `{type:'projection', sessionId, key, value, seq}`，覆盖所有会话的标题、todo、inbox、token 用量等。 |
 | 工作区 | `workspace/follow` stream：开头 `baseline`，之后是 `upsert/remove/order/archived/pinned/replace`。 |
-| 方法目录 | 29 个包贡献 Remote 方法，**共 144 个**，其中 14 个是 stream。26 个包由 `dsh-api-remotes` 挂载，`remoteAccess`、`speech`、`cotTranslation` 由各自的客户端包挂载。全量表见附录 A 和 `rpc-methods.json`。（`0.2.2-rc.1`：34 个包、193 个方法、20 个 stream，差异见 §0.1。） |
+| 方法目录 | 29 个包贡献 Remote 方法，**共 144 个**，其中 14 个是 stream。26 个包由 `dsh-api-remotes` 挂载，`remoteAccess`、`speech`、`cotTranslation` 由各自的客户端包挂载。全量表见附录 A 和 `rpc-methods.json`。（`0.2.2-rc.1`：34 个包、193 个方法、20 个 stream，见 §0.1；`0.2.2-rc.3`：**39 个包、224 个方法**，见 §0.2。） |
 | 二进制 | 结果里带字节的方法（如 `workspaceFiles/readBytes`）以 `multipart/form-data` 返回：`metadata` 部分是 JSON 信封，`bytes-N` 部分放字节。上传用专用路由 `POST /api/session/uploadFileBinary`（octet-stream）。 |
 | 插件 UI | 插件的浏览器端是 JS 包（React 和 slot 系统，通过 `window.__ModuleLoader__` 加载），**原生端无法执行**。原生能拿到的只有数据：RPC 和事件、`tool/result.data.meta`（工具的 presentationMeta）、各类投影。 |
 
@@ -64,6 +64,60 @@
 | `dsh-experimental-liveshare` | `liveshareShares/*` 12 个（实验：共享会话） |
 
 **`$events` 转发白名单**（`dsh-api-remotes/lib/index.js` 的 `API_REMOTE_FORWARDED_EVENTS`）：28 → 30，没有删除、没有 mode 变化，新增 `llm/models-updated` 和 `plugin-manager/update-state`。
+
+## 0.2 `0.2.2-rc.3` 相对 `0.2.2-rc.1` 的方法表变化
+
+> 口径：两版各自安装后，从各包 `lib/typert.remote-client.js` 的 `TYPERT_REMOTE.spec.methods` 导出方法表再比对。`0.2.2-rc.1` 34 个包 193 个方法，`0.2.2-rc.3` 39 个包 224 个方法。下面的内容只来自这次导出。
+
+**删除的方法**
+
+| 删除 | 替代 |
+|---|---|
+| `account/ackBonusNotified` | `account/getNotifications`、`account/getNotificationContent`、`account/reportNotificationEvent` |
+| `account/getUnnotifiedBonuses` | 同上 |
+| `officeToPdf/generation` | `officeKit/generation` |
+| `officeToPdf/render` | `officeKit/render` |
+| `subagents/interruptByParent` | `subagents/interruptByUser`，参数只有 `childSessionId` |
+
+**新包**
+
+`dsh-deepseek-account` 承接了 `dsh-api-account-controller` 原有的全部 `account/*` 方法，方法名不变；三个账户通知方法（`account/getNotifications`、`account/getNotificationContent`、`account/reportNotificationEvent`）是它新增的。
+
+**请求形状变化**
+
+| 方法 | 变化 |
+|---|---|
+| `subagents/prompt` | 去掉 `parentSessionId` 和 `mode`，现在只有 `{requestId, childSessionId, delivery, content, clientTimeZone}` |
+| `pluginManager/installBundle` | options 新增可选 `expected`（`{name, version}`）：装完不是这个包或版本就回滚并报 `unexpected-package` |
+| `pluginManager/updateBundle` | options 新增 `spec`：`update: 'git'` 的包更新时必须给，且要钉完整 commit |
+| `liveshareShares/setCapabilities` | `capabilities` 换成 `viewerPluginAccess` + `viewerPlugins` |
+
+**结果与记录形状变化**
+
+| 方法 | 变化 |
+|---|---|
+| `account/watch` | 从直接给 `AccountView` 变成 `{type: "snapshot" \| "credentials-changed", state: AccountView}` |
+| `terminal/list`、`terminal/create`、`terminal/attach` | 记录新增必填 `origin`、`control`（`user`/`agent`），可选 `sandboxMode` |
+| `liveshareShares/*` | 新增 `sessionIds`、`viewerPluginAccess`、`viewerPlugins` |
+| `job/follow`、`job/list`、`pluginManager/inspect`、`pluginManager/cancelInstall` | 只是枚举值顺序变化，形状不变 |
+| `session/prompt` | `content` 现在允许空数组（继续一个失败的 idle 会话），只是描述变化 |
+
+**新增的 36 个方法**
+
+| 包 | 方法 |
+|---|---|
+| `dsh-agent-team` | `agentTeams/setEnabled` |
+| `dsh-api-terminal-controller` | `terminal/watch` |
+| `dsh-api-workspace-files` | `workspaceFiles/search` |
+| `dsh-cua` | `cuaAccess/applicationIcons`、`cuaAccess/applications`、`cuaAccess/enablePersistentPtc`、`cuaAccess/openSettings`、`cuaAccess/ptcConfiguration`、`cuaAccess/requestPermission`、`cuaAccess/retryApproval`、`cuaAccess/revoke`、`cuaAccess/systemStatus` |
+| `dsh-deepseek-account` | `account/getNotificationContent`、`account/getNotifications`、`account/reportNotificationEvent` |
+| `dsh-deepseek-chat-import` | `deepseekChatImport/limits` |
+| `dsh-experimental-client-ui-forge` | `forgePanel/changeRequestCommits`、`forgePanel/changeRequestReview`、`forgePanel/changeRequestReviewWrite`、`forgePanel/changeRequestViewed`、`forgePanel/diffBases`、`forgePanel/localCommits`、`forgePanel/requestReviews`、`forgePanel/rerunChecks`、`forgePanel/reviewerCandidates`、`forgePanel/setFileViewed`、`forgePanel/updateBranch`、`forgePanel/worktreeCleanup` |
+| `dsh-experimental-liveshare` | `liveshareShares/addSessions` |
+| `dsh-mcp-manager` | `mcpManager/probe`、`mcpManager/restart`、`mcpManager/watch` |
+| `dsh-office-kit` | `officeKit/generation`、`officeKit/render` |
+| `dsh-subagent` | `subagents/interruptByUser` |
+| `dsh-web` | `web/listProviders` |
 
 ---
 

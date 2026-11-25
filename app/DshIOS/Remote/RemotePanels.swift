@@ -64,7 +64,7 @@ struct RemoteOptionsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
         }
-        .tint(Palette.ink)
+        .inkTint()
         .presentationDetents([.medium, .large])
         .task { await model.loadCatalog(force: true) }
     }
@@ -152,7 +152,7 @@ struct RemoteInfoSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .closeButton(dismiss)
         }
-        .tint(Palette.ink)
+        .inkTint()
         .presentationDetents([.medium, .large])
         .task { await model.loadCatalog() }
     }
@@ -204,7 +204,7 @@ struct RemoteChangesSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
     }
 }
 
@@ -230,7 +230,7 @@ struct RemoteFilesSheet: View {
                     }
                 }
         }
-        .tint(Palette.ink)
+        .inkTint()
     }
 }
 
@@ -353,6 +353,7 @@ private struct RemoteFilePage: View {
     @State private var text: String?
     @State private var truncated = false
     @State private var failure: String?
+    @State private var binary = false
     @State private var rendered = true
 
     private var isMarkdown: Bool { ["md", "markdown"].contains((entry.name as NSString).pathExtension.lowercased()) }
@@ -374,6 +375,29 @@ private struct RemoteFilePage: View {
                     }
                     .padding(16)
                 }
+            } else if binary {
+                // Not text: Quick Look on the phone takes PDFs, pictures, Office documents…
+                VStack(spacing: 20) {
+                    FileGlyph(name: entry.name, height: 96)
+                    VStack(spacing: 6) {
+                        Text(entry.name).font(.headline).foregroundStyle(Palette.ink).multilineTextAlignment(.center).lineLimit(3)
+                        Text(FileFormat.caption(entry.name, bytes: entry.size)).font(.subheadline).foregroundStyle(Palette.secondary)
+                    }
+                    RemoteFileButton(name: entry.name) {
+                        guard let client = app.remote.client else { throw RemoteError(kind: .unauthorized, message: String(localized: "尚未登录")) }
+                        return try await RemoteFileFetch.device(path: entry.path, root: root, client: client, deviceId: deviceId)
+                    } label: { loading in
+                        Group {
+                            if loading { ProgressView().controlSize(.small) } else { Text("用快速查看打开") }
+                        }
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Palette.ink)
+                        .padding(.horizontal, 20)
+                        .frame(minWidth: 140, minHeight: 44)
+                        .overlay(Capsule().strokeBorder(Palette.stroke))
+                    }
+                }
+                .padding(32)
             } else if let failure {
                 ContentUnavailableView("打不开这个文件", systemImage: "doc.questionmark", description: Text(failure))
             } else {
@@ -405,7 +429,7 @@ private struct RemoteFilePage: View {
             let value = try await client.post("/connectors/\(RemoteClient.encode(deviceId))/fs/readText",
                                               ["path": .string(entry.path), "maxBytes": 1_048_576], query: ["root": root])
             if value["binary"].bool == true {
-                failure = String(localized: "这不是文本文件，请在电脑上查看。")
+                binary = true
                 return
             }
             truncated = value["truncated"].bool ?? false

@@ -43,7 +43,7 @@ struct SignInChoice: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Group {
-                    if busy { ProgressView().tint(Palette.ink) }
+                    if busy { ProgressView().inkTint() }
                     else { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).opacity(0.5) }
                 }
                 .frame(height: 40)
@@ -182,7 +182,7 @@ struct SignInSheet: View {
                 SignInChoice(
                     icon: "sparkles",
                     title: "Fish Pocket 账号",
-                    detail: "Apple 或手机号登录，在 App 内购买额度，按用量扣费。"
+                    detail: "在 App 内购买额度，按用量扣费。"
                 ) { dismiss(); useFishPocket() }
             }
             SignInChoice(
@@ -313,6 +313,8 @@ struct DeepSeekKeyRow: View {
         if let value = try? await app.client.call("credentials/describe", ["refs": ["DEEPSEEK_API_KEY"]]) {
             keySet = value.array.first?["configured"].bool ?? value["DEEPSEEK_API_KEY"]["configured"].bool ?? false
         }
+        // DeepSeek is one of the voices voice messages are read in.
+        VoiceMessageSync.shared.sync()
     }
 }
 
@@ -536,9 +538,10 @@ struct AccountAvatar: View {
     }
 }
 
-/// Shell notices from the account: the toast line and the bonus card stack.
+/// Shell notices from the account: the toast line and the notification card.
 struct AccountNotices: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(spacing: 8) {
@@ -557,29 +560,49 @@ struct AccountNotices: View {
                         withAnimation { app.account.toast = nil }
                     }
             }
-            if let notice = app.account.bonuses.first(where: { !$0.expired }) {
-                BonusCard(notice: notice) { withAnimation { app.account.dismiss(notice) } }
-                    .onAppear { app.account.markShown(notice) }
-                    .transition(.move(edge: .top).combined(with: .opacity))
+            if let notice = app.account.notifications.first(where: { !$0.expired }) {
+                NotificationCard(
+                    notice: notice,
+                    action: { action in
+                        if let url = app.account.act(notice, action) { openURL(url) }
+                    },
+                    close: { withAnimation { app.account.dismiss(notice) } }
+                )
+                .onAppear { app.account.markShown(notice) }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.top, 4)
         .animation(.snappy, value: app.account.toast)
-        .animation(.snappy, value: app.account.bonuses)
+        .animation(.snappy, value: app.account.notifications)
     }
 }
 
-private struct BonusCard: View {
-    let notice: BonusNotice
+private struct NotificationCard: View {
+    let notice: AccountNotification
+    let action: (AccountNotification.Action) -> Void
     let close: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "gift").font(.callout).foregroundStyle(Palette.ink)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(notice.title).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.ink)
-                if !notice.message.isEmpty {
-                    Text(notice.message).font(.footnote).foregroundStyle(Palette.secondary).fixedSize(horizontal: false, vertical: true)
+                if !notice.body.isEmpty {
+                    Text(notice.body).font(.footnote).foregroundStyle(Palette.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if !notice.actions.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(notice.actions) { item in
+                            Button(item.label) { action(item) }
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(item.style == "primary" ? Palette.onInk : Palette.ink)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(item.style == "primary" ? Palette.ink : Palette.grouped, in: Capsule())
+                        }
+                    }
+                    .padding(.top, 2)
                 }
             }
             Spacer(minLength: 0)

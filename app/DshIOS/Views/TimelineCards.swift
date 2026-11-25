@@ -45,7 +45,7 @@ private struct FoldRow<Label: View, Detail: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
-                withAnimation(.snappy) { open.toggle() }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { open.toggle() }
             } label: {
                 HStack(spacing: 8) {
                     label().frame(maxWidth: .infinity, alignment: .leading)
@@ -80,7 +80,7 @@ struct QuestionReplyBubble: View {
         VStack(alignment: .trailing, spacing: 4) {
             VStack(alignment: .leading, spacing: 0) {
                 Button {
-                    withAnimation(.snappy) { open.toggle() }
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { open.toggle() }
                 } label: {
                     HStack(spacing: 6) {
                         Text("回答先前等待中的问题").font(.footnote).foregroundStyle(tint.map { $0.text.opacity(0.75) } ?? Palette.secondary)
@@ -135,6 +135,17 @@ struct TriggerNotice: View {
     @State private var exchange: BotExchangePair?
 
     var body: some View {
+        if trigger.receipt {
+            Label(trigger.title, systemImage: trigger.symbol)
+                .font(.footnote)
+                .foregroundStyle(Palette.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            notice
+        }
+    }
+
+    private var notice: some View {
         FoldRow {
             HStack(spacing: 8) {
                 Image(systemName: trigger.symbol).frame(width: 18).foregroundStyle(Palette.secondary)

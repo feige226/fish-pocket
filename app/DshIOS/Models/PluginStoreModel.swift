@@ -1,30 +1,21 @@
 import Foundation
-import Observation
+import Perception
 
-/// The store's own state, around the market reader 发现 under 设置 → 插件 also uses: readying the
-/// market on first use and restoring the preset index.
+/// The store's own state, around the market reader 发现 under 设置 → 插件 also uses.
+///
+/// The market is DSH's experimental bundle, off in the shipped profile, and it stays off until the
+/// user turns on an index source: there is no market the app opens on by itself.
 @MainActor
-@Observable
+@Perceptible
 final class PluginStoreModel {
     enum Readiness { case checking, preparing, ready, off, unavailable }
 
-    /// Set once a preset has been offered: after that, an index list without it is the user's choice.
-    private static let seededKey = "dsh.store.seeded:\(PluginStoreCatalog.presetIndex)"
-
     let market = PluginMarketModel()
     private(set) var readiness = Readiness.checking
-    @ObservationIgnored private var preparing: Task<Void, Never>?
+    @PerceptionIgnored private var preparing: Task<Void, Never>?
 
-    private var seeded: Bool {
-        get { UserDefaults.standard.bool(forKey: Self.seededKey) }
-        set { UserDefaults.standard.set(newValue, forKey: Self.seededKey) }
-    }
-
-    var hasPreset: Bool { market.indexes?.contains { $0["url"].string == PluginStoreCatalog.presetIndex } ?? false }
-
-    /// The market bundle is optional and off in the shipped profile. The first visit turns it on and
-    /// adds the preset index; after that its switch under 设置 → 插件 is the user's. A task of its own:
-    /// the page's is cancelled when the connection comes up, which is exactly when a first visit runs.
+    /// A task of its own: the page's is cancelled when the connection comes up, which is exactly
+    /// when a first visit runs.
     func prepare(_ app: AppModel) async {
         if let preparing {
             await preparing.value
@@ -47,38 +38,59 @@ final class PluginStoreModel {
             readiness = .unavailable
             return
         }
-        if !bundle.enabled {
-            guard !seeded else {
-                readiness = .off
-                return
-            }
-            await enable(app)
+        guard bundle.enabled else {
+            readiness = .off
             return
         }
-        await open(app)
+        // Ready once the engine names the sources: reading one downloads the whole index, which can
+        // take most of a minute, and the source list and installs need not wait for it.
+        let listed = await market.listIndexes(app)
+        readiness = .ready
+        if listed { await market.reload(app) }
     }
 
-    /// 开启: the market bundle's switch, from here.
-    func enable(_ app: AppModel) async {
+    /// Whether a listing can be installed from. One restored from the last visit carries that
+    /// visit's installation states, so it waits for the plugin list this visit read; `status`
+    /// then says what is on the device.
+    func installable(_ app: AppModel) -> Bool { !market.fromCache || app.plugins.status == .ready }
+
+    /// A listing's installation status, from the plugin list while the listing is the last visit's.
+    func status(_ entry: StoreEntry, _ app: AppModel) -> String? {
+        guard market.fromCache, app.plugins.status == .ready else { return entry.status }
+        let kept = ["update-available", "provided"].contains(entry.status ?? "")
+        if app.plugins.package(entry.name)?.installed == true { return kept ? entry.status : "installed" }
+        return entry.status == "provided" ? entry.status : nil
+    }
+
+    /// The sources in use; none while the market is off, whatever its settings still hold.
+    var urls: [String] {
+        readiness == .ready ? (market.indexes ?? []).compactMap { $0["url"].string } : []
+    }
+
+    var busy: Bool { readiness == .preparing || market.saving }
+
+    /// The one source in use, or none. One at a time: a market is a third party's, and the user
+    /// should know whose list they are looking at. While the market is off it is turned on first.
+    func use(_ url: String?, _ app: AppModel) async -> Bool {
+        if url != nil, readiness != .ready {
+            guard await enableMarket(app) else { return false }
+        }
+        guard readiness == .ready else { return true }
+        return await market.saveSources(url.map { [$0] } ?? [], adding: url != nil, app)
+    }
+
+    private func enableMarket(_ app: AppModel) async -> Bool {
         let manager = app.plugins
-        guard let bundle = manager.package(PluginManagerModel.marketBundle) else { return }
+        guard let bundle = manager.package(PluginManagerModel.marketBundle) else { return false }
         readiness = .preparing
         await manager.setEnabled(bundle, true)
-        readiness = manager.marketEnabled ? .preparing : .off
-        if manager.marketEnabled { await open(app) }
-    }
-
-    private func open(_ app: AppModel) async {
-        await market.loadIndexes(app)
-        if !seeded, let indexes = market.indexes {
-            let urls = indexes.compactMap { $0["url"].string }
-            if urls.contains(PluginStoreCatalog.presetIndex) {
-                seeded = true
-            } else if await market.saveSources([PluginStoreCatalog.presetIndex] + urls, adding: false, app) {
-                seeded = true
-            }
+        guard manager.marketEnabled else {
+            readiness = .off
+            return false
         }
+        await market.loadIndexes(app)
         readiness = .ready
+        return true
     }
 
     /// Its switch went off under 设置 → 插件 while the store stayed open (iPad).
@@ -93,14 +105,5 @@ final class PluginStoreModel {
     /// The newest read of a listing: a page that holds one outlives what it says about installation.
     func latest(_ entry: StoreEntry) -> StoreEntry {
         market.entries.first { $0["name"].string == entry.name }.map(StoreEntry.init) ?? entry
-    }
-
-    /// 恢复预置市场.
-    func restorePreset(_ app: AppModel) async {
-        let urls = (market.indexes ?? []).compactMap { $0["url"].string }
-        guard !urls.contains(PluginStoreCatalog.presetIndex) else { return }
-        _ = await market.saveSources([PluginStoreCatalog.presetIndex] + urls, adding: false, app)
-        market.selected = PluginStoreCatalog.presetIndex
-        await market.reload(app)
     }
 }

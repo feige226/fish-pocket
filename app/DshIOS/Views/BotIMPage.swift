@@ -1,6 +1,7 @@
 import CoreImage.CIFilterBuiltins
 import SwiftUI
 
+import Perception
 /// Chat apps a Bot can be reached from (ds-bot's IM bridge). The bridge runs inside the
 /// engine, so messages arrive only while the app is running.
 struct BotIMPage: View {
@@ -8,6 +9,8 @@ struct BotIMPage: View {
     @State private var adding: IMPlatform?
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let connections = team.team["im"]["connections"].array
         List {
@@ -43,7 +46,8 @@ struct BotIMPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $adding) { platform in IMAddSheet(platform: platform) }
         .task { await team.refreshState() }
-    }
+    
+        }}
 }
 
 /// ds-bot's IM platforms (shared/im-platforms.js): how each one is added.
@@ -85,6 +89,8 @@ private struct IMConnectionRow: View {
     let connection: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let status = team.live["imStatus"]?[connection["id"].string ?? ""]
         HStack {
@@ -97,7 +103,8 @@ private struct IMConnectionRow: View {
             Spacer()
             Text(IMConnectionPage.stateText(status, enabled: connection["enabled"].bool ?? true)).font(.caption).foregroundStyle(Palette.secondary)
         }
-    }
+    
+        }}
 }
 
 /// One connection: which Bot answers, who may talk to it, and its chats.
@@ -107,6 +114,8 @@ private struct IMConnectionPage: View {
     let id: String
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let connection = team.team["im"]["connections"].array.first { $0["id"].string == id } ?? .null
         let status = team.live["imStatus"]?[id]
@@ -190,7 +199,8 @@ private struct IMConnectionPage: View {
         .groupedList()
         .navigationTitle(IMPlatform.name(connection["platform"].string))
         .navigationBarTitleDisplayMode(.inline)
-    }
+    
+        }}
 
     static func stateText(_ status: JSON?, enabled: Bool) -> String {
         guard enabled else { return String(localized: "已关闭") }
@@ -216,6 +226,8 @@ private struct IMAddSheet: View {
     @State private var loginState = ""
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         NavigationStack {
             Form {
@@ -271,7 +283,8 @@ private struct IMAddSheet: View {
             }
             .onAppear { if botId.isEmpty { botId = team.mainBot?.id ?? "" } }
         }
-    }
+    
+        }}
 
     private func add() async {
         saving = true

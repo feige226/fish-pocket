@@ -45,8 +45,8 @@ void DshNativeConfirmWrite(NSString *capability, NSString *op, NSString *summary
       // Says who decided and where, because the agent reads this out and the
       // user may well have forgotten setting it.
       next(NO, [NSString stringWithFormat:
-                @"the user has set '%@' to read-only under Device capabilities on the app's Explore "
-                 "tab (in the sidebar before iOS 18). Nothing was changed. Only they can change that setting.", capability]);
+                @"the user has set '%@' to read-only under Device capabilities in Connectors on the app's Explore "
+                 "tab (in the sidebar on an iPad before iOS 18). Nothing was changed. Only they can change that setting.", capability]);
       return;
     case DshWritePolicyConfirm:
       break;

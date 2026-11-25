@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 import WebKit
 
@@ -12,7 +13,6 @@ enum MiniAppPresenter {
             Haptics.warning()
             return
         }
-        MiniAppStore.shared.noteOpened(id)
         func present(tries: Int = 10) {
             // A cold launch from a widget: the window may not be up yet.
             guard let top = topController() else {
@@ -51,11 +51,11 @@ enum MiniAppPresenter {
 
     static func editDraft(_ app: MiniApp) -> String {
         // The path is followed by a space: a `/` token at the end of the draft opens the command menu.
-        String(localized: "修改 \(app.enginePath) 里的小工具「\(app.name)」：")
+        String(localized: "修改 \(app.enginePath) 里的 Mini App「\(app.name)」：")
     }
 
     static func fixDraft(_ app: MiniApp, error: String) -> String {
-        String(localized: "\(app.enginePath) 里的小工具「\(app.name)」运行时出错了：\n\n\(error)\n\n帮我修好。")
+        String(localized: "\(app.enginePath) 里的 Mini App「\(app.name)」运行时出错了：\n\n\(error)\n\n帮我修好。")
     }
 }
 
@@ -65,6 +65,7 @@ struct MiniAppScreen: View {
     @State private var page = MiniAppPage()
     /// The published copy is in place (made now the first time, or after the agent changed it).
     @State private var ready = false
+    @State private var addingToHome = false
 
     var body: some View {
         NavigationStack {
@@ -76,16 +77,18 @@ struct MiniAppScreen: View {
                     ready = true
                 }
                 // Down to the screen's edge: the page's own background fills the home indicator's strip.
-                .ignoresSafeArea(.container, edges: .bottom)
-                .background(Color(uiColor: .systemBackground))
+                // From iOS 26 up under the bar too: the page scrolls beneath the system's see-through
+                // bar and softens there, as the app's own pages do. Before, the bar stays solid.
+                .ignoresSafeArea(.container, edges: Self.underBar ? .vertical : .bottom)
+                .background(page.backdrop ?? Color(uiColor: .systemBackground))
                 // The app's icon until its page is in: the web view's own start is a blank screen.
                 .overlay {
                     if !page.loaded {
                         ZStack {
                             Color(uiColor: .systemBackground)
-                            MiniAppIcon(icon: app.icon, color: app.color, size: 76)
+                            MiniAppIcon(app, size: 76)
                         }
-                        .ignoresSafeArea(.container, edges: .bottom)
+                        .ignoresSafeArea(.container, edges: Self.underBar ? .vertical : .bottom)
                         .transition(.opacity)
                     }
                 }
@@ -93,13 +96,13 @@ struct MiniAppScreen: View {
                     if let error = page.error { errorBanner(error) }
                 }
                 .navigationTitle(app.name)
-                .toolbarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
                         Menu {
                             Button("重新载入", systemImage: "arrow.clockwise") { page.reload() }
                             Button("让 Agent 修改", systemImage: "wand.and.stars") { MiniAppPresenter.askAgent(MiniAppPresenter.editDraft(app)) }
-                            Button("添加到主屏幕", systemImage: "plus.square.on.square") { MiniAppHomeScreen.add(app) }
+                            Button("添加到主屏幕", systemImage: "plus.square.on.square") { addingToHome = true }
                         } label: {
                             Image(systemName: "ellipsis")
                         }
@@ -109,6 +112,11 @@ struct MiniAppScreen: View {
                     }
                 }
         }
+        .sheet(isPresented: $addingToHome) { AddToHomeScreenSheet(target: .miniApp(app)) }
+    }
+
+    private static var underBar: Bool {
+        if #available(iOS 26.0, *) { true } else { false }
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -131,7 +139,7 @@ struct MiniAppScreen: View {
                 Label("让 Agent 修复", systemImage: "wand.and.stars").font(.subheadline.weight(.medium)).frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(Palette.ink)
+            .inkTint()
             .foregroundStyle(Palette.onInk)
         }
         .padding(14)
@@ -142,15 +150,18 @@ struct MiniAppScreen: View {
 }
 
 /// What the page reported, and a way to reload it.
-@MainActor @Observable
+@MainActor @Perceptible
 final class MiniAppPage {
     /// The latest error, shown until dismissed; nil once the user closes the banner.
     var error: String?
     /// The page has loaded (the launch screen goes).
     var loaded = false
+    /// The page's own background, as WebKit reads it: what shows beside the page where it keeps
+    /// clear of the screen's edges (a phone on its side, iPhone Duo's column of system buttons).
+    var backdrop: Color?
     /// Every error since the page loaded, for the agent.
     private(set) var errors: [String] = []
-    @ObservationIgnored weak var webView: WKWebView?
+    @PerceptionIgnored weak var webView: WKWebView?
 
     func report(_ message: String) {
         guard !errors.contains(message) else { return }
@@ -175,20 +186,25 @@ private struct MiniAppWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: app.dataStoreId)
+        if #available(iOS 17.0, *) {
+            configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: app.dataStoreId)
+        } else {
+            configuration.websiteDataStore = .default()
+        }
         configuration.setURLSchemeHandler(MiniAppServer(app: app), forURLScheme: MiniAppServer.scheme)
         configuration.userContentController.add(context.coordinator.messages, name: MiniAppServer.messageName)
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
-        let view = WKWebView(frame: .zero, configuration: configuration)
+        let view = PageWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
         view.uiDelegate = context.coordinator
-        view.isOpaque = false
-        view.backgroundColor = .systemBackground
         #if DEBUG
         view.isInspectable = true
         #endif
         page.webView = view
+        context.coordinator.backdrop = view.observe(\.underPageBackgroundColor, options: [.initial, .new]) { [weak page] view, _ in
+            MainActor.assumeIsolated { page?.backdrop = Color(uiColor: view.underPageBackgroundColor) }
+        }
         let url = URL(string: "\(MiniAppServer.scheme)://\(app.id)/")!
         Task {
             if let rules = await LocalNetworkRules.list { configuration.userContentController.add(rules) }
@@ -206,6 +222,8 @@ private struct MiniAppWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         let messages: Messages
         let appId: String
+        /// Follows the page's background for `MiniAppPage.backdrop`, while the web view lives.
+        var backdrop: NSKeyValueObservation?
 
         init(page: MiniAppPage, appId: String) {
             messages = Messages(page: page)
@@ -295,6 +313,45 @@ private struct MiniAppWebView: UIViewRepresentable {
     }
 }
 
+/// The web view where it runs up under the title bar (iOS 26 on): the page starts below the bar and
+/// scrolls beneath it, and a screen's height to the page (`100dvh`) is what shows below the bar.
+/// WebKit does this itself for a page that leaves the screen's edges to it. One that takes them
+/// (`viewport-fit=cover`, as the page around `App.jsx` does, so that it can pad for the home
+/// indicator) is laid out from the very top, so here the bar is declared as covering the page:
+/// the page's sizes and `env(safe-area-inset-top)` then leave it out, and the scroll view is
+/// inset to match, which WebKit leaves to its owner.
+private final class PageWebView: WKWebView, UIScrollViewDelegate {
+    override init(frame: CGRect, configuration: WKWebViewConfiguration) {
+        super.init(frame: frame, configuration: configuration)
+        scrollView.delegate = self
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        clearTheBar()
+    }
+
+    /// WebKit starts or stops insetting the page itself once it has read the page's viewport,
+    /// some time after the page loads.
+    func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+        clearTheBar()
+    }
+
+    func clearTheBar() {
+        guard #available(iOS 26.0, *) else { return }
+        // WebKit sets this to `.always` while it insets the page itself.
+        let top = scrollView.contentInsetAdjustmentBehavior == .never ? safeAreaInsets.top : 0
+        guard obscuredContentInsets.top != top else { return }
+        let atTop = scrollView.contentOffset.y <= -scrollView.contentInset.top
+        obscuredContentInsets = UIEdgeInsets(top: top, left: 0, bottom: 0, right: 0)
+        scrollView.contentInset.top = top
+        scrollView.verticalScrollIndicatorInsets.top = top
+        if atTop { scrollView.contentOffset.y = -top }
+    }
+}
+
 /// Blocks requests to this phone itself (localhost, 127.x, ::1): servers the engine and its
 /// plugins run there are not an app's business.
 @MainActor
@@ -316,42 +373,21 @@ private enum LocalNetworkRules {
     }
 }
 
-/// Puts an app on the home screen through Safari. iOS lets no app place an icon there itself, but
-/// Safari's 添加到主屏幕 does for a web page: the website's page (AppLinks.addToHomeScreen) takes the
-/// app's name and icon from what follows its `#`, and when opened from the home screen goes on to
-/// `dsh://app/<id>`. The fragment never reaches the server. The icon is drawn here, as the 应用 tab
-/// draws it: Safari's canvas does not draw emoji.
+/// Puts an app on the home screen (`HomeScreenShortcut`), its icon drawn as the 应用 tab draws it.
 @MainActor
 enum MiniAppHomeScreen {
     static func add(_ app: MiniApp) {
-        var fragment = URLComponents()
-        fragment.queryItems = [
-            URLQueryItem(name: "id", value: app.id),
-            URLQueryItem(name: "name", value: app.name),
-            URLQueryItem(name: "color", value: String(app.color.drop { $0 == "#" })),
-            URLQueryItem(name: "scheme", value: DshLink.scheme),
-        ] + [iconPNG(app).map { URLQueryItem(name: "img", value: $0) }].compactMap { $0 }
-        // The page reads it with URLSearchParams, where a bare + is a space.
-        let encoded = (fragment.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B")
-        guard var components = URLComponents(url: AppLinks.addToHomeScreen, resolvingAgainstBaseURL: false) else { return }
-        components.percentEncodedFragment = encoded
-        guard let url = components.url else { return }
-        Haptics.tap()
-        UIApplication.shared.open(url)
-    }
-
-    /// The home screen's icon, 180 points square and edge to edge (iOS rounds the corners), as
-    /// base64url PNG.
-    private static func iconPNG(_ app: MiniApp) -> String? {
         let icon = ZStack {
             Rectangle().fill(Color(miniApp: app.color).gradient)
-            Text(verbatim: app.icon).font(.system(size: 90))
+            if let picture = app.iconImage.flatMap({ UIImage(contentsOfFile: $0.path) }) {
+                Image(uiImage: picture).resizable().scaledToFill()
+            } else {
+                Text(verbatim: app.icon).font(.system(size: 90))
+            }
         }
-        .frame(width: 180, height: 180)
-        let renderer = ImageRenderer(content: icon)
-        renderer.scale = 1
-        guard let data = renderer.uiImage?.pngData() else { return nil }
-        return data.base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+        HomeScreenShortcut.add(name: app.name, items: [
+            URLQueryItem(name: "id", value: app.id),
+            URLQueryItem(name: "color", value: String(app.color.drop { $0 == "#" })),
+        ], icon: icon)
     }
 }

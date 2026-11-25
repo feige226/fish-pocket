@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// One provider's models in the catalog.
 struct ModelGroup: Identifiable {
@@ -24,7 +24,7 @@ struct CommandRow: Identifiable, Hashable {
 /// conversation: the `/` catalog, the model catalog, permission presets and
 /// the busy-Enter preference. Each reloads on its engine event.
 @MainActor
-@Observable
+@Perceptible
 final class ComposerContext {
     private(set) var commands: [CommandDescriptor] = []
     /// Providers in the web's order: DeepSeek account, DeepSeek official, then the rest.
@@ -35,8 +35,8 @@ final class ComposerContext {
     private(set) var catalogLoaded = false
     private(set) var catalogLoading = false
     private(set) var permissionOptions: [(value: String, name: String)] = []
-    /// `ui-conversation.busyEnter` (C-141): what Send does while the agent runs.
-    private(set) var busyEnter = "queue"
+    /// `ui-conversation.busyEnter` (C-141): what Send does while the agent runs; steer unless set to queue.
+    private(set) var busyEnter = "steer"
 
     func load(_ model: SessionModel) async {
         async let commands: Void = loadCommands(model)
@@ -95,7 +95,9 @@ final class ComposerContext {
     func loadSettings(_ model: SessionModel) async {
         guard let value = try? await model.client.call("settings/describe") else { return }
         let section = value["namespaces"].array.first { $0["ns"].string == "ui-conversation" }
-        busyEnter = section?["value"]["busyEnter"].string == "steer" ? "steer" : "queue"
+        // The web's own default is to queue; here a send while the agent works steers it unless the
+        // person chose 「排队」 in the web's settings (`user` holds only what they set).
+        busyEnter = section?["user"]["busyEnter"].string == "queue" ? "queue" : "steer"
     }
 
     static func providerName(_ id: String, _ name: String?) -> String {

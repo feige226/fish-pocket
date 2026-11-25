@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 设置 → Agent 预设 (AP-01 / AP-02 / AP-04 / AP-05): tapping a row makes it the default for
 /// new tasks (`agent-preset-registry.selectedDefault`), the ⓘ opens a read-only view of it.
 struct AgentPresetsPage: View {
@@ -13,16 +14,18 @@ struct AgentPresetsPage: View {
     private static let builtIn: Set<String> = ["standard", "ptc", "minimal", "cordis"]
 
     private var codingTools: Bool { app.settings.namespace("ui-settings")?["value"]["enabled"].bool ?? true }
-    /// AP-03: with the coding view off only Standard and custom presets show (Creator: `CreatorMode`).
+    /// AP-03: with the coding view off only Standard, Creator and custom presets show.
     private var visible: [JSON] {
         (presets ?? []).filter {
             let id = $0["id"].string ?? ""
-            // 创造模式 and PTC are held back on iOS (`CreatorMode`, `PtcMode`): not offered as a default either.
+            // PTC is held back on iOS (`PtcMode`): not offered as a default either.
             return (codingTools || !["ptc", "minimal"].contains(id)) && !presetHeldBack(id)
         }
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if presets == nil {
                 Section {
@@ -46,8 +49,7 @@ struct AgentPresetsPage: View {
                 }
                 .groupedRow()
             }
-            // With 创造模式 held back there is nothing to put in an empty 自定义 section.
-            let creatorEntry = !CreatorMode.hidden && (presets ?? []).contains { $0["id"].string == CreatorMode.id }
+            let creatorEntry = (presets ?? []).contains { $0["id"].string == "cordis" }
             if presets != nil, !custom.isEmpty || creatorEntry {
                 Section("自定义") {
                     ForEach(custom, id: \.self) { row($0) }
@@ -64,13 +66,17 @@ struct AgentPresetsPage: View {
         .groupedList()
         .navigationTitle("Agent 预设")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $reading) { preset in
-            AgentPresetReader(id: preset["id"].string ?? "", title: presetDisplayName(preset))
-        }
+        .background(
+            NavigationLink(
+                destination: AgentPresetReader(id: reading?["id"].string ?? "", title: reading.map(presetDisplayName) ?? "Agent 预设"),
+                isActive: Binding(get: { reading != nil }, set: { if !$0 { reading = nil } })
+            ) { EmptyView() }.hidden()
+        )
         .task(id: app.settingsRevision) { await load() }
         .followSettings()
         .refreshable { await load() }
-    }
+    
+        }}
 
     private func description(_ preset: JSON) -> String? {
         if let text = localized(preset["description"]), !text.isEmpty { return text }
@@ -78,7 +84,7 @@ struct AgentPresetsPage: View {
         case "standard": return String(localized: "处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。")
         case "ptc": return String(localized: "包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。")
         case "minimal": return String(localized: "Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。")
-        case "cordis": return String(localized: "用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。")
+        case "cordis": return String(localized: "用对话定制 DSH：让 Agent 编写插件，添加新工具、接入外部服务；也能组合工具和提示词，创建自己的模式。")
         default: return nil
         }
     }
@@ -165,6 +171,8 @@ private struct AgentPresetReader: View {
     @State private var failure: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             if let content {
                 Text(content)
@@ -184,7 +192,7 @@ private struct AgentPresetReader: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let content {
-                ToolbarItem(placement: .topBarTrailing) { ShareLink(item: content) }
+                ToolbarItem(placement: .navigationBarTrailing) { ShareLink(item: content) }
             }
         }
         .task {
@@ -194,5 +202,6 @@ private struct AgentPresetReader: View {
                 failure = describeFailure(error)
             }
         }
-    }
+    
+        }}
 }

@@ -110,10 +110,15 @@ private struct FeatureCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: feature.symbol)
+            Group {
+                if #available(iOS 17.0, *) {
+                    Image(systemName: feature.symbol).symbolEffect(.bounce, value: nod)
+                } else {
+                    Image(systemName: feature.symbol)
+                }
+            }
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(Palette.onInk)
-                .symbolEffect(.bounce, value: nod)
                 .frame(width: 46, height: 46)
                 .background(Palette.ink, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .accessibilityHidden(true)
@@ -148,20 +153,17 @@ private struct FeatureCard: View {
     }
 }
 
-/// The app's own icon, as the home screen shows it.
+/// The app's own icon, as the home screen shows it: the one picked in 设置 → App 图标. The icon
+/// sets themselves cannot be loaded as images, so it is the picker's copy of it.
 struct AppIconMark: View {
     var size: CGFloat = 84
 
     var body: some View {
-        Group {
-            if let image = UIImage(named: "AppIcon") {
-                Image(uiImage: image).resizable()
-            } else {
-                Image("LaunchMark").resizable().scaledToFit()
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
-        .accessibilityHidden(true)
+        Image(AppIconChoice.current.preview)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+            .accessibilityHidden(true)
     }
 }

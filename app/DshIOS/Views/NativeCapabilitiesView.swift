@@ -29,8 +29,11 @@ struct NativeCapabilitiesView: View {
     }
 }
 
-/// 本机能力那一页的各个分区：隐私说明、各项能力、使用记录和系统设置。
+/// 本机能力的各个分区，放进任何一个 List 里用：自己的一页（上面那个），以及连接器页里
+/// 「本机能力」这一类——能力就直接列在那里，不用再点进一页。`compact` 时只列能力本身，
+/// 隐私说明、使用记录和系统设置留给完整的那一页和连接器里单独选中这一类时。
 struct NativeCapabilitySections: View {
+    var compact = false
     @State private var capabilities: [NativeCapability] = []
     /// 按 `systemPermission` 存，所以新增一项要授权的能力时这里不用再加分支。
     @State private var permissions: [String: CapabilityPermission] = [:]
@@ -48,6 +51,7 @@ struct NativeCapabilitySections: View {
     }
 
     var body: some View {
+        if !compact {
             // 先回答「我的数据去哪了」：这页开的都是私人数据，用户最先要知道的是
             // 它们只在本机和模型服务商之间走，开发者这边一个字节也收不到。
             Section {
@@ -62,6 +66,7 @@ struct NativeCapabilitySections: View {
                 .padding(.vertical, 4)
             }
             .groupedRow()
+        }
 
             Section {
                 ForEach(capabilities) { capability in
@@ -84,12 +89,17 @@ struct NativeCapabilitySections: View {
                     )
                 }
             } header: {
-                // 这一段是整页的要点：没开的用不了，而且只有你能开。
-                Text("没开的能力，智能体和你装的插件都用不了，也没法替你打开。系统的授权框只会在你点「开启」时出现。")
-                    .font(.footnote)
-                    .foregroundStyle(Palette.secondary)
-                    .textCase(nil)
-                    .padding(.bottom, 6)
+                if compact {
+                    // 在连接器里和各类服务并排，标题跟其他类一样就是类名。
+                    Text("本机能力")
+                } else {
+                    // 这一段是整页的要点：没开的用不了，而且只有你能开。
+                    Text("没开的能力，智能体和你装的插件都用不了，也没法替你打开。系统的授权框只会在你点「开启」时出现。")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.secondary)
+                        .textCase(nil)
+                        .padding(.bottom, 6)
+                }
             } footer: {
                 // 不含糊其辞：插件用的就是这些能力，而且 App 不区分谁在调用——
                 // 说清楚了，用户才知道该在装插件那一步把关。
@@ -107,7 +117,7 @@ struct NativeCapabilitySections: View {
                 Text(failure ?? "")
             }
 
-            if needsPermission {
+            if needsPermission, !compact {
                 Section {
                     NavigationLink { NativeAuditView() } label: {
                         Label("使用记录", systemImage: "list.bullet.rectangle")
@@ -418,7 +428,6 @@ struct NativeCapability: Identifiable {
         switch id {
         case "device": return String(localized: "设备状态")
         case "notify": return String(localized: "通知提醒")
-        case "speak": return String(localized: "朗读")
         case "open": return String(localized: "打开链接")
         case "nlp": return String(localized: "文本分析")
         case "maps": return String(localized: "地图")
@@ -446,7 +455,6 @@ struct NativeCapability: Identifiable {
         switch id {
         case "device": return String(localized: "机型、系统版本、电量、存储空间")
         case "notify": return String(localized: "按你的要求定时提醒你，App 关着也会响")
-        case "speak": return String(localized: "把文字念出来")
         case "open": return String(localized: "用对应的 App 打开地图、邮件草稿、电话号码或网页")
         case "nlp": return String(localized: "认语言、认出人名地名、按意思给一堆文字排序。全在本机算，不出手机")
         case "maps": return String(localized: "搜地点、算路线和到达时间。不读你的位置")
@@ -475,7 +483,6 @@ struct NativeCapability: Identifiable {
         switch id {
         case "device": return "iphone"
         case "notify": return "bell"
-        case "speak": return "speaker.wave.2"
         case "open": return "arrow.up.forward.app"
         case "nlp": return "text.magnifyingglass"
         case "maps": return "map"

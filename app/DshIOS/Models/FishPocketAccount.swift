@@ -1,7 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
-import Observation
+import Perception
 import Security
 import StoreKit
 import UIKit
@@ -21,7 +21,7 @@ struct FishPocketPack: Identifiable {
 /// to the Fish Pocket API. The engine gets the runtime key alone, through the
 /// credentials service, as it gets a DeepSeek API key.
 @MainActor
-@Observable
+@Perceptible
 final class FishPocketAccount {
     private enum Stored {
         static let session = "session"
@@ -53,8 +53,8 @@ final class FishPocketAccount {
         }
     }
 
-    @ObservationIgnored private let engine: EngineClient
-    @ObservationIgnored private let http: FishPocketHTTP?
+    @PerceptionIgnored private let engine: EngineClient
+    @PerceptionIgnored private let http: FishPocketHTTP?
 
     private(set) var signedIn: Bool
     private(set) var user: User?
@@ -68,14 +68,16 @@ final class FishPocketAccount {
     private(set) var tokensPerCredit: (input: Int, output: Int)?
     /// A pack purchase in progress.
     private(set) var purchasing: String?
-    /// The conversation ran out of credits: offer the packs.
+    /// The packs, about buying more: opened from a conversation's out-of-balance card.
     var quotaPrompt = false
     var toast: String?
+    /// This device's runtime key changed (issued, replaced, or gone on signing out).
+    @ObservationIgnored var onRuntimeKeyChange: (() -> Void)?
 
-    @ObservationIgnored private var transactionTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshing: Task<String?, Never>?
+    @PerceptionIgnored private var transactionTask: Task<Void, Never>?
+    @PerceptionIgnored private var refreshing: Task<String?, Never>?
     /// Transactions being redeemed: `Transaction.updates` and `.unfinished` both deliver them at launch.
-    @ObservationIgnored private var redeeming: Set<UInt64> = []
+    @PerceptionIgnored private var redeeming: Set<UInt64> = []
 
     init(engine: EngineClient) {
         self.engine = engine
@@ -84,6 +86,10 @@ final class FishPocketAccount {
     }
 
     var available: Bool { http != nil }
+
+    /// This device's runtime key, while signed in: the engine spends credits with it, and so does
+    /// the speech relay (`VolcCredential.fishPocket`).
+    nonisolated static var storedRuntimeKey: String? { FishPocketKeychain.read(Stored.runtimeKey) }
 
     /// A call anyone may make, sent with the account when signed in (a plugin report): a session
     /// that can't be renewed any more goes out without one rather than failing the call.
@@ -164,11 +170,6 @@ final class FishPocketAccount {
         FishPocketKeychain.write(Stored.session, session)
         FishPocketKeychain.write(Stored.refresh, refreshToken)
         do {
-            if try await testFlightRefuses() {
-                // Turned away: the new session is revoked rather than left on the server.
-                await signOut()
-                throw FishPocketError(status: 0, code: "testflight_closed", message: Self.testFlightClosed)
-            }
             try await issueRuntimeKey()
         } catch {
             // Without a runtime key the account is of no use here: do not half sign in.
@@ -192,6 +193,8 @@ final class FishPocketAccount {
         }
         let previous = FishPocketKeychain.read(Stored.runtimeKey)
         FishPocketKeychain.write(Stored.runtimeKey, key)
+        VolcSpeech.shared.reloadFishPocketKey()
+        onRuntimeKeyChange?()
         _ = try? await engine.call("credentials/set", ["ref": .string(FishPocketAPI.runtimeKeyRef), "value": .string(key)])
         // A replaced key is revoked so keys do not pile up on the server (best effort).
         if let previous, previous != key {
@@ -230,27 +233,12 @@ final class FishPocketAccount {
         user = User(reply["user"])
         balance = reply["balance"]["total"].int
         sandboxPurchases = reply["sandboxPurchases"].bool ?? false
-        // Signed in before TestFlight builds were closed to other accounts.
-        if AppDistribution.channel == .testFlight, !sandboxPurchases {
-            await signOut()
-            toast = Self.testFlightClosed
-        }
-    }
-
-    /// A TestFlight build signs in only the accounts the service credits sandbox purchases to:
-    /// App Review's demo account (staging credits everyone). App Review's builds are sandbox
-    /// installs too, so the app cannot tell the two apart; the service's list is what decides.
-    private func testFlightRefuses() async throws -> Bool {
-        guard AppDistribution.channel == .testFlight else { return false }
-        return try await authorized("GET", "v1/me")["sandboxPurchases"].bool != true
-    }
-
-    private static var testFlightClosed: String {
-        String(localized: "测试版不开放 Fish Pocket 账号登录，请在 App Store 版里登录。")
     }
 
     /// A purchase in a TestFlight build is a sandbox one. The service credits those only to
-    /// the accounts it names, so packs are sold there to them alone.
+    /// the accounts it names (App Review's, which buys in the sandbox too), so packs are sold
+    /// there to them alone. Signing in is open to everyone: credits bought in the App Store
+    /// version are spent here as well.
     var canPurchase: Bool { AppDistribution.channel != .testFlight || sandboxPurchases }
 
     /// Sign out this device: the server revokes its session and runtime key, the engine forgets the key.
@@ -277,6 +265,8 @@ final class FishPocketAccount {
         FishPocketKeychain.write(Stored.session, nil)
         FishPocketKeychain.write(Stored.refresh, nil)
         FishPocketKeychain.write(Stored.runtimeKey, nil)
+        VolcSpeech.shared.reloadFishPocketKey()
+        onRuntimeKeyChange?()
         signedIn = false
         user = nil
         balance = nil
@@ -293,16 +283,21 @@ final class FishPocketAccount {
         try await authorized(method, path) { body }
     }
 
+    /// A read with the session (the records page).
+    func read(_ path: String, query: [URLQueryItem] = []) async throws -> JSON {
+        try await authorized("GET", path, query: query) { nil }
+    }
+
     /// `body` is built for each attempt, after any renewal.
     @discardableResult
-    private func authorized(_ method: String, _ path: String, body: () -> JSON?) async throws -> JSON {
+    private func authorized(_ method: String, _ path: String, query: [URLQueryItem] = [], body: () -> JSON?) async throws -> JSON {
         guard let http else { throw FishPocketError(status: 0, code: "unavailable", message: "") }
         let session = FishPocketKeychain.read(Stored.session)
         do {
-            return try await http.send(method, path, body: body(), bearer: session)
+            return try await http.send(method, path, query: query, body: body(), bearer: session)
         } catch let error as FishPocketError where error.status == 401 {
             guard let renewed = await renewSession() else { throw error }
-            return try await http.send(method, path, body: body(), bearer: renewed)
+            return try await http.send(method, path, query: query, body: body(), bearer: renewed)
         } catch let error as FishPocketError where error.code == "account_deleted" {
             // Deleted on another device: nothing here can work any more.
             await signedOutRemotely()
@@ -340,6 +335,18 @@ final class FishPocketAccount {
     private func signedOutRemotely() async {
         await forget()
         toast = String(localized: "Fish Pocket 登录已失效，请重新登录")
+    }
+
+    // MARK: Sign-in options
+
+    /// Whether phone sign-in is offered beside Sign in with Apple. The service decides, so it can
+    /// be closed and opened again without an update; until it says so (or when it cannot be
+    /// reached) there is none. Closed, it still lets App Review's demo number through.
+    private(set) var phoneSignIn = false
+
+    func loadSignInOptions() async {
+        guard let http, let reply = try? await http.send("GET", "v1/auth/options") else { return }
+        phoneSignIn = reply["phone"].bool ?? false
     }
 
     // MARK: Credit packs
@@ -405,6 +412,12 @@ final class FishPocketAccount {
                 toast = String(localized: "已到账 \(granted) 积分")
                 quotaPrompt = false
             }
+        } catch let error as FishPocketError where error.status == 400 && transaction.environment != .production {
+            // A sandbox purchase (a development or TestFlight build) the server turned down: the
+            // production service credits only real ones (and App Review's demo account). Nothing
+            // was paid and it never goes through, so it is finished quietly: left unfinished,
+            // StoreKit handed it back at every launch, and every launch said it would retry.
+            await transaction.finish()
         } catch {
             // Left unfinished: StoreKit hands it back at the next launch or sign-in, and the
             // server's redemption is idempotent. Every consumable here is a Fish Pocket pack,
@@ -413,11 +426,9 @@ final class FishPocketAccount {
         }
     }
 
-    /// A live turn on the `fish-pocket` route ended for lack of credits.
-    func reportQuota() {
-        quotaPrompt = true
-        Task { await refresh() }
-    }
+    /// Whether a conversation that ran out of balance may offer Fish Pocket credits: only in the
+    /// App Store build, where they can be bought (TestFlight cannot use in-app purchase).
+    var offeredOnQuota: Bool { available && AppDistribution.channel == .appStore }
 }
 
 /// The device name shown next to its runtime key on the server (e.g. "iPhone").

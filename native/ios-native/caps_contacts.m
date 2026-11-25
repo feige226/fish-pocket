@@ -45,7 +45,7 @@ static NSString *const kDeniedMessage =
 
 static NSString *const kNotEnabledMessage =
     @"the user has not switched contacts access on for this app yet. Nothing was read. Tell them they "
-     "can turn it on themselves under Device capabilities on the app's Explore tab (in the sidebar before iOS 18) — only "
+     "can turn it on themselves under Device capabilities in Connectors on the app's Explore tab (in the sidebar on an iPad before iOS 18) — only "
      "they can grant it, and iOS asks once per app, so the app will not ask on its own.";
 
 /// Said out loud on every limited reply. Without it an empty search reads as a
@@ -91,7 +91,7 @@ typedef NS_ENUM(NSInteger, ContactsAccess) {
 static ContactsAccess current_access(void) {
   CNAuthorizationStatus status = [CNContactStore authorizationStatusForEntityType:CNEntityTypeContacts];
   // Compared outside the switch because the constant only exists from iOS 18 and
-  // the deployment target is 17. Below 18 the system cannot return it at all.
+  // the deployment target is 16.4. Below 18 the system cannot return it at all.
   if (@available(iOS 18.0, *)) {
     if (status == CNAuthorizationStatusLimited) return ContactsAccessLimited;
   }

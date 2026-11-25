@@ -6,7 +6,6 @@
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { describe, invoke as invokeNative } from './binding.mjs';
 import { ENGINE_CLAIM } from './caller.mjs';
-import { BASE as SPEECH_BASE, credentialHeaders, tellApp } from '../ios-speech/index.mjs';
 
 // These are the engine's own tools, so every call from here claims the engine.
 // It is still only a claim — nothing downstream treats it as proof.
@@ -98,42 +97,6 @@ const notify = defineTool({
       return invoke('notify', 'cancel', { id: args.id });
     }
     return invoke('notify', 'pending');
-  },
-});
-
-// Read in DeepSeek's voice by the app itself (plugins/ios-speech), the same way the app reads a
-// reply: the voice the user picked, stopped when they switch conversations. Not the addon's
-// system voices.
-const speak = (ctx) => defineTool({
-  name: 'speak',
-  description:
-    'Read text aloud through the device speaker in DeepSeek\'s voice (the one the user picked in '
-    + 'the app\'s settings). Returns once the app has the text, before the audio plays. Use it when '
-    + 'the user asks you to say something out loud or cannot look at the screen.',
-  parameters: {
-    action: { type: 'string', enum: ['say', 'stop'], description: 'start speaking, or stop at once', required: true },
-    text: { type: 'string', description: 'what to say; required for `say`. The language is detected from the text' },
-  },
-  output: {
-    schema: { type: 'json' },
-    render: (args, value) =>
-      text(args.action === 'stop' ? 'Stopped speaking.' : `Speaking ${value.characters} characters.`),
-  },
-  execute: async (args) => {
-    if (args.action === 'stop') {
-      tellApp('stop');
-      return { speaking: false };
-    }
-    if (!args.text) throw new Error('speak: `say` needs `text`');
-    if (await credentialHeaders(ctx, `${SPEECH_BASE}/tts`) === undefined) {
-      throw new Error('speak: reading aloud uses DeepSeek\'s speech service, which needs a DeepSeek API key (it does '
-        + 'not accept a DeepSeek account sign-in yet). Tell the user to add a DeepSeek API key under 设置 → 模型 '
-        + '(Settings → Model) in the app, then ask again. Do not retry until they have.');
-    }
-    if (!tellApp('say', { text: args.text })) {
-      throw new Error('speak: the app is not listening right now (it may be reconnecting to the engine); try again in a moment.');
-    }
-    return { speaking: true, characters: [...args.text].length };
   },
 });
 
@@ -301,6 +264,9 @@ const calendar = defineTool({
   },
 });
 
+/** The addon's page size (kMaxReminders in caps_reminders.m). */
+const MAX_REMINDERS_PAGE = 200;
+
 const reminders = defineTool({
   name: 'reminders',
   description:
@@ -321,6 +287,44 @@ const reminders = defineTool({
     includeCompleted: {
       type: 'boolean',
       description: 'list: include the ones already done; by default only the unfinished ones',
+    },
+    sort: {
+      type: 'string',
+      enum: ['due', 'completed'],
+      description: 'list: what to order by, the due date (the default) or when they were finished. '
+        + '`completed` lists only finished ones, whatever includeCompleted says',
+    },
+    order: {
+      type: 'string',
+      enum: ['asc', 'desc'],
+      description: 'list: earliest first (asc, the default) or latest first (desc), by the date `sort` names. '
+        + 'Ones without that date come last either way',
+    },
+    from: {
+      type: 'string',
+      description: 'list: only ones due at or after this, YYYY-MM-DD or a full ISO timestamp. '
+        + 'With from or to, undated ones are left out',
+    },
+    to: {
+      type: 'string',
+      description: 'list: only ones due before this, YYYY-MM-DD or a full ISO timestamp',
+    },
+    completedFrom: {
+      type: 'string',
+      description: 'list: only ones finished at or after this, YYYY-MM-DD or a full ISO timestamp. '
+        + 'With completedFrom or completedTo, only finished ones are listed',
+    },
+    completedTo: {
+      type: 'string',
+      description: 'list: only ones finished before this, YYYY-MM-DD or a full ISO timestamp',
+    },
+    limit: {
+      type: 'number',
+      description: `list: how many to return, at most ${MAX_REMINDERS_PAGE} (the default)`,
+    },
+    offset: {
+      type: 'number',
+      description: 'list: how many to skip; pass the `nextOffset` a truncated list returned to read on',
     },
     title: { type: 'string', description: 'create: what the reminder says; required' },
     due: {
@@ -346,10 +350,19 @@ const reminders = defineTool({
         return text(value.deleted ? 'They confirmed; the reminder is deleted.' : 'They declined. It is still there.');
       }
       const list = value.reminders ?? [];
-      if (list.length === 0) return text('Nothing on their reminders.');
+      if (list.length === 0) {
+        // Past the last page is not the same as an empty list.
+        // Nor is an empty filter: "none due in August" must not read as "they have none".
+        const filtered = ['from', 'to', 'completedFrom', 'completedTo'].some((key) => args[key] !== undefined);
+        if (value.total > 0) return text(`Nothing from offset ${value.offset ?? 0}: there are ${value.total} in all.`);
+        return text(filtered ? 'No reminders match that.' : 'Nothing on their reminders.');
+      }
       const lines = list.map((item) => {
         const when = item.due ? `${dayOf(item.due)} ${timeOf(item.due)}` : 'no due date';
-        const parts = [`${item.completed ? '[done] ' : ''}${when}`, item.title || '(no title)'];
+        const done = item.completed
+          ? `[done${item.completedAt ? ` ${dayOf(item.completedAt)} ${timeOf(item.completedAt)}` : ''}] `
+          : '';
+        const parts = [`${done}${when}`, item.title || '(no title)'];
         if (item.list) parts.push(`[${item.list}]`);
         // complete and delete take this id; a title is not one.
         if (item.id) parts.push(`id ${item.id}`);
@@ -357,15 +370,39 @@ const reminders = defineTool({
         return item.notes ? `${line}\n    ${item.notes.replace(/\n+/g, ' ')}` : line;
       });
       if (value.truncated) {
-        lines.push(`… showing the first ${list.length} of ${value.total}.`);
+        const first = (value.offset ?? 0) + 1;
+        lines.push(`… showing ${first}–${first + list.length - 1} of ${value.total}; `
+          + `pass offset ${value.nextOffset ?? first - 1 + list.length} for the next page.`);
       }
       return text(lines.join('\n'));
     },
   },
   execute: async (args) => {
     if (args.action === 'list') {
+      const from = toEpochSeconds(args.from);
+      const to = toEpochSeconds(args.to);
+      if (from !== undefined && to !== undefined && to <= from) throw new Error("reminders: 'to' must be after 'from'");
+      const completedFrom = toEpochSeconds(args.completedFrom);
+      const completedTo = toEpochSeconds(args.completedTo);
+      if (completedFrom !== undefined && completedTo !== undefined && completedTo <= completedFrom) {
+        throw new Error("reminders: 'completedTo' must be after 'completedFrom'");
+      }
+      if (args.limit !== undefined && !(Number.isInteger(args.limit) && args.limit >= 1)) {
+        throw new Error('reminders: `limit` must be a whole number of at least 1');
+      }
+      if (args.offset !== undefined && !(Number.isInteger(args.offset) && args.offset >= 0)) {
+        throw new Error('reminders: `offset` must be a whole number, 0 or more');
+      }
       return invoke('reminders', 'list', {
         ...(args.includeCompleted === undefined ? {} : { includeCompleted: args.includeCompleted }),
+        ...(args.sort === undefined ? {} : { sort: args.sort }),
+        ...(args.order === undefined ? {} : { order: args.order }),
+        ...(from === undefined ? {} : { from }),
+        ...(to === undefined ? {} : { to }),
+        ...(completedFrom === undefined ? {} : { completedFrom }),
+        ...(completedTo === undefined ? {} : { completedTo }),
+        ...(args.limit === undefined ? {} : { limit: Math.min(args.limit, MAX_REMINDERS_PAGE) }),
+        ...(args.offset === undefined ? {} : { offset: args.offset }),
       });
     }
     if (args.action === 'create') {
@@ -1555,7 +1592,8 @@ const files = defineTool({
     + '`types` narrows what they can tap, as uniform type identifiers (`public.image`, '
     + '`com.adobe.pdf`, `public.plain-text`) or filename extensions (`pdf`, `csv`). A string iOS '
     + 'does not recognise is refused rather than guessed at; leave `types` out and any file can be '
-    + 'picked, which is the right default when you are not sure.',
+    + 'picked, which is the right default when you are not sure. Folders cannot be picked, so a '
+    + 'folder type (`public.folder`) is refused too.',
   parameters: {
     action: {
       type: 'string',
@@ -1910,7 +1948,6 @@ const browser = (ctx, catalog = describe('browser') ?? NO_CATALOG) => defineTool
 export const TOOLS = {
   device: device,
   notify: notify,
-  speak: speak,
   calendar: calendar,
   reminders: reminders,
   open: openUrl,

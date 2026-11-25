@@ -1,13 +1,12 @@
+import Combine
 import ImageIO
-import Observation
 import UIKit
 import UniformTypeIdentifiers
 
 /// What was shared, copied into a delivery folder of `ShareInbox` as soon as the sheet
 /// opens, so that picking where it goes is instant. Cancelling drops the folder.
 @MainActor
-@Observable
-final class ShareModel {
+final class ShareModel: ObservableObject {
     enum Phase: Equatable {
         case reading
         case ready
@@ -17,21 +16,21 @@ final class ShareModel {
         case waitingForApp
     }
 
-    private(set) var phase = Phase.reading
-    private(set) var texts: [String] = []
+    @Published private(set) var phase = Phase.reading
+    @Published private(set) var texts: [String] = []
     /// File names in the delivery folder.
-    private(set) var files: [String] = []
-    private(set) var imageCount = 0
+    @Published private(set) var files: [String] = []
+    @Published private(set) var imageCount = 0
     /// The first image, small.
-    private(set) var thumbnail: UIImage?
+    @Published private(set) var thumbnail: UIImage?
     let targets = ShareTargets.read()
     /// Chosen in the share sheet's top row: it goes there as soon as it is read.
-    var preset: (target: ShareInbox.Target, name: String)?
+    @Published var preset: (target: ShareInbox.Target, name: String)?
 
-    @ObservationIgnored var finish: () -> Void = {}
-    @ObservationIgnored var cancel: () -> Void = {}
-    @ObservationIgnored var openApp: (URL) -> Bool = { _ in false }
-    @ObservationIgnored private var delivery: (id: String, folder: URL)?
+    var finish: () -> Void = {}
+    var cancel: () -> Void = {}
+    var openApp: (URL) -> Bool = { _ in false }
+    private var delivery: (id: String, folder: URL)?
 
     func load(_ providers: [NSItemProvider]) {
         Task {
@@ -86,7 +85,6 @@ final class ShareModel {
 
     private nonisolated static func read(_ provider: NSItemProvider, into folder: URL) async -> Piece? {
         let types = provider.registeredTypeIdentifiers.compactMap { UTType($0) }
-        // A link: a web page as text; a file's URL (the Files app) as that file.
         if types.contains(where: { $0.conforms(to: .url) }),
            let item = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier) {
             let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
@@ -95,7 +93,6 @@ final class ShareModel {
                 if let name = copy(url, named: url.lastPathComponent, into: folder) { return .file(name) }
             }
         }
-        // Text alone (Notes, a selection): not a file of text.
         if !types.isEmpty, types.allSatisfy({ $0.conforms(to: .text) && !$0.conforms(to: .fileURL) }),
            let item = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) {
             if let text = (item as? String) ?? (item as? Data).flatMap({ String(data: $0, encoding: .utf8) }) {
@@ -103,12 +100,10 @@ final class ShareModel {
                 return trimmed.isEmpty ? nil : .text(trimmed)
             }
         }
-        // A file's bytes, in the most specific type it offers.
         if let type = types.first(where: { $0.conforms(to: .data) || $0.conforms(to: .package) }),
            let name = await copyRepresentation(of: provider, type: type, into: folder) {
             return .file(name)
         }
-        // An image only as an object (a screenshot from the markup editor).
         if types.contains(where: { $0.conforms(to: .image) }),
            let item = try? await provider.loadItem(forTypeIdentifier: UTType.image.identifier) {
             let data = (item as? UIImage)?.pngData() ?? (item as? Data)
@@ -122,7 +117,6 @@ final class ShareModel {
     private nonisolated static func copyRepresentation(of provider: NSItemProvider, type: UTType, into folder: URL) async -> String? {
         await withCheckedContinuation { continuation in
             _ = provider.loadFileRepresentation(forTypeIdentifier: type.identifier) { url, _ in
-                // The file is gone once this returns: copied now.
                 guard let url else { return continuation.resume(returning: nil) }
                 var name = provider.suggestedName ?? url.deletingPathExtension().lastPathComponent
                 let ext = url.pathExtension.isEmpty ? (type.preferredFilenameExtension ?? "") : url.pathExtension

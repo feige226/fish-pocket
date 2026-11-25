@@ -34,36 +34,53 @@ NSString *DshISO8601(NSDate *date) {
 /// translated and a quoted title here would drift from the one on screen.
 static NSString *const kNotEnabledMessage =
     @"the user has not switched this capability on for this app yet. Nothing was read or changed. "
-     "Tell them they can turn it on themselves under Device capabilities on the app's Explore "
-     "tab (in the sidebar before iOS 18) — only they can grant it, and iOS asks once per app, so the app will not ask on its own.";
+     "Tell them they can turn it on themselves under Device capabilities in Connectors on the app's Explore "
+     "tab (in the sidebar on an iPad before iOS 18) — only they can grant it, and iOS asks once per app, so the app will not ask on its own.";
 
 /// Shared tail of both entry points: iOS answered, so turn that answer into
 /// either a go-ahead or a sentence the agent can read out.
 static void settle(EKAuthorizationStatus status, BOOL writeOnlyIsEnough, NSString *deniedMessage,
                    void (^next)(BOOL granted, NSString *error), BOOL *resolved) {
   *resolved = YES;
-  switch (status) {
-    case EKAuthorizationStatusFullAccess:
-      next(YES, nil);
-      return;
-    case EKAuthorizationStatusDenied:
-    case EKAuthorizationStatusRestricted:
-      next(NO, deniedMessage);
-      return;
-    case EKAuthorizationStatusWriteOnly:
-      // Events only; iOS has no add-only tier for reminders. Adding is all this
-      // tier can do — it cannot read back even what it just wrote (§4.0).
-      if (writeOnlyIsEnough) {
+  if (@available(iOS 17.0, *)) {
+    switch (status) {
+      case EKAuthorizationStatusFullAccess:
         next(YES, nil);
-      } else {
-        next(NO, @"this app has add-only access, which cannot read. Reading needs Full Access, "
-                  "which the user can switch on in Settings > Privacy & Security");
-      }
-      return;
-    case EKAuthorizationStatusNotDetermined:
-    default:
-      *resolved = NO;
-      return;
+        return;
+      case EKAuthorizationStatusDenied:
+      case EKAuthorizationStatusRestricted:
+        next(NO, deniedMessage);
+        return;
+      case EKAuthorizationStatusWriteOnly:
+        // Events only; iOS has no add-only tier for reminders. Adding is all this
+        // tier can do — it cannot read back even what it just wrote (§4.0).
+        if (writeOnlyIsEnough) {
+          next(YES, nil);
+        } else {
+          next(NO, @"this app has add-only access, which cannot read. Reading needs Full Access, "
+                    "which the user can switch on in Settings > Privacy & Security");
+        }
+        return;
+      case EKAuthorizationStatusNotDetermined:
+      default:
+        *resolved = NO;
+        return;
+    }
+  } else {
+    // Before iOS 17, Authorized is the full read/write permission.
+    switch (status) {
+      case EKAuthorizationStatusAuthorized:
+        next(YES, nil);
+        return;
+      case EKAuthorizationStatusDenied:
+      case EKAuthorizationStatusRestricted:
+        next(NO, deniedMessage);
+        return;
+      case EKAuthorizationStatusNotDetermined:
+      default:
+        *resolved = NO;
+        return;
+    }
   }
 }
 
@@ -104,10 +121,14 @@ void DshEventKitGrantAccess(EKEntityType type, NSString *deniedMessage,
     }
   };
   dsh_native_on_main(^{
-    if (type == EKEntityTypeReminder) {
-      [DshEventStore() requestFullAccessToRemindersWithCompletion:granted];
+    if (@available(iOS 17.0, *)) {
+      if (type == EKEntityTypeReminder) {
+        [DshEventStore() requestFullAccessToRemindersWithCompletion:granted];
+      } else {
+        [DshEventStore() requestFullAccessToEventsWithCompletion:granted];
+      }
     } else {
-      [DshEventStore() requestFullAccessToEventsWithCompletion:granted];
+      [DshEventStore() requestAccessToEntityType:type completion:granted];
     }
   });
 }

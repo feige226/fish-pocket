@@ -1,6 +1,7 @@
 import Charts
 import SwiftUI
 
+import Perception
 /// A card a Bot sent with `show_view` and waits on: its content drawn natively, its inputs
 /// and answer parts (options, a confirm, a form, a submit button) sent back with `view-reply`.
 struct BotViewCard: View {
@@ -14,6 +15,8 @@ struct BotViewCard: View {
     @State private var contentHeight: CGFloat = 0
 
     var body: some View {
+        WithPerceptionTracking {
+
         BotCard {
             HStack(alignment: .firstTextBaseline) {
                 if let title = pending["title"].string, !title.isEmpty {
@@ -40,13 +43,20 @@ struct BotViewCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear
+                            .onAppear { contentHeight = geometry.size.height }
+                            .onChange(of: geometry.size.height) { contentHeight = $0 }
+                    }
+                }
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: min(max(contentHeight, 1), 420))
         }
         .disabled(sending)
-    }
+    
+        }}
 }
 
 /// A view a Bot showed without waiting for an answer (a chart, a table, a calculator): it
@@ -56,11 +66,14 @@ struct BotShownView: View {
     let root: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         BotCard {
             if !title.isEmpty { Text(title).font(.subheadline.weight(.semibold)) }
             BotViewBody(root: root, send: nil).frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
+    
+        }}
 }
 
 /// A view drawn natively. The schema is deep-view's: `{type, …}` nodes; a value written as
@@ -76,11 +89,14 @@ struct BotViewBody: View {
     @State private var chartTables: Set<String> = []
 
     var body: some View {
+        WithPerceptionTracking {
+
         // One scope per pass: every formula of the view reads the same inputs.
         let scope = ViewFormula.Scope(inputs: inputs, lets: root["let"])
         node(root, scope, path: "0")
             .onAppear { seed(root) }
-    }
+    
+        }}
 
     // MARK: Nodes
 
@@ -148,7 +164,7 @@ struct BotViewBody: View {
             Text(Self.display(node["label"], scope)).font(.caption).foregroundStyle(Palette.secondary)
             Text(Self.display(node["value"], scope)).font(.title3.weight(.semibold)).monospacedDigit()
                 .foregroundStyle(node["tone"].isNull ? Palette.ink : Self.tone(node["tone"].string))
-                .contentTransition(.numericText())
+                .numericTextTransitionCompat()
             if !node["caption"].isNull { Text(Self.display(node["caption"], scope)).font(.caption2).foregroundStyle(Palette.faint) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -188,16 +204,25 @@ struct BotViewBody: View {
         let points: [Point]
 
         var body: some View {
-            Chart(points) { point in
-                switch kind {
-                case "line": LineMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
-                case "area": AreaMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
-                case "hbar": BarMark(x: .value("", point.value), y: .value("", point.category)).foregroundStyle(by: .value("", point.series))
-                case "donut": SectorMark(angle: .value("", point.value), innerRadius: .ratio(0.6)).foregroundStyle(by: .value("", point.category))
-                default: BarMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+            WithPerceptionTracking {
+
+            if #available(iOS 17.0, *), kind == "donut" {
+                Chart(points) { point in
+                    SectorMark(angle: .value("", point.value), innerRadius: .ratio(0.6))
+                        .foregroundStyle(by: .value("", point.category))
+                }
+            } else {
+                Chart(points) { point in
+                    switch kind {
+                    case "line": LineMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+                    case "area": AreaMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+                    case "hbar": BarMark(x: .value("", point.value), y: .value("", point.category)).foregroundStyle(by: .value("", point.series))
+                    default: BarMark(x: .value("", point.category), y: .value("", point.value)).foregroundStyle(by: .value("", point.series))
+                    }
                 }
             }
-        }
+        
+            }}
     }
 
     private func points(_ node: JSON, _ scope: ViewFormula.Scope) -> (categories: [String], series: [String], points: [Point]) {

@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What a Bot's chat or a group chat changes in `ConversationView`: the title in the bar
 /// and cards above the composer. Everything else (attachments, approvals, stopping,
 /// the keyboard) is the conversation view's own: a Bot's chat is an ordinary session.
@@ -85,16 +86,31 @@ private struct BotComposerKey: EnvironmentKey {
 }
 
 /// One round of a group chat. The group's own Session runs no model of its own words: each
-/// user message gets one `group_relay` call whose result lists the members' replies,
-/// `{"replies":[{botId, name, text, time, kind?}]}` (ds-bot's shared/group-replies.js).
+/// user message gets one `group_relay` call. Since ds-bot 0.3.8 the call returns at once with
+/// where the round's rows are in the group's book, `{"from": seq, "anchor"?: id, "to"?: seq}`,
+/// and the rows are read with `group-rows` (`BotModel.loadRows`). A result from before that
+/// lists the members' replies itself, `{"replies":[{botId, name, text, time, kind?}]}`
+/// (ds-bot's shared/group-replies.js).
 struct RoomRelay: Hashable {
     let call: ToolCall
+    /// The replies a result from before 0.3.8 carries; a ranged one has none of its own.
     var replies: [JSON] { call.result.map(Self.replies(in:)) ?? [] }
     var settled: Bool { call.result != nil }
+    /// Where the round's rows are in the group's book (`group-rows` takes these fields as they
+    /// are); nil for a result that carries its replies.
+    var range: [String: JSON]? {
+        guard let result = call.result, let value = try? JSONDecoder().decode(JSON.self, from: Data(result.utf8)),
+              value["from"].int != nil else { return nil }
+        var range: [String: JSON] = ["from": value["from"]]
+        if value["to"].int != nil { range["to"] = value["to"] }
+        if value["anchor"].string != nil { range["anchor"] = value["anchor"] }
+        return range
+    }
     /// The settled result is not whole JSON: compaction pruned its middle, and some replies may be gone.
     var broken: Bool { call.result.map { (try? JSONDecoder().decode(JSON.self, from: Data($0.utf8))) == nil } ?? false }
     /// A settled round nobody spoke in (a notice the group took in): there is nothing to draw.
-    var empty: Bool { settled && !broken && replies.isEmpty }
+    /// A ranged round is empty only once its rows are read (`BotModel.rowsEmpty`).
+    var empty: Bool { settled && !broken && range == nil && replies.isEmpty }
 
     init?(blocks: [AssistantBlock]) {
         for block in blocks {
@@ -144,6 +160,8 @@ struct BotRoomView: View {
     @State private var detailOpen = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         if let room = team.room(roomId) {
             ConversationView(sessionId: room.sessionId, selection: $selection, openDrawer: nil, bot: BotChrome(
@@ -152,7 +170,7 @@ struct BotRoomView: View {
                         RoomAvatar(room: room, size: 28)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(team.name(of: room)).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.ink).lineLimit(1)
-                            Text("\(room.members.count) 个 Bot").font(.caption2).foregroundStyle(Palette.secondary)
+                            AILabelledSubtitle { Text("\(room.members.count) 个 Bot").font(.caption2).foregroundStyle(Palette.secondary) }
                         }
                     }
                     .modifier(BotTitleCapsule())
@@ -170,19 +188,20 @@ struct BotRoomView: View {
             .sheet(isPresented: $detailOpen) {
                 RoomDetailView(roomId: roomId).environment(\.browserLinks, BrowserLinks(sessionId: room.sessionId, origin: app.client.origin))
             }
-            .onChange(of: team.scheduleRequest) { _, request in
+            .onChangeCompat(of: team.scheduleRequest) { _, request in
                 guard request == .room(roomId) else { return }
                 team.scheduleRequest = nil
                 Task { try? await Task.sleep(for: .milliseconds(350)); detailOpen = true }
             }
-            .onAppear { app.clearUnread(room.sessionId); team.visibleChat = room.id }
-            .onDisappear { app.clearUnread(room.sessionId); if team.visibleChat == room.id { team.visibleChat = nil } }
+            .onAppear { app.clearUnread(room.sessionId) }
+            .onDisappear { app.clearUnread(room.sessionId) }
         } else if team.status == .unknown {
             ConversationLoading().background(Palette.background)
         } else {
-            ContentUnavailableView("这个群聊已经不在了", systemImage: "person.2.slash")
+            CompatEmptyState(title: "这个群聊已经不在了", systemImage: "person.2.slash")
         }
-    }
+    
+        }}
 }
 
 /// Above a group's composer: who speaks now, and a tap to @ a member.
@@ -192,6 +211,8 @@ private struct RoomMentions: View {
     let room: RoomInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let members = room.members.compactMap(team.bot)
         VStack(alignment: .leading, spacing: 8) {
@@ -232,7 +253,8 @@ private struct RoomMentions: View {
                 }
             }
         }
-    }
+    
+        }}
 }
 
 /// A member waits for the user to allow a tool in the group (only answerable here).
@@ -242,6 +264,8 @@ private struct RoomApprovalCard: View {
     @State private var sending = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let name = approval["botId"].string.flatMap(team.bot)?.name ?? ""
         BotCard {
@@ -260,7 +284,8 @@ private struct RoomApprovalCard: View {
             }
             .disabled(sending)
         }
-    }
+    
+        }}
 
     private func answer(_ allow: Bool) {
         sending = true
@@ -282,7 +307,7 @@ private struct OpenOtherSession: ViewModifier {
     let sessionId: String
 
     func body(content: Content) -> some View {
-        content.onChange(of: selection) { _, id in
+        content.onChangeCompat(of: selection) { _, id in
             guard let id, id != sessionId else { return }
             selection = nil
             app.open(session: id)

@@ -8,8 +8,6 @@
 //   GET  /api/ios-speech/status  → { ready }: a credential to send exists.
 //   POST /api/ios-speech/asr     WAV bytes → { text }.
 //   POST /api/ios-speech/tts     { text, voice } → 24 kHz 16-bit mono PCM, streamed as it is made.
-//   GET  /api/ios-speech/feed    server-sent `say` { text } and `stop`: what the agent's `speak`
-//                                tool asks the app to read, in the voice the user picked there.
 //
 // A failure answers 502 with { error: { kind, status?, message? } }: `kind` is
 // `no-credential`, `http` (DeepSeek answered `status`) or `network`.
@@ -65,25 +63,6 @@ async function call(ctx, path, init, signal) {
   }
 }
 
-/** The app's open feeds; the agent's `speak` tool reaches the app through them. */
-const feeds = new Set();
-const encoder = new TextEncoder();
-/** Under the app's two-minute idle timeout. */
-const KEEPALIVE_MS = 30_000;
-
-function send(controller, chunk) {
-  try { controller.enqueue(encoder.encode(chunk)); } catch { feeds.delete(controller); }
-}
-
-/**
- * Ask the app to read `text` aloud (`say`) or to stop (`stop`). False when no app is listening.
- */
-export function tellApp(event, data = {}) {
-  if (feeds.size === 0) return false;
-  for (const controller of feeds) send(controller, `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  return true;
-}
-
 export default class IosSpeech {
   static inject = ['connection'];
 
@@ -94,39 +73,6 @@ export default class IosSpeech {
       requestBody: 'buffered',
       fetch: async () => json({ ready: (await credentialHeaders(ctx, `${BASE}/tts`)) !== undefined }),
     }), 'ios-speech: status');
-
-    ctx.effect(() => ctx.connection.fetch.register({
-      path: `${ROUTE}/feed`,
-      methods: ['GET'],
-      requestBody: 'buffered',
-      fetch: async (request) => {
-        let own;
-        const leave = () => {
-          feeds.delete(own);
-          try { own.close(); } catch { /* already closed */ }
-        };
-        const body = new ReadableStream({
-          start(controller) {
-            own = controller;
-            feeds.add(controller);
-            send(controller, ': hello\n\n');
-          },
-          cancel() { leave(); },
-        });
-        request.signal.addEventListener('abort', leave, { once: true });
-        return new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store' } });
-      },
-    }), 'ios-speech: feed');
-
-    ctx.effect(() => {
-      const keepalive = setInterval(() => { for (const controller of feeds) send(controller, ': keepalive\n\n'); }, KEEPALIVE_MS);
-      keepalive.unref?.();
-      return () => {
-        clearInterval(keepalive);
-        for (const controller of feeds) { try { controller.close(); } catch { /* closed */ } }
-        feeds.clear();
-      };
-    }, 'ios-speech: feed keepalive');
 
     ctx.effect(() => ctx.connection.fetch.register({
       path: `${ROUTE}/asr`,

@@ -7,9 +7,11 @@ import WidgetKit
 struct DshWidgets: WidgetBundle {
     var body: some Widget {
         DshLiveActivity()
+        CallLiveActivity()
         SessionsWidget()
         NewConversationWidget()
         MiniAppsWidget()
+        WebWidget()
         if #available(iOS 18.0, *) {
             NewConversationControl()
         }
@@ -186,20 +188,29 @@ private struct StepLine: View {
 private struct ApprovalButtons: View {
     let approval: DshActivityAttributes.ContentState.Approval
 
+    @ViewBuilder
     var body: some View {
-        HStack(spacing: 8) {
-            Button(intent: AnswerApprovalIntent(eventId: approval.eventId, agentId: approval.agentId, allow: false)) {
-                Text("拒绝").frame(maxWidth: .infinity)
+        if #available(iOS 17.0, *) {
+            HStack(spacing: 8) {
+                Button(intent: AnswerApprovalIntent(eventId: approval.eventId, agentId: approval.agentId, allow: false)) {
+                    Text("拒绝").frame(maxWidth: .infinity)
+                }
+                .tint(.gray)
+                Button(intent: AnswerApprovalIntent(eventId: approval.eventId, agentId: approval.agentId, allow: true)) {
+                    Text("允许").fontWeight(.semibold).frame(maxWidth: .infinity)
+                }
+                .tint(Tint.waiting)
             }
-            .tint(.gray)
-            Button(intent: AnswerApprovalIntent(eventId: approval.eventId, agentId: approval.agentId, allow: true)) {
-                Text("允许").fontWeight(.semibold).frame(maxWidth: .infinity)
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .font(.subheadline)
+        } else {
+            HStack(spacing: 8) {
+                Text("打开 App 处理").font(.subheadline.weight(.semibold))
             }
-            .tint(Tint.waiting)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
         }
-        .buttonStyle(.borderedProminent)
-        .buttonBorderShape(.capsule)
-        .font(.subheadline)
     }
 }
 
@@ -242,7 +253,7 @@ private struct CompactLeading: View {
                 Image(systemName: symbol)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Tint.of(state.phase))
-                    .contentTransition(.symbolEffect(.replace))
+
             } else {
                 Dot(phase: state.phase)
             }

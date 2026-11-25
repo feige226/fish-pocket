@@ -271,8 +271,9 @@ struct ModelProvidersPage: View {
 
 // MARK: - Validation
 
-/// The first refused row of a `models` draft, as `模型 {n}: {reason}`.
-private func modelFailure(_ value: JSON?, checkReasoning: Bool) -> String? {
+/// The first refused row of a `models` draft, as `模型 {n}: {reason}`. `only` names the levels
+/// the route's protocol accepts, each sent under its own name; nil accepts any declared value.
+private func modelFailure(_ value: JSON?, checkReasoning: Bool, only: [String]? = nil) -> String? {
     guard let value else { return nil }
     let models = value.array
     var seen = Set<String>()
@@ -288,6 +289,9 @@ private func modelFailure(_ value: JSON?, checkReasoning: Bool) -> String? {
     for (index, model) in models.enumerated() {
         guard model.has(["reasoningEfforts"]), model["reasoningEfforts"].bool != false else { continue }
         let entries = model["reasoningEfforts"].object
+        if let only, entries.contains(where: { level, wire in !only.contains(level) || wire.string != level }) {
+            return failed(index, levelsOnlyNotice)
+        }
         let accepted = entries.allSatisfy { level, wire in
             if let text = wire.string { return !text.isEmpty }
             return wire.isNull && level == "off"
@@ -418,10 +422,10 @@ private struct ProviderEditorPage: View {
     }
 }
 
-/// One provider (M-03…M-09): the key, the model catalog and, behind 高级, address and identity.
-/// Edits stay local until 保存, which writes minimal path ops first and the key second; a
-/// failure in the key step retries only that step. Adding splits the same card in two:
-/// the key here, then 下一步 to the models, which saves.
+/// One provider (M-03…M-09): the key, the model catalog and, behind 高级, address, identity
+/// and retry policy. Edits stay local until 保存, which writes minimal path ops first and the
+/// key second; a failure in the key step retries only that step. Adding splits the same card
+/// in two: the key here, then 下一步 to the models, which saves.
 private struct ProviderEditor: View {
     @Environment(AppModel.self) private var app
     let model: ModelProvidersModel
@@ -457,17 +461,37 @@ private struct ProviderEditor: View {
         return deriveKeyRef(row.provider)
     }
     private var ownsIdentity: Bool { layout == .piAi && row.declared }
-    private var reasoningLevels: [String] {
-        guard ownsIdentity, let graph else { return [] }
-        return reasoningLevelChoices(graph)
+    /// The protocol the form shows, an edited-but-unsaved one included: it decides its own constraints.
+    private var api: String? { stringAt(draft, "api") ?? stringAt(fallback, "api") }
+    private var reasoning: (levels: [String], only: Bool) {
+        guard ownsIdentity, let graph else { return ([], false) }
+        return protocolReasoning(api, reasoningLevelChoices(graph))
     }
     private var protocols: [String] { graph.map(protocolChoices) ?? [] }
     private var keyValue: String { keyDraft.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var keyFailure: String? { apiKeyFailure(keyDraft) }
-    private var modelProblem: String? { modelFailure(draft["models"].nonNull, checkReasoning: !reasoningLevels.isEmpty) }
+    /// A route whose protocol cannot authenticate without a key needs a key reference or a typed key.
+    private var protocolKeyMissing: Bool {
+        layout == .piAi && api == geminiProtocol && stringAt(draft, "apiKeyEnv") == nil && stringAt(fallback, "apiKeyEnv") == nil && keyValue.isEmpty
+    }
+    private var modelProblem: String? {
+        let offered = reasoning
+        // Inherited models are checked too where the protocol narrows their levels: switching an
+        // inherited route's protocol must not write a route its own models break.
+        let models = draft["models"].nonNull ?? (offered.only ? fallback?["models"].nonNull : nil)
+        return modelFailure(models, checkReasoning: !offered.levels.isEmpty, only: offered.only ? offered.levels : nil)
+    }
+    /// The `retryPolicy` schema at this provider's path, with the policy beneath the user layer.
+    private var retryShape: RetryPolicyShape? {
+        guard layout != .unknown, let graph else { return nil }
+        return RetryPolicyShape(graph: graph, path: path + ["retryPolicy"], base: namespace["base"])
+    }
+    private var retryProblem: RetryPolicyProblem? { retryShape?.problem(draft["retryPolicy"].nonNull) }
     private var disabled: Bool { busy || !app.settings.writable }
     private var dirty: Bool { prepared && (!keyDraft.isEmpty || draft != original) }
-    private var canSave: Bool { !disabled && layout != .unknown && modelProblem == nil && keyFailure == nil }
+    private var canSave: Bool {
+        !disabled && layout != .unknown && modelProblem == nil && retryProblem == nil && keyFailure == nil && !protocolKeyMissing
+    }
 
     private func stringAt(_ source: JSON?, _ key: String) -> String? {
         guard let value = source?[key].string, !value.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
@@ -490,14 +514,21 @@ private struct ProviderEditor: View {
                         catalogSection(autoFetch: false)
                         modelProblemSection
                     }
-                    Section { NavigationLink("高级") { advancedPage } }.groupedRow()
+                    Section {
+                        NavigationLink("高级") { advancedPage }
+                        // 高级 hides the fields, so a refused policy still explains a disabled 保存.
+                        if let retryProblem {
+                            Text("重试策略：\(retryProblem.text)").font(.caption).foregroundStyle(Palette.removed)
+                        }
+                    }
+                    .groupedRow()
                 }
             }
             .onChange(of: attempts) { _, _ in
                 withAnimation { proxy.scrollTo(failedAt == .key ? Self.keyAnchor : Self.failureAnchor, anchor: .center) }
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .scrollDismissesKeyboard(.interactively)
         .modifier(EditorChrome(adding: adding, dirty: dirty, canSave: canSave, canContinue: canContinue, busy: busy, next: { choosingModels = true }, save: { Task { await apply() } }))
@@ -536,7 +567,7 @@ private struct ProviderEditor: View {
             catalogSection(autoFetch: true)
             modelProblemSection
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .navigationTitle("选择模型")
         .navigationBarTitleDisplayMode(.inline)
@@ -567,6 +598,11 @@ private struct ProviderEditor: View {
         prepared = true
         let stored = namespace["user"].value(at: path)
         if case .object? = stored { draft = stored! } else { draft = [:] }
+        // A stored retry policy without a mode edits under the mode it inherits; the draft
+        // names it, so a saved policy always carries one.
+        if case .object = draft["retryPolicy"], draft["retryPolicy"]["mode"].isNull, let retryShape {
+            draft = draft.setting(["retryPolicy", "mode"], .string(retryShape.defaultMode))
+        }
         original = draft
         committed = stored
         expectedRevision = namespace["revision"].int
@@ -598,7 +634,7 @@ private struct ProviderEditor: View {
     private var keyNeeded: Bool {
         !keylessNativeAuth && !authRefs.isEmpty && detected == nil && keyValue.isEmpty && nativeAuth?["oauth"].bool != true
     }
-    private var canContinue: Bool { !disabled && layout != .unknown && keyFailure == nil && !keyNeeded }
+    private var canContinue: Bool { !disabled && layout != .unknown && keyFailure == nil && !keyNeeded && retryProblem == nil }
 
     private var keySection: some View {
         Section {
@@ -608,7 +644,8 @@ private struct ProviderEditor: View {
         } header: {
             Text("API 密钥")
         } footer: {
-            if adding && keyNeeded { Text("填入 API 密钥后继续。") }
+            // A key the protocol requires is a requirement still to meet, not a fault.
+            if (adding && keyNeeded) || protocolKeyMissing { Text("填入 API 密钥后继续。") }
         }
         .groupedRow()
     }
@@ -638,7 +675,7 @@ private struct ProviderEditor: View {
                 }
                 DraftTextField(title: "API 地址", placeholder: baseURLPlaceholder, text: textBinding("baseURL"), keyboard: .URL).disabled(disabled)
                 if ownsIdentity {
-                    let current = stringAt(draft, "api") ?? stringAt(fallback, "api")
+                    let current = api
                     Picker("API 协议", selection: Binding(get: { current ?? "" }, set: { setField("api", $0) })) {
                         if current == nil { Text("未选择").tag("") }
                         ForEach(protocols, id: \.self) { Text(protocolLabel($0)).tag($0) }
@@ -649,12 +686,35 @@ private struct ProviderEditor: View {
                 if layout == .deepseek { Text("需兼容 Anthropic Messages 协议。") }
             }
             .groupedRow()
+            retrySection
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .navigationTitle("高级")
         .navigationBarTitleDisplayMode(.inline)
         .keyboardDoneButton()
+    }
+
+    /// 重试策略 on a page of its own, staged with the card like the fields above it. The page
+    /// keeps what it shows; every change lands in the draft.
+    @ViewBuilder
+    private var retrySection: some View {
+        if let shape = retryShape {
+            Section {
+                NavigationLink {
+                    RetryPolicyPage(
+                        policy: draft["retryPolicy"].nonNull,
+                        shape: shape,
+                        disabled: disabled,
+                        update: { next in draft = draft.setting(["retryPolicy"], next) }
+                    )
+                } label: {
+                    LabeledContent("重试策略", value: shape.summary(draft["retryPolicy"].nonNull))
+                }
+                if let retryProblem { Text(retryProblem.text).font(.caption).foregroundStyle(Palette.removed) }
+            }
+            .groupedRow()
+        }
     }
 
     // MARK: Catalog
@@ -677,15 +737,16 @@ private struct ProviderEditor: View {
             defaultContextWindow: fallback?["defaultContextWindow"].double,
             defaultMaxTokens: fallback?["maxTokens"].double,
             defaultInput: fallback?["defaultInput"].array.compactMap(\.string),
-            reasoningLevels: reasoningLevels,
+            reasoningLevels: reasoning.levels,
+            reasoningLevelsOnly: reasoning.only,
             disabled: disabled,
             probe: layout == .piAi ? ModelProbe(
                 settingsNs: row.settingsNs,
                 provider: row.provider,
                 baseURL: stringAt(draft, "baseURL") ?? stringAt(fallback, "baseURL"),
-                api: stringAt(draft, "api") ?? stringAt(fallback, "api"),
+                api: api,
                 apiKey: keyValue.isEmpty ? nil : keyValue,
-                blocked: keyFailure
+                blocked: keyFailure ?? (protocolKeyMissing ? String(localized: "填入 API 密钥后继续。") : nil)
             ) : nil,
             loadCatalog: layout == .piAi && !row.declared,
             onChange: { draft = draft.setting(["models"], .array($0)) },
@@ -722,7 +783,8 @@ private struct ProviderEditor: View {
         if layout == .piAi, stringAt(draft, "apiKeyEnv") == nil, stringAt(fallback, "apiKeyEnv") == nil, !keyValue.isEmpty {
             next = next.setting(["apiKeyEnv"], .string(keyRef))
         }
-        if let problem = modelFailure(next["models"].nonNull, checkReasoning: !reasoningLevels.isEmpty) { return (problem, .settings) }
+        let offered = reasoning
+        if let problem = modelFailure(next["models"].nonNull, checkReasoning: !offered.levels.isEmpty, only: offered.only ? offered.levels : nil) { return (problem, .settings) }
         let materializes = layout == .piAi && fallback == nil && committed == nil && next.object.isEmpty
         let ops: [SettingsOp] = materializes ? [.set(path, [:])] : pathOps(base: path, before: committed, after: next)
         if !ops.isEmpty {
@@ -751,11 +813,16 @@ private struct ProviderEditor: View {
 }
 
 /// The minimal ops carrying `after` over `before`: only keys the card observed are named.
+/// Objects are diffed field by field, so a field the draft leaves out is unset back to what
+/// it inherits instead of being dropped by a whole-object set.
 private func pathOps(base: [String], before: JSON?, after: JSON) -> [SettingsOp] {
     let previous = before?.object ?? [:]
     var ops: [SettingsOp] = []
     for (key, value) in after.object.sorted(by: { $0.key < $1.key }) where previous[key] != value {
-        ops.append(.set(base + [key], value))
+        switch (value, previous[key]) {
+        case (.object, .object?), (.object, nil): ops += pathOps(base: base + [key], before: previous[key], after: value)
+        default: ops.append(.set(base + [key], value))
+        }
     }
     for key in previous.keys.sorted() where after.object[key] == nil {
         ops.append(.unset(base + [key]))
@@ -782,7 +849,361 @@ private func protocolLabel(_ value: String) -> String {
     case "openai-completions": "OpenAI Chat Completions"
     case "openai-responses": "OpenAI Responses"
     case "anthropic-messages": "Anthropic Messages"
+    case geminiProtocol: "Gemini API"
     default: value
+    }
+}
+
+/// pi-ai's Gemini protocol. Its implementation refuses a request without an API key, which
+/// no header or ambient credential replaces, so the forms ask for one before a write: the
+/// adapter accepts the profile and only the first request would fail.
+private let geminiProtocol = "google-generative-ai"
+
+/// The reasoning levels a protocol's models may declare, narrowed from the schema's. pi-ai's
+/// Gemini protocol sends only minimal, low, medium or high and fails a request carrying
+/// anything else, so a Gemini route offers those four, each under its own name, and no Off.
+private func protocolReasoning(_ api: String?, _ levels: [String]) -> (levels: [String], only: Bool) {
+    guard api == geminiProtocol else { return (levels, false) }
+    return (levels.filter { ["minimal", "low", "medium", "high"].contains($0) }, true)
+}
+
+/// What a model row outside the levels its protocol accepts is told, on the row and at the save.
+private var levelsOnlyNotice: String {
+    String(localized: "此 API 协议仅接受 minimal、low、medium 和 high 档位，且每个档位的 API 参数值须与档位名称相同。请修改或删除其他档位。")
+}
+
+// MARK: - Retry policy
+
+/// A refused drafted policy: the reason and the field that causes it.
+private struct RetryPolicyProblem {
+    let text: String
+    let path: [String]
+}
+
+/// A provider's `retryPolicy` schema and the policy beneath the user layer, read as the web
+/// card reads them: each union branch is a mode, a branch's fields are the inputs, and their
+/// bounds and defaults come from the schema.
+private struct RetryPolicyShape {
+    let graph: SchemaGraph
+    /// The mode branches, in schema order.
+    let branches: [(mode: String, node: SchemaNode)]
+    /// The policy the composition layer sets, if any.
+    let inherited: JSON?
+
+    /// Nil when the namespace publishes no `retryPolicy` union of mode branches at `path`.
+    init?(graph: SchemaGraph, path: [String], base: JSON) {
+        guard let node = graph.node(at: path), node.type == "union" else { return nil }
+        let branches = graph.list(node).compactMap { branch -> (mode: String, node: SchemaNode)? in
+            guard let mode = graph.fields(branch).first(where: { $0.key == "mode" })?.node.json["value"].string else { return nil }
+            return (mode, branch)
+        }
+        guard !branches.isEmpty else { return nil }
+        self.graph = graph
+        self.branches = branches
+        inherited = base.value(at: path)
+    }
+
+    var modes: [String] { branches.map(\.mode) }
+
+    /// The mode in effect while the user layer names none.
+    var defaultMode: String {
+        if let mode = inherited?["mode"].string, branch(mode) != nil { return mode }
+        return branches[0].mode
+    }
+
+    /// The branch of a stored `mode`; nil when no branch declares it.
+    func branch(_ mode: String?) -> SchemaNode? {
+        branches.first { $0.mode == mode }?.node
+    }
+
+    /// An object's editable fields in schema order, without the `mode` discriminant.
+    func fields(_ node: SchemaNode) -> [(key: String, node: SchemaNode)] {
+        graph.fields(node).filter { $0.key != "mode" }
+    }
+
+    /// The inherited value of one field of a branch: the composition layer, then the schema default.
+    func inheritedValue(_ branch: SchemaNode, _ path: [String]) -> JSON? {
+        inherited?.value(at: path) ?? graph.node(at: path, from: branch)?.defaultValue
+    }
+
+    /// The constant choices a code list's item schema publishes, in schema order.
+    func choices(_ node: SchemaNode) -> [String] {
+        graph.list(graph.inner(node)).filter { $0.type == "const" }.compactMap { $0.json["value"].string }
+    }
+
+    /// The row's value: the chosen mode, or the default named by the mode it inherits.
+    func summary(_ policy: JSON?) -> String {
+        let mode = policy?["mode"].string
+        return branch(mode) == nil ? String(localized: "默认（\(retryLabel(defaultMode))）") : retryLabel(mode ?? "")
+    }
+
+    /// The first refused field of a drafted policy, empty fields inherited: the bounds of the
+    /// chosen branch's number fields, then the delay order `resolveRetryPolicy` enforces beyond
+    /// any single bound. Whatever else the schema refuses is answered by the write.
+    func problem(_ policy: JSON?) -> RetryPolicyProblem? {
+        guard let policy, let chosen = branch(policy["mode"].string) else { return nil }
+        func read(_ path: [String]) -> JSON? { policy.value(at: path) ?? inheritedValue(chosen, path) }
+        func check(_ owner: SchemaNode, _ base: [String]) -> RetryPolicyProblem? {
+            for field in fields(owner) {
+                let path = base + [field.key]
+                if field.node.type == "object" {
+                    if let nested = check(field.node, path) { return nested }
+                } else if field.node.type == "number", let value = read(path), let text = retryNumberProblem(field.node, value) {
+                    return RetryPolicyProblem(text: text, path: path)
+                }
+            }
+            return nil
+        }
+        if let found = check(chosen, []) { return found }
+        let initial = ["backoff", "initialDelayMs"]
+        if let lower = read(initial)?.double, let upper = read(["backoff", "maxDelayMs"])?.double, lower > upper {
+            return RetryPolicyProblem(text: String(localized: "初始延迟不能大于最大延迟。"), path: initial)
+        }
+        return nil
+    }
+}
+
+/// The first bound of a number field's schema that `value` breaks.
+private func retryNumberProblem(_ node: SchemaNode, _ value: JSON) -> String? {
+    guard let number = value.double else { return String(localized: "请填数字；留空表示使用默认值。") }
+    if node.meta["step"].double == 1, number.rounded() != number { return String(localized: "请填整数。") }
+    if let minimum = node.meta["min"].double {
+        // `Number.MIN_VALUE` is the schema's idiom for a positive bound.
+        if minimum == .leastNonzeroMagnitude {
+            if number <= 0 { return String(localized: "必须大于 0。") }
+        } else if number < minimum {
+            return String(localized: "不能小于 \(retryNumberText(.number(minimum)))。")
+        }
+    }
+    if let maximum = node.meta["max"].double, number > maximum {
+        return String(localized: "不能大于 \(retryNumberText(.number(maximum)))。")
+    }
+    return nil
+}
+
+/// Typed text as a field's value: plain decimal text is a number, and anything else stays in
+/// the draft as text, which validation refuses.
+private func retryNumber(_ text: String) -> JSON {
+    // A decimal pad types the region's own separator, a comma in much of the world.
+    let separator = Locale.current.decimalSeparator ?? "."
+    let plain = separator == "." ? text : text.replacingOccurrences(of: separator, with: ".")
+    guard plain.range(of: #"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$"#, options: .regularExpression) != nil,
+          let number = Double(plain), number.isFinite else { return .string(text) }
+    return .number(number)
+}
+
+/// A drafted or inherited value as its field shows it.
+private func retryNumberText(_ value: JSON?) -> String {
+    if let number = value?.double { return Int(exactly: number).map(String.init) ?? String(number) }
+    return value?.string ?? ""
+}
+
+/// A copy of `policy` with `value` at `path`; nil removes the field, and with it any parent left empty.
+private func retrySetting(_ policy: JSON, _ path: [String], _ value: JSON?) -> JSON {
+    guard let key = path.first else { return policy }
+    let rest = Array(path.dropFirst())
+    var object = policy.object
+    let next: JSON? = rest.isEmpty ? value : retrySetting(policy[key], rest, value)
+    object[key] = next == JSON.object([:]) ? nil : next
+    return .object(object)
+}
+
+/// The names of the known modes and fields, by schema key; any other key shows as it is.
+private func retryLabel(_ key: String) -> String {
+    switch key {
+    case "normal": String(localized: "仅临时错误")
+    case "always": String(localized: "所有错误")
+    case "maxRetries": String(localized: "最大重试次数")
+    case "retryableCodes": String(localized: "错误码")
+    case "backoff": String(localized: "退避")
+    case "initialDelayMs": String(localized: "初始延迟（毫秒）")
+    case "maxDelayMs": String(localized: "最大延迟（毫秒）")
+    case "jitterRatio": String(localized: "抖动比例")
+    default: key
+    }
+}
+
+/// The names of the known failure codes; a code without one shows as it is.
+private func retryCodeLabel(_ code: String) -> String {
+    switch code {
+    case "EMPTY_RESPONSE": String(localized: "空响应")
+    case "RATE_LIMIT": String(localized: "请求限流")
+    case "SERVER": String(localized: "服务器错误")
+    case "TIMEOUT": String(localized: "超时")
+    case "TRANSPORT": String(localized: "网络错误")
+    case "STREAM_CLOSED": String(localized: "流提前结束")
+    case "MALFORMED_RESPONSE": String(localized: "响应格式错误")
+    case "QUOTA": String(localized: "配额已用尽")
+    default: code
+    }
+}
+
+/// 重试策略: the mode and, once one is chosen, its fields. No policy inherits; a chosen mode
+/// writes a user-layer policy whose empty fields keep the inherited values.
+private struct RetryPolicyPage: View {
+    @State var policy: JSON?
+    let shape: RetryPolicyShape
+    let disabled: Bool
+    let update: (JSON?) -> Void
+
+    /// Raw text per field, so partial input such as `0.` stays as typed.
+    @State private var texts: [String: String] = [:]
+    /// Codes added during this edit stay listed after they are switched off.
+    @State private var added: [String: [String]] = [:]
+
+    private var branch: SchemaNode? { shape.branch(policy?["mode"].string) }
+    private var mode: String? { branch == nil ? nil : policy?["mode"].string }
+    private var problem: RetryPolicyProblem? { shape.problem(policy) }
+
+    private func write(_ next: JSON?) {
+        policy = next
+        update(next)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("模式", selection: Binding(get: { mode ?? "" }, set: { selectMode($0) })) {
+                    Text("默认（\(retryLabel(shape.defaultMode))）").tag("")
+                    ForEach(shape.modes, id: \.self) { Text(retryLabel($0)).tag($0) }
+                }
+                .pickerValueTint()
+            } footer: {
+                if mode == "always" { Text("失败的请求会持续重试，直到成功或本轮被停止。") }
+            }
+            .groupedRow()
+            if let branch { fieldSections(branch) }
+        }
+        .inkTint()
+        .groupedList()
+        .disabled(disabled)
+        .navigationTitle("重试策略")
+        .navigationBarTitleDisplayMode(.inline)
+        .keyboardDoneButton()
+    }
+
+    /// A branch's fields in schema order: a number as a row, the code list as switches, a
+    /// nested object as a section of its numbers. Fields of other types are not shown.
+    @ViewBuilder
+    private func fieldSections(_ branch: SchemaNode) -> some View {
+        ForEach(shape.fields(branch), id: \.key) { field in
+            switch field.node.type {
+            case "number":
+                Section { numberRow([field.key], field.node, branch) }.groupedRow()
+            case "array":
+                codeSection([field.key], field.node, branch)
+            case "object":
+                Section {
+                    ForEach(shape.fields(field.node).filter { $0.node.type == "number" }, id: \.key) { nested in
+                        numberRow([field.key, nested.key], nested.node, branch)
+                    }
+                } header: {
+                    Text(retryLabel(field.key))
+                }
+                .groupedRow()
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    /// One number: empty keeps the inherited value, which shows as the placeholder.
+    @ViewBuilder
+    private func numberRow(_ path: [String], _ node: SchemaNode, _ branch: SchemaNode) -> some View {
+        let id = path.joined(separator: ".")
+        LabeledContent(retryLabel(path.last ?? "")) {
+            TextField(retryNumberText(shape.inheritedValue(branch, path)), text: Binding(
+                get: { texts[id] ?? retryNumberText(policy?.value(at: path)) },
+                set: { setNumber(path, $0) }
+            ))
+            .keyboardType(node.meta["step"].double == 1 ? .numberPad : .decimalPad)
+            .multilineTextAlignment(.trailing)
+        }
+        if let problem, problem.path == path {
+            Text(problem.text).font(.caption).foregroundStyle(Palette.removed)
+        }
+    }
+
+    private func setNumber(_ path: [String], _ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        texts[path.joined(separator: ".")] = trimmed.isEmpty ? "" : text
+        // An emptied field is unset, so the inherited value applies again.
+        write(retrySetting(policy ?? [:], path, trimmed.isEmpty ? nil : retryNumber(trimmed)))
+    }
+
+    private func selectMode(_ mode: String) {
+        texts = [:]
+        guard let next = shape.branch(mode) else {
+            write(nil)
+            return
+        }
+        // A switched policy keeps only the fields its new mode declares.
+        let declared = Set(shape.fields(next).map(\.key))
+        var kept = (policy?.object ?? [:]).filter { declared.contains($0.key) }
+        kept["mode"] = .string(mode)
+        write(.object(kept))
+    }
+
+    // MARK: Codes
+
+    /// The codes switched on: the drafted list, or the inherited one while the field is unset.
+    private func selectedCodes(_ path: [String], _ inherited: [String]) -> [String] {
+        guard case .array(let stored)? = policy?.value(at: path) else { return inherited }
+        return stored.compactMap(\.string)
+    }
+
+    /// The codes on offer: the schema's own, then any inherited, drafted or just-added one outside them.
+    private func codeChoices(_ id: String, _ node: SchemaNode, _ inherited: [String], _ selected: [String]) -> [String] {
+        var seen = Set<String>()
+        let listed: [String] = shape.choices(node) + inherited + selected
+        return (listed + (added[id] ?? [])).filter { seen.insert($0).inserted }
+    }
+
+    @ViewBuilder
+    private func codeSection(_ path: [String], _ node: SchemaNode, _ branch: SchemaNode) -> some View {
+        let id = path.joined(separator: ".")
+        let inherited = shape.inheritedValue(branch, path)?.array.compactMap(\.string) ?? []
+        let selected = selectedCodes(path, inherited)
+        let choices = codeChoices(id, node, inherited, selected)
+        Section {
+            ForEach(choices, id: \.self) { code in
+                let isOn = selected.contains(code)
+                Toggle(retryCodeLabel(code), isOn: Binding(get: { isOn }, set: { on in
+                    selectCodes(path, choices.filter { $0 == code ? on : selected.contains($0) }, inherited)
+                }))
+                // A policy retries at least one code.
+                .disabled(selected.count == 1 && isOn)
+            }
+            HStack {
+                TextField("自定义错误码", text: Binding(get: { texts[id] ?? "" }, set: { texts[id] = $0 }))
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .font(.callout.monospaced())
+                    .onSubmit { addCode(path, selected, inherited) }
+                Button { addCode(path, selected, inherited) } label: { Text("添加").hitTarget() }
+                    .buttonStyle(.borderless)
+                    .disabled((texts[id] ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        } header: {
+            Text(retryLabel(path.last ?? ""))
+        }
+        .groupedRow()
+    }
+
+    private func selectCodes(_ path: [String], _ next: [String], _ inherited: [String]) {
+        // Exactly the inherited codes keep the field inherited.
+        let inherits = next.count == inherited.count && next.allSatisfy { inherited.contains($0) }
+        write(retrySetting(policy ?? [:], path, inherits ? nil : .array(next.map(JSON.string))))
+    }
+
+    private func addCode(_ path: [String], _ selected: [String], _ inherited: [String]) {
+        let id = path.joined(separator: ".")
+        let code = (texts[id] ?? "").trimmingCharacters(in: .whitespaces)
+        guard !code.isEmpty else { return }
+        if added[id]?.contains(code) != true { added[id, default: []].append(code) }
+        texts[id] = ""
+        // A code already listed is switched on, not listed twice.
+        if !selected.contains(code) { selectCodes(path, selected + [code], inherited) }
     }
 }
 
@@ -826,6 +1247,8 @@ private struct ModelCatalogSection: View {
     let defaultMaxTokens: Double?
     let defaultInput: [String]?
     let reasoningLevels: [String]
+    /// The route's protocol accepts only `reasoningLevels`, each sent under its own name.
+    let reasoningLevelsOnly: Bool
     let disabled: Bool
     let probe: ModelProbe?
     let loadCatalog: Bool
@@ -859,6 +1282,7 @@ private struct ModelCatalogSection: View {
                         contextHint: family == .deepseek ? defaultContextWindow.map(formatCapacity) ?? String(localized: "使用提供商默认值") : "256K",
                         tokensHint: family == .deepseek ? defaultMaxTokens.map(formatCapacity) ?? String(localized: "使用提供商默认值") : "32K",
                         reasoningLevels: reasoningLevels,
+                        reasoningLevelsOnly: reasoningLevelsOnly,
                         disabled: disabled,
                         update: { next in onChange(models.enumerated().map { $0.offset == index ? next : $0.element }) },
                         remove: { onChange(models.enumerated().filter { $0.offset != index }.map(\.element)) }
@@ -981,6 +1405,7 @@ private struct ModelRowEditor: View {
     let contextHint: String
     let tokensHint: String
     let reasoningLevels: [String]
+    let reasoningLevelsOnly: Bool
     let disabled: Bool
     let update: (JSON) -> Void
     let remove: () -> Void
@@ -1007,16 +1432,23 @@ private struct ModelRowEditor: View {
             Section("模型选项") {
                 DraftTextField(title: "上下文窗口", placeholder: contextHint, text: Binding(get: { contextText }, set: { contextText = $0; write(model.setting(["contextWindow"], parseCapacity($0))) }))
                 DraftTextField(title: "最大输出 token 数", placeholder: tokensHint, text: Binding(get: { tokensText }, set: { tokensText = $0; write(model.setting(["maxTokens"], parseCapacity($0))) }))
-                inputTypes
             }
             .groupedRow()
-            if !reasoningLevels.isEmpty { ReasoningEditor(model: model, levels: reasoningLevels, write: write) }
+            Section {
+                inputTypes
+            } header: {
+                Text("输入类型")
+            } footer: {
+                Text("至少保留一种，只剩一种时不能关。")
+            }
+            .groupedRow()
+            if !reasoningLevels.isEmpty { ReasoningEditor(model: model, levels: reasoningLevels, levelsOnly: reasoningLevelsOnly, write: write) }
             Section {
                 Button("删除模型", role: .destructive) { remove(); dismiss() }
             }
             .groupedRow()
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .disabled(disabled)
         .navigationTitle(String(localized: "模型 \(position)"))
@@ -1038,22 +1470,20 @@ private struct ModelRowEditor: View {
         return list.isEmpty ? (inputFallback ?? ["text"]) : list
     }
 
+    /// One row per type, like every other switch in the list: stacked in one row, the system
+    /// switches of iOS 26 ran into each other.
     private var inputTypes: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("输入类型").font(.caption).foregroundStyle(Palette.secondary)
-            ForEach(["text", "image"], id: \.self) { modality in
-                let isOn = selected.contains(modality)
-                Toggle(modality == "text" ? "文本" : "图片", isOn: Binding(get: { isOn }, set: { on in
-                    let next = ["text", "image"].filter { $0 == modality ? on : selected.contains($0) }
-                    var row = model.setting([inputField], .array(next.map(JSON.string)))
-                    if inputField == "inputModalities" && !next.contains("image") {
-                        row = row.setting(["imagePixelBudget"], nil).setting(["imageMaxBytes"], nil)
-                    }
-                    write(row)
-                }))
-                .toggleStyle(.mono)
-                .disabled(selected.count == 1 && isOn)
-            }
+        ForEach(["text", "image"], id: \.self) { modality in
+            let isOn = selected.contains(modality)
+            Toggle(modality == "text" ? "文本" : "图片", isOn: Binding(get: { isOn }, set: { on in
+                let next = ["text", "image"].filter { $0 == modality ? on : selected.contains($0) }
+                var row = model.setting([inputField], .array(next.map(JSON.string)))
+                if inputField == "inputModalities" && !next.contains("image") {
+                    row = row.setting(["imagePixelBudget"], nil).setting(["imageMaxBytes"], nil)
+                }
+                write(row)
+            }))
+            .disabled(selected.count == 1 && isOn)
         }
     }
 }
@@ -1062,6 +1492,8 @@ private struct ModelRowEditor: View {
 private struct ReasoningEditor: View {
     let model: JSON
     let levels: [String]
+    /// The route's protocol accepts only `levels`, each sent under its own name.
+    let levelsOnly: Bool
     let write: (JSON) -> Void
 
     private var entries: [String: JSON]? {
@@ -1071,6 +1503,11 @@ private struct ReasoningEditor: View {
 
     private func order(_ level: String) -> Int { levels.firstIndex(of: level) ?? levels.count }
     private func defaultValue(_ level: String) -> JSON { level == "off" ? .null : .string(level) }
+
+    /// A stored level the offered ones do not name stays selectable in its own row.
+    private func choices(for level: String, used: [String]) -> [String] {
+        (levels.contains(level) ? [] : [level]) + levels.filter { $0 == level || !used.contains($0) }
+    }
 
     private func set(_ next: [String: JSON]?) {
         write(model.setting(["reasoningEfforts"], next.map(JSON.object)))
@@ -1082,19 +1519,20 @@ private struct ReasoningEditor: View {
                 let initial = ["off", "low", "medium", "high"].filter(levels.contains)
                 set(on ? Dictionary(uniqueKeysWithValues: initial.map { ($0, defaultValue($0)) }) : nil)
             }))
-            .toggleStyle(.mono)
             if let entries {
-                let used = entries.keys.sorted { order($0) < order($1) }
+                // Levels the protocol does not offer share one rank, so their names order them.
+                let used = entries.keys.sorted { (order($0), $0) < (order($1), $1) }
                 ForEach(used, id: \.self) { level in
                     HStack(spacing: 8) {
                         Picker("档位", selection: Binding(get: { level }, set: { to in
                             var next = entries
                             let wire = next.removeValue(forKey: level)
-                            let keeps = wire?.string.map { !$0.isEmpty && $0 != level } == true && level != "off" && to != "off"
+                            // A protocol that fixes its levels sends each under its own name, so nothing carries over.
+                            let keeps = !levelsOnly && wire?.string.map { !$0.isEmpty && $0 != level } == true && level != "off" && to != "off"
                             next[to] = keeps ? wire : defaultValue(to)
                             set(next)
                         })) {
-                            ForEach(levels.filter { $0 == level || !used.contains($0) }, id: \.self) { Text($0).tag($0) }
+                            ForEach(choices(for: level, used: used), id: \.self) { Text($0).tag($0) }
                         }
                         .labelsHidden()
                         TextField(level == "off" ? String(localized: "关闭思考") : String(localized: "API 参数值"), text: Binding(
@@ -1109,7 +1547,7 @@ private struct ReasoningEditor: View {
                         .font(.callout.monospaced())
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .disabled(level == "off")
+                        .disabled(level == "off" || levelsOnly)
                         Button {
                             var next = entries
                             next[level] = nil
@@ -1121,9 +1559,12 @@ private struct ReasoningEditor: View {
                         .accessibilityLabel("删除档位")
                     }
                 }
-                if used.count < levels.count {
+                if levelsOnly, entries.contains(where: { level, wire in !levels.contains(level) || wire.string != level }) {
+                    Text(levelsOnlyNotice).font(.caption).foregroundStyle(Palette.removed)
+                }
+                if levels.contains(where: { !used.contains($0) }) {
                     Button {
-                        let highest = used.map(order).max() ?? -1
+                        let highest = used.compactMap { levels.firstIndex(of: $0) }.max() ?? -1
                         let level = levels.enumerated().first { $0.offset > highest && !used.contains($0.element) }?.element ?? levels.first { !used.contains($0) }
                         if let level {
                             var next = entries
@@ -1212,7 +1653,7 @@ private struct ModelPickerSheet: View {
                 picked = Set(candidates.compactMap { $0["id"].string }.filter { !known.contains($0) })
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
     }
 }
 
@@ -1257,7 +1698,7 @@ private struct AddProviderSheet: View {
                                 .keyboardDoneButton()
                         }
                     } footer: {
-                        Text("中转站、自部署服务等兼容 OpenAI 或 Anthropic 协议的接口。")
+                        Text("中转站、自部署服务等兼容 OpenAI、Anthropic 或 Gemini 协议的接口。")
                     }
                     .groupedRow()
                 }
@@ -1269,7 +1710,7 @@ private struct AddProviderSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
         .sheetNotices()
         .onAppear {
             if addable == nil { addable = model.rows.filter { !$0.configured && app.settings.serves($0.settingsNs) } }
@@ -1328,8 +1769,11 @@ private struct CustomProviderForm: View {
     }
     private var keyFailure: String? { apiKeyFailure(keyDraft) }
     private var keyValue: String { keyDraft.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var modelProblem: String? { modelFailure(.array(models), checkReasoning: true) }
-    private var canContinue: Bool { routeValid && !routeTaken && !normalizedURL.isEmpty && !urlInvalid && keyFailure == nil }
+    /// A blank key is a choice only where the protocol can authenticate without one.
+    private var keyMissing: Bool { api == geminiProtocol && keyValue.isEmpty }
+    private var reasoning: (levels: [String], only: Bool) { protocolReasoning(api, reasoningLevels) }
+    private var modelProblem: String? { modelFailure(.array(models), checkReasoning: true, only: reasoning.only ? reasoning.levels : nil) }
+    private var canContinue: Bool { routeValid && !routeTaken && !normalizedURL.isEmpty && !urlInvalid && keyFailure == nil && !keyMissing }
     private var ready: Bool { canContinue && !models.isEmpty && modelProblem == nil }
     private var locked: Bool { busy || committedRoute != nil || !app.settings.writable }
     private var dirty: Bool { !baseURL.isEmpty || !keyDraft.isEmpty || !displayName.isEmpty || !routeDraft.isEmpty }
@@ -1337,7 +1781,7 @@ private struct CustomProviderForm: View {
     var body: some View {
         Form {
             Section {
-                DraftTextField(title: "API 地址", placeholder: api == "anthropic-messages" ? "https://gateway.example" : "https://gateway.example/v1", text: $baseURL, keyboard: .URL).disabled(locked)
+                DraftTextField(title: "API 地址", placeholder: baseURLExample, text: $baseURL, keyboard: .URL).disabled(locked)
                 if urlInvalid { Text("请输入有效的 HTTP 或 HTTPS 地址。").font(.caption).foregroundStyle(Palette.removed) }
                 Picker("API 协议", selection: $api) {
                     ForEach(protocols, id: \.self) { Text(protocolLabel($0)).tag($0) }
@@ -1351,7 +1795,7 @@ private struct CustomProviderForm: View {
             } header: {
                 Text("API 密钥")
             } footer: {
-                if normalizedURL.isEmpty { Text("填写 API 地址后继续。") }
+                if normalizedURL.isEmpty { Text("填写 API 地址后继续。") } else if keyMissing { Text("填入 API 密钥后继续。") }
             }
             .groupedRow()
             Section {
@@ -1364,7 +1808,7 @@ private struct CustomProviderForm: View {
             }
             .groupedRow()
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .scrollDismissesKeyboard(.interactively)
         .interactiveDismissDisabled(dirty)
@@ -1375,6 +1819,16 @@ private struct CustomProviderForm: View {
         .onAppear {
             if api.isEmpty { api = protocols.first ?? "" }
             if openedAt == nil { openedAt = namespace["revision"].int }
+        }
+    }
+
+    /// The endpoint each protocol's SDK expects: Anthropic's appends `/v1/messages` itself,
+    /// and Gemini's base carries the API version.
+    private var baseURLExample: String {
+        switch api {
+        case "anthropic-messages": "https://gateway.example"
+        case geminiProtocol: "https://gateway.example/v1beta"
+        default: "https://gateway.example/v1"
         }
     }
 
@@ -1393,7 +1847,7 @@ private struct CustomProviderForm: View {
             }
             .groupedRow()
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .navigationTitle("高级")
         .navigationBarTitleDisplayMode(.inline)
@@ -1413,7 +1867,8 @@ private struct CustomProviderForm: View {
                 defaultContextWindow: nil,
                 defaultMaxTokens: nil,
                 defaultInput: nil,
-                reasoningLevels: reasoningLevels,
+                reasoningLevels: reasoning.levels,
+                reasoningLevelsOnly: reasoning.only,
                 disabled: locked,
                 probe: ModelProbe(
                     settingsNs: "llm-pi-ai",
@@ -1430,7 +1885,7 @@ private struct CustomProviderForm: View {
                 Section { Text(modelProblem).font(.footnote).foregroundStyle(Palette.waiting) }.groupedRow()
             }
         }
-        .tint(Palette.ink)
+        .inkTint()
         .groupedList()
         .navigationTitle("选择模型")
         .navigationBarTitleDisplayMode(.inline)

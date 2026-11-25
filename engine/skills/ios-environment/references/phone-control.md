@@ -22,7 +22,7 @@ curl -s -m 3 http://127.0.0.1:8200/whoami
 ```
 
 - **An answer** (JSON with the device id and version): it is running. Go on.
-- **No answer**: it is not running. Tell the user to open the iCTRL app and tap 启动服务 (Start Server), or use 操控手机 (Phone control) on the app's 探索 (Explore) tab (in the sidebar before iOS 18). Then stop. Do not retry in a loop.
+- **No answer**: it is not running. Tell the user to open the iCTRL app and tap 启动服务 (Start Server), or use 操控手机 (Phone control) on the app's 探索 (Explore) tab (in the sidebar on an iPad before iOS 18). Then stop. Do not retry in a loop.
 - **The user starts it and it still fails, or the runner will not open**: see Troubleshooting below.
 
 ## Using it
@@ -42,7 +42,7 @@ While you drive another app, the user is looking at that app, not at this conver
 - you stop early because of an error or because the service went away.
 
 ```bash
-python3 ~/.ictrl/bin/ictrl_rpc.py --host 127.0.0.1:8200 call open_url "{\"url\":\"${FISH_POCKET_URL_SCHEME:-dsh}://\"}"
+python3 ~/.ictrl/bin/ictrl_rpc.py --host 127.0.0.1:8200 call open_url "{\"url\":\"${FISH_POCKET_URL_SCHEME:-fishpocket}://\"}"
 ```
 
 Use the service's `open_url`, not your own `open_url` tool: yours only lets a few schemes through. `FISH_POCKET_URL_SCHEME` is this app's own link scheme. Return first, then ask or report, in the same turn; do not end a turn while another app is still in front.
@@ -79,4 +79,4 @@ These describe the setup the user went through. Versions change: where a point n
 - **Stop Server jumps to the runner and back, shows 「停止 iCTRL?」, and the service keeps running.** That is by design: any app can ask iCTRL to stop, so it only asks. The user long-presses that notification and taps 停止 (Stop); the phone must be unlocked. The iCTRL app stops it without asking only after it has been paired with the runner once (one 允许 on the runner's pairing notification).
 - **Pairing asked again.** After iCTRL or its runner is reinstalled, the old key no longer fits: pair once more.
 - **Supported versions.** iOS 17.4 or later. Older versions cannot mount the disk image from the phone and need a computer after every reboot.
-- **Setup itself** (SideStore, iLoader, the pairing file, Developer Mode) is in the tutorial linked from 操控手机 (Phone control) on the app's 探索 (Explore) tab (in the sidebar before iOS 18). Point the user there rather than walking through it from memory.
+- **Setup itself** (SideStore, iLoader, the pairing file, Developer Mode) is in the tutorial linked from 操控手机 (Phone control) on the app's 探索 (Explore) tab (in the sidebar on an iPad before iOS 18). Point the user there rather than walking through it from memory.

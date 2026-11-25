@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Whose tasks a schedule section lists: a Bot's own chat or a group chat.
 enum BotScheduleTarget: Equatable {
     case bot(String)
@@ -24,7 +25,7 @@ enum BotScheduleTarget: Equatable {
 /// The scheduled tasks of a Bot or a group, read from ds-bot. Owned by the page that shows
 /// them, which also presents the new-task sheet: a section's modifiers would go to every row.
 @MainActor
-@Observable
+@Perceptible
 final class BotSchedules {
     let target: BotScheduleTarget
     private(set) var tasks: [JSON] = []
@@ -82,6 +83,8 @@ struct BotScheduleSection: View {
     let schedules: BotSchedules
 
     var body: some View {
+        WithPerceptionTracking {
+
         Section {
             if !schedules.loaded {
                 ProgressView().frame(maxWidth: .infinity)
@@ -110,7 +113,8 @@ struct BotScheduleSection: View {
             }
         }
         .groupedRow()
-    }
+    
+        }}
 
     private var footerEmpty: LocalizedStringKey {
         switch schedules.target {
@@ -164,6 +168,8 @@ struct BotScheduleCreateSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Form {
                 Section {
@@ -200,9 +206,10 @@ struct BotScheduleCreateSheet: View {
             .navigationTitle("新建定时任务")
             .navigationBarTitleDisplayMode(.inline)
             .saveToolbar(canSave: canSave, saving: saving, cancel: { dismiss() }) { save() }
-            .onChange(of: unit) { _, _ in amount = min(amount, maxAmount) }
+            .onChangeCompat(of: unit) { _, _ in amount = min(amount, maxAmount) }
         }
-    }
+    
+        }}
 
     private var weekdayPicker: some View {
         let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
