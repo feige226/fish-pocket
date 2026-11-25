@@ -1,3 +1,4 @@
+import Perception
 import SwiftUI
 import WebKit
 
@@ -95,9 +96,9 @@ struct MiniAppScreen: View {
                     if let error = page.error { errorBanner(error) }
                 }
                 .navigationTitle(app.name)
-                .toolbarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
                         Menu {
                             Button("重新载入", systemImage: "arrow.clockwise") { page.reload() }
                             Button("让 Agent 修改", systemImage: "wand.and.stars") { MiniAppPresenter.askAgent(MiniAppPresenter.editDraft(app)) }
@@ -149,7 +150,7 @@ struct MiniAppScreen: View {
 }
 
 /// What the page reported, and a way to reload it.
-@MainActor @Observable
+@MainActor @Perceptible
 final class MiniAppPage {
     /// The latest error, shown until dismissed; nil once the user closes the banner.
     var error: String?
@@ -160,7 +161,7 @@ final class MiniAppPage {
     var backdrop: Color?
     /// Every error since the page loaded, for the agent.
     private(set) var errors: [String] = []
-    @ObservationIgnored weak var webView: WKWebView?
+    @PerceptionIgnored weak var webView: WKWebView?
 
     func report(_ message: String) {
         guard !errors.contains(message) else { return }
@@ -185,7 +186,11 @@ private struct MiniAppWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: app.dataStoreId)
+        if #available(iOS 17.0, *) {
+            configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: app.dataStoreId)
+        } else {
+            configuration.websiteDataStore = .default()
+        }
         configuration.setURLSchemeHandler(MiniAppServer(app: app), forURLScheme: MiniAppServer.scheme)
         configuration.userContentController.add(context.coordinator.messages, name: MiniAppServer.messageName)
         configuration.allowsInlineMediaPlayback = true

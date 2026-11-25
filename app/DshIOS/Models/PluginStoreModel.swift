@@ -1,18 +1,18 @@
 import Foundation
-import Observation
+import Perception
 
 /// The store's own state, around the market reader 发现 under 设置 → 插件 also uses.
 ///
 /// The market is DSH's experimental bundle, off in the shipped profile, and it stays off until the
 /// user turns on an index source: there is no market the app opens on by itself.
 @MainActor
-@Observable
+@Perceptible
 final class PluginStoreModel {
     enum Readiness { case checking, preparing, ready, off, unavailable }
 
     let market = PluginMarketModel()
     private(set) var readiness = Readiness.checking
-    @ObservationIgnored private var preparing: Task<Void, Never>?
+    @PerceptionIgnored private var preparing: Task<Void, Never>?
 
     /// A task of its own: the page's is cancelled when the connection comes up, which is exactly
     /// when a first visit runs.

@@ -1,7 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
-import Observation
+import Perception
 import Security
 import StoreKit
 import UIKit
@@ -21,7 +21,7 @@ struct FishPocketPack: Identifiable {
 /// to the Fish Pocket API. The engine gets the runtime key alone, through the
 /// credentials service, as it gets a DeepSeek API key.
 @MainActor
-@Observable
+@Perceptible
 final class FishPocketAccount {
     private enum Stored {
         static let session = "session"
@@ -53,8 +53,8 @@ final class FishPocketAccount {
         }
     }
 
-    @ObservationIgnored private let engine: EngineClient
-    @ObservationIgnored private let http: FishPocketHTTP?
+    @PerceptionIgnored private let engine: EngineClient
+    @PerceptionIgnored private let http: FishPocketHTTP?
 
     private(set) var signedIn: Bool
     private(set) var user: User?
@@ -74,10 +74,10 @@ final class FishPocketAccount {
     /// This device's runtime key changed (issued, replaced, or gone on signing out).
     @ObservationIgnored var onRuntimeKeyChange: (() -> Void)?
 
-    @ObservationIgnored private var transactionTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshing: Task<String?, Never>?
+    @PerceptionIgnored private var transactionTask: Task<Void, Never>?
+    @PerceptionIgnored private var refreshing: Task<String?, Never>?
     /// Transactions being redeemed: `Transaction.updates` and `.unfinished` both deliver them at launch.
-    @ObservationIgnored private var redeeming: Set<UInt64> = []
+    @PerceptionIgnored private var redeeming: Set<UInt64> = []
 
     init(engine: EngineClient) {
         self.engine = engine

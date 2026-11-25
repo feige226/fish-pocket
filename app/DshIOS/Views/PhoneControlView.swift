@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Perception
 /// 「操控手机」（侧边栏的独立入口）：用户自己装的 iCTRL 在不在跑，以及从这里启动、停止它。
 ///
 /// iCTRL 是第三方开源 App，靠 XCUITest 在本机提供一个只听 127.0.0.1:8200 的自动化服务，
@@ -13,6 +13,8 @@ struct PhoneControlView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             Section {
                 LabeledContent {
@@ -102,13 +104,14 @@ struct PhoneControlView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await service.refresh() }
         // 从 iCTRL 回来（启动、停止都会跳过去）时重新查一次。
-        .onChange(of: scenePhase) { _, phase in
+        .onChangeCompat(of: scenePhase) { _, phase in
             if phase == .active { Task { await service.refresh() } }
         }
-    }
+    
+        }}
 }
 
-@MainActor @Observable
+@MainActor @Perceptible
 final class PhoneControlService {
     enum State: Equatable {
         case checking, notInstalled, stopped, running

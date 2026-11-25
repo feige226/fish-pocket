@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 
 /// A draft that starts with `/`: the command it names and what follows.
 struct RemoteSlash {
@@ -32,7 +32,7 @@ struct RemoteSlash {
 /// event log. The live part (status, capabilities, pending requests) is re-read whenever the
 /// channel is re-established, and counts as current only while the channel is up.
 @MainActor
-@Observable
+@Perceptible
 final class RemoteSessionModel: Identifiable {
     enum Link: Equatable { case connecting, live, reconnecting, failed(String) }
 
@@ -73,18 +73,18 @@ final class RemoteSessionModel: Identifiable {
     private(set) var quoteRequest = 0
     var attachments: [RemoteUpload] = []
 
-    @ObservationIgnored private weak var store: RemoteStore?
-    @ObservationIgnored private var items: [RemoteItem] = []
-    @ObservationIgnored private var builder = RemoteTimelineBuilder()
-    @ObservationIgnored private var cursor = "seq:0"
-    @ObservationIgnored private var seen: Set<String> = []
-    @ObservationIgnored private var seenOrder: [String] = []
-    @ObservationIgnored private var run: Task<Void, Never>?
+    @PerceptionIgnored private weak var store: RemoteStore?
+    @PerceptionIgnored private var items: [RemoteItem] = []
+    @PerceptionIgnored private var builder = RemoteTimelineBuilder()
+    @PerceptionIgnored private var cursor = "seq:0"
+    @PerceptionIgnored private var seen: Set<String> = []
+    @PerceptionIgnored private var seenOrder: [String] = []
+    @PerceptionIgnored private var run: Task<Void, Never>?
     /// Live facts were read at this time; frames that arrived earlier are older than them.
-    @ObservationIgnored private var barrier = 0.0
-    @ObservationIgnored private var rebuildQueued = false
-    @ObservationIgnored private var suspended = false
-    @ObservationIgnored private var patience: Task<Void, Never>?
+    @PerceptionIgnored private var barrier = 0.0
+    @PerceptionIgnored private var rebuildQueued = false
+    @PerceptionIgnored private var suspended = false
+    @PerceptionIgnored private var patience: Task<Void, Never>?
 
     /// How long the channel may be down before the page says so.
     private static let quietReconnect = Duration.seconds(5)

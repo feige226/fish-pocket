@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The top-bar title of a child session (`SubagentHeaderLineage`): its label, and a
 /// menu of the ancestors, the siblings and its own children. The parent's catalog is
 /// the sibling list; a child with no parent left in the list shows its title alone.
@@ -8,6 +9,8 @@ struct SubagentSwitcher: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let chain = app.lineage(of: sessionId)
         let ancestors = chain.dropLast()
         let siblings = ancestors.last.map { app.subagentEntries(of: $0) } ?? []
@@ -43,7 +46,8 @@ struct SubagentSwitcher: View {
         .task {
             for id in ancestors { await app.refreshProjections(of: id) }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private func entries(_ entries: [JSON]) -> some View {
@@ -68,6 +72,8 @@ struct SubagentCatalogSheet: View {
     @State private var failed = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let entries = app.subagentEntries(of: rootId)
         let board = app.teamBoard(of: rootId)
         let hasBoard = !board.tasks.isEmpty || board.failure != nil
@@ -98,7 +104,8 @@ struct SubagentCatalogSheet: View {
             .task { await load() }
         }
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 
     private func open(_ id: String) {
         dismiss()
@@ -276,6 +283,8 @@ private struct SubagentRow: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let facts = SubagentFacts(entry: entry, app: app)
         NavigationLink {
             SubagentDetail(entry: entry, open: open)
@@ -309,7 +318,8 @@ private struct SubagentRow: View {
                 Button { open(facts.id) } label: { Label("打开会话", systemImage: "bubble.left") }
             }
         }
-    }
+    
+        }}
 }
 
 /// One child: its state and usage, 打开会话 under the thumb, and its own children.
@@ -319,6 +329,8 @@ private struct SubagentDetail: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
+        WithPerceptionTracking {
+
         let facts = SubagentFacts(entry: entry, app: app)
         let children = app.subagentEntries(of: facts.id)
         List {
@@ -354,7 +366,8 @@ private struct SubagentDetail: View {
             }
         }
         .task { await app.refreshProjections(of: facts.id) }
-    }
+    
+        }}
 }
 
 /// In place of the composer when a child cannot take messages (`SubagentReadOnlyComposer`).
@@ -363,6 +376,8 @@ struct SubagentReadOnlyNotice: View {
     let detail: LocalizedStringKey
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(spacing: 4) {
             Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Palette.secondary)
             Text(detail).font(.footnote).foregroundStyle(Palette.secondary).multilineTextAlignment(.center)
@@ -372,7 +387,8 @@ struct SubagentReadOnlyNotice: View {
         .padding(.vertical, 8)
         .background(Palette.field, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 extension SessionModel {

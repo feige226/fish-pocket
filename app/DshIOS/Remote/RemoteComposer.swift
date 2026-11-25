@@ -1,12 +1,13 @@
 import PhotosUI
 import SwiftUI
+import Perception
 import UniformTypeIdentifiers
 
 /// The input of a remote conversation: the same bar as a local one (＋, the text, send or stop),
 /// with what the agent on the computer offers behind ＋: pictures and files where it takes them,
 /// its model and permission, and its slash commands as the draft starts with `/`.
 struct RemoteComposer: View {
-    @Bindable var model: RemoteSessionModel
+    @Perception.Bindable var model: RemoteSessionModel
     let openOptions: () -> Void
     @Environment(AppModel.self) private var app
     @FocusState private var focused: Bool
@@ -31,6 +32,8 @@ struct RemoteComposer: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let suggestions = focused ? model.suggestions(for: model.draft) : []
         VStack(alignment: .leading, spacing: 8) {
             if !suggestions.isEmpty { commandPanel(suggestions) }
@@ -63,13 +66,13 @@ struct RemoteComposer: View {
             .padding(5)
             .composerSurface()
         }
-        .onChange(of: model.quoteRequest) { focused = true }
+        .onChangeCompat(of: model.quoteRequest) { _, _ in focused = true }
         // The command list is read the first time a draft could name one.
         .task(id: model.draft.hasPrefix("/") && model.canCommand) {
             if model.draft.hasPrefix("/"), model.commands.isEmpty { await model.loadCommands() }
         }
         .photosPicker(isPresented: $showPhotos, selection: $photos, maxSelectionCount: max(1, Self.maxFiles - model.attachments.count - reading.count), matching: .any(of: [.images, .videos]), preferredItemEncoding: .current)
-        .onChange(of: photos) { _, items in
+        .onChangeCompat(of: photos) { _, items in
             guard !items.isEmpty else { return }
             photos = []
             Task { await add(photos: items) }
@@ -77,7 +80,8 @@ struct RemoteComposer: View {
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { add(files: urls) }
         }
-    }
+    
+        }}
 
     /// Why sending waits, where it does; the draft is taken either way.
     private var placeholder: LocalizedStringKey {

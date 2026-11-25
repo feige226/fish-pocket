@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The tail of a Bot's own chat while it works, in place of the session's 「深度求索中」: its
 /// mark, moving for what it does, a phrase for it, and how long the turn has run. While its
 /// answer streams the mark gives way to three dots.
@@ -42,6 +43,8 @@ struct BotActivityLine: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let bot = team.bot(botId)
         let current = current(team)
@@ -69,7 +72,7 @@ struct BotActivityLine: View {
         }
         .opacity(arrived ? 1 : 0)
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-        .onChange(of: current, initial: true) { _, current in
+        .onChangeCompat(of: current, initial: true) { _, current in
             withAnimation(arrived ? .spring(response: 0.35, dampingFraction: 0.7) : nil) { line = current }
         }
         .task {
@@ -78,7 +81,8 @@ struct BotActivityLine: View {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) { arrived = true }
         }
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 
     private func current(_ team: BotModel) -> Line {
         let stage = stage(team)
@@ -136,6 +140,8 @@ struct BotSpeakingLine: View {
     let bot: BotInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let mood = team.mood(bot.id)
         HStack(spacing: 8) {
@@ -147,7 +153,8 @@ struct BotSpeakingLine: View {
         }
         .frame(minHeight: 28)
         .accessibilityElement(children: .combine)
-    }
+    
+        }}
 }
 
 /// A line of work in progress: a light sweeps across the words.
@@ -156,6 +163,8 @@ struct BotShimmer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        WithPerceptionTracking {
+
         Text(text).font(.footnote).foregroundStyle(Palette.secondary).lineLimit(1)
             .overlay {
                 if !reduceMotion {
@@ -169,7 +178,8 @@ struct BotShimmer: View {
                     .accessibilityHidden(true)
                 }
             }
-    }
+    
+        }}
 }
 
 /// Three dots in the Bot's colour, swelling one after another: it is writing its answer.
@@ -178,6 +188,8 @@ struct BotTypingDots: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        WithPerceptionTracking {
+
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             HStack(spacing: 3) {
@@ -191,5 +203,6 @@ struct BotTypingDots: View {
             }
         }
         .accessibilityHidden(true)
-    }
+    
+        }}
 }

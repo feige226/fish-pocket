@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 // MARK: - Faces
 
 /// How a connector is shown: the service's mark on its colour where Simple Icons has one
@@ -74,6 +75,8 @@ struct ConnectorIcon: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
+        WithPerceptionTracking {
+
         let shape = RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
         ZStack {
             if let look = ConnectorBrand.look(id), let color = Color(hex: look.hex) {
@@ -95,7 +98,8 @@ struct ConnectorIcon: View {
         .frame(width: size, height: size)
         .overlay(shape.strokeBorder(Palette.stroke, lineWidth: 0.5))
         .accessibilityHidden(true)
-    }
+    
+        }}
 
     /// How light a colour is, 0…1 (relative luminance).
     private static func luminance(_ hex: String) -> Double {
@@ -128,6 +132,8 @@ struct BotConnectorsPage: View {
     private static let hidden: Set<String> = ["figma"]
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
         let all = team.connectors.filter { !Self.hidden.contains($0["id"].string ?? "") }
@@ -186,7 +192,8 @@ struct BotConnectorsPage: View {
         .searchable(text: $query, prompt: "搜索服务")
         .sheet(isPresented: $adding) { CustomConnectorSheet() }
         .task { await team.refreshState() }
-    }
+    
+        }}
 
     private func link(_ row: JSON) -> some View {
         NavigationLink { BotConnectorPage(id: row["id"].string ?? "") } label: { ConnectorRow(row: row) }
@@ -207,7 +214,7 @@ struct BotConnectorsPage: View {
     private func pill(_ title: String, picked: Bool, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.select()
-            withAnimation(.snappy(duration: 0.2)) { action() }
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { action() }
         } label: {
             Text(title).font(.subheadline.weight(picked ? .semibold : .regular))
                 .foregroundStyle(picked ? Palette.onInk : Palette.ink)
@@ -252,6 +259,8 @@ private struct ConnectorRow: View {
     let row: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(spacing: 12) {
             ConnectorIcon(id: row["id"].string ?? "", name: row["name"].string ?? "", size: 40)
             VStack(alignment: .leading, spacing: 2) {
@@ -264,7 +273,8 @@ private struct ConnectorRow: View {
             if row["state"].string != "off" { ConnectorState(row: row) }
         }
         .padding(.vertical, 2)
-    }
+    
+        }}
 }
 
 /// Where a connector stands, in a word and its colour.
@@ -272,6 +282,8 @@ struct ConnectorState: View {
     let row: JSON
 
     var body: some View {
+        WithPerceptionTracking {
+
         let (symbol, text, color): (String?, String, Color) = switch row["state"].string {
         case "ready": ("checkmark.circle.fill", row["account"].string ?? String(localized: "已连接"), Palette.added)
         case "connecting": (nil, String(localized: "连接中"), Palette.running)
@@ -285,7 +297,8 @@ struct ConnectorState: View {
         }
         .font(.caption)
         .foregroundStyle(color)
-    }
+    
+        }}
 }
 
 // MARK: - One connector
@@ -303,6 +316,8 @@ struct BotConnectorPage: View {
     @State private var busy = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let row = team.connector(id) ?? .null
         let state = row["state"].string ?? "off"
@@ -358,12 +373,13 @@ struct BotConnectorPage: View {
         .disabled(busy)
         .navigationTitle(ConnectorBrand.name(row))
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: row["pending"]["url"].string) { _, url in
+        .onChangeCompat(of: row["pending"]["url"].string) { _, url in
             // A browser sign-in: the page runs inside the app so the engine, which listens for
             // the redirect, keeps running.
             if let url = url.flatMap(URL.init(string:)) { InAppSafari.open(url) }
         }
-    }
+    
+        }}
 
     /// The service's face, what it gives a Bot, and where the connection stands.
     private func header(_ row: JSON, state: String) -> some View {
@@ -494,6 +510,8 @@ private struct CustomConnectorSheet: View {
     @State private var saving = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             Form {
                 Section {
@@ -525,6 +543,7 @@ private struct CustomConnectorSheet: View {
                 }
             }
         }
-    }
+    
+        }}
 }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// The shell's dialogs, attached to the root view. Renaming a session is the system
 /// text alert (the title only has to be non-empty) and archiving busy work the system
 /// action sheet; both close at once, so a failure shows as a toast.
@@ -25,9 +26,10 @@ struct ShellDialogs: ViewModifier {
     }
 
     func body(content: Content) -> some View {
+        WithPerceptionTracking {
         content
             // The text is in place before the alert reads it.
-            .onChange(of: app.renameRequest?.id) {
+            .onChangeCompat(of: app.renameRequest?.id) { _, _ in
                 guard let request = app.renameRequest, case .session = request.target else { return }
                 title = request.initial
                 renaming = true
@@ -44,7 +46,8 @@ struct ShellDialogs: ViewModifier {
             } message: { request in
                 Text(request.summary)
             }
-    }
+    
+        }}
 
     private func saveTitle() {
         guard case .session(let id)? = app.renameRequest?.target else { return }
@@ -114,6 +117,8 @@ private struct RenameWorkspaceSheet: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             List {
                 Section {
@@ -142,7 +147,8 @@ private struct RenameWorkspaceSheet: View {
             text = request.initial
             focused = true
         }
-    }
+    
+        }}
 
     private func save() async {
         guard let workspace else { return }

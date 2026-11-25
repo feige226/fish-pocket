@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 设置 → Agent 预设 (AP-01 / AP-02 / AP-04 / AP-05): tapping a row makes it the default for
 /// new tasks (`agent-preset-registry.selectedDefault`), the ⓘ opens a read-only view of it.
 struct AgentPresetsPage: View {
@@ -23,6 +24,8 @@ struct AgentPresetsPage: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if presets == nil {
                 Section {
@@ -63,13 +66,17 @@ struct AgentPresetsPage: View {
         .groupedList()
         .navigationTitle("Agent 预设")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $reading) { preset in
-            AgentPresetReader(id: preset["id"].string ?? "", title: presetDisplayName(preset))
-        }
+        .background(
+            NavigationLink(
+                destination: AgentPresetReader(id: reading?["id"].string ?? "", title: reading.map(presetDisplayName) ?? "Agent 预设"),
+                isActive: Binding(get: { reading != nil }, set: { if !$0 { reading = nil } })
+            ) { EmptyView() }.hidden()
+        )
         .task(id: app.settingsRevision) { await load() }
         .followSettings()
         .refreshable { await load() }
-    }
+    
+        }}
 
     private func description(_ preset: JSON) -> String? {
         if let text = localized(preset["description"]), !text.isEmpty { return text }
@@ -164,6 +171,8 @@ private struct AgentPresetReader: View {
     @State private var failure: String?
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollView {
             if let content {
                 Text(content)
@@ -183,7 +192,7 @@ private struct AgentPresetReader: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let content {
-                ToolbarItem(placement: .topBarTrailing) { ShareLink(item: content) }
+                ToolbarItem(placement: .navigationBarTrailing) { ShareLink(item: content) }
             }
         }
         .task {
@@ -193,5 +202,6 @@ private struct AgentPresetReader: View {
                 failure = describeFailure(error)
             }
         }
-    }
+    
+        }}
 }

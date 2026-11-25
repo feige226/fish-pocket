@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 struct Workspace: Identifiable, Hashable {
@@ -100,7 +100,7 @@ struct RenameRequest: Identifiable {
 /// Everything above one conversation: the engine connection, workspaces and
 /// their sessions. Views read it from the environment.
 @MainActor
-@Observable
+@Perceptible
 final class AppModel {
     let client: EngineClient
     let mux: StreamMux
@@ -112,7 +112,7 @@ final class AppModel {
     let remote = RemoteStore.shared
     /// This engine's conversations opened in this run (DSH's own, a Bot's chat, a group's), kept
     /// between visits as remote ones are. A new engine generation starts with none.
-    @ObservationIgnored private(set) lazy var localSessions = SessionKeeper<SessionModel>()
+    @PerceptionIgnored private(set) lazy var localSessions = SessionKeeper<SessionModel>()
 
     private(set) var workspaces: [Workspace] = []
     private(set) var pinned: [String] = []
@@ -193,18 +193,18 @@ final class AppModel {
     /// per name, so that an event redraws only the views waiting on it.
     @ObservationIgnored private var eventCounts: [String: Tracked<Int>] = [:]
 
-    @ObservationIgnored private var workspaceTask: Task<Void, Never>?
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var eventsTask: Task<Void, Never>?
-    @ObservationIgnored private var controlTask: Task<Void, Never>?
-    @ObservationIgnored private var scheduleTask: Task<Void, Never>?
-    @ObservationIgnored private var eventsClientId: String?
+    @PerceptionIgnored private var workspaceTask: Task<Void, Never>?
+    @PerceptionIgnored private var refreshTask: Task<Void, Never>?
+    @PerceptionIgnored private var eventsTask: Task<Void, Never>?
+    @PerceptionIgnored private var controlTask: Task<Void, Never>?
+    @PerceptionIgnored private var scheduleTask: Task<Void, Never>?
+    @PerceptionIgnored private var eventsClientId: String?
     /// `api-session/status` from `$events`: the live running flag, which wins over
     /// `session/list` (that one can read idle while a tool call runs).
-    @ObservationIgnored private var runningStatus: [String: Bool] = [:]
-    @ObservationIgnored private var listeners: [UUID: (String, [JSON]) -> Void] = [:]
+    @PerceptionIgnored private var runningStatus: [String: Bool] = [:]
+    @PerceptionIgnored private var listeners: [UUID: (String, [JSON]) -> Void] = [:]
     /// Subagent children by parent, rebuilt with the list; rows ask per redraw.
-    @ObservationIgnored private(set) var childSessions: [String: [String]] = [:]
+    @PerceptionIgnored private(set) var childSessions: [String: [String]] = [:]
 
     init(launchURL: URL) {
         client = EngineClient(launchURL: launchURL)

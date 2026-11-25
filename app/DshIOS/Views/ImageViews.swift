@@ -250,11 +250,11 @@ struct ImageViewer: View {
                 .scaleEffect(scale)
                 .offset(offset)
                 .gesture(
-                    MagnifyGesture()
-                        .onChanged { scale = max(1, min(6, lastScale * $0.magnification)) }
+                    MagnificationGesture()
+                        .onChanged { value in scale = max(1, min(6, lastScale * value) ) }
                         .onEnded { _ in
                             lastScale = scale
-                            if scale == 1 { withAnimation(.snappy) { offset = .zero }; lastOffset = .zero }
+                            if scale == 1 { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { offset = .zero }; lastOffset = .zero }
                         }
                         .simultaneously(with: DragGesture()
                             .onChanged { value in
@@ -267,14 +267,14 @@ struct ImageViewer: View {
                             }
                             .onEnded { value in
                                 if scale <= 1 {
-                                    if value.translation.height > 120 { dismiss() } else { withAnimation(.snappy) { offset = .zero } }
+                                    if value.translation.height > 120 { dismiss() } else { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { offset = .zero } }
                                 } else {
                                     lastOffset = offset
                                 }
                             })
                 )
                 .onTapGesture(count: 2) {
-                    withAnimation(.snappy) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                         if scale > 1 { scale = 1; offset = .zero } else { scale = 2.5 }
                     }
                     lastScale = scale

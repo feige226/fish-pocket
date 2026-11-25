@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// Add a workspace (`directory-browser`): browse folders under the engine's `~/Documents` level
 /// by level, or make one, and open the current level. The folders are the engine's to
 /// read: a system folder picker returns paths outside the sandbox it cannot reach, and
@@ -27,6 +28,8 @@ struct NewWorkspaceView: View {
     private var listing: DirectoryListing? { levels[current] }
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack(path: $stack) {
             level(documents, title: String(localized: "文稿"))
                 .navigationDestination(for: String.self) { path in
@@ -52,7 +55,8 @@ struct NewWorkspaceView: View {
         } message: {
             Text(failure ?? "")
         }
-    }
+    
+        }}
 
     private func level(_ path: String, title: String) -> some View {
         DirectoryLevelView(path: path, showHidden: showHidden, reload: reload) { listing in
@@ -142,6 +146,8 @@ private struct DirectoryLevelView: View {
     @State private var slow = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         List {
             if let failure {
                 Text(failure).font(.footnote).foregroundStyle(Palette.removed).groupedRow()
@@ -174,7 +180,8 @@ private struct DirectoryLevelView: View {
             }
         }
         .task(id: "\(path)-\(reload)") { await load() }
-    }
+    
+        }}
 
     private func load() async {
         failure = nil

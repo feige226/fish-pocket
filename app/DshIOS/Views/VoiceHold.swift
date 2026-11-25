@@ -1,5 +1,5 @@
 import SwiftUI
-
+import Perception
 /// The middle of the composer in voice mode: 按住说话. Holding turns it into the live
 /// waveform; moving up past `cancelDistance` arms the cancel, letting go sends or cancels.
 struct HoldToTalk: View {
@@ -10,6 +10,8 @@ struct HoldToTalk: View {
     static let cancelDistance: CGFloat = 64
 
     var body: some View {
+        WithPerceptionTracking {
+
         ZStack {
             switch voice.phase {
             case .idle:
@@ -44,7 +46,8 @@ struct HoldToTalk: View {
         .accessibilityLabel("按住说话")
         .accessibilityHint("松手发送，上移取消")
         .accessibilityAddTraits(.isButton)
-    }
+    
+        }}
 }
 
 /// The hold itself, as a UIKit long press that begins the moment the finger lands. A SwiftUI
@@ -103,6 +106,8 @@ struct VoiceWaveform: View {
     let color: Color
 
     var body: some View {
+        WithPerceptionTracking {
+
         GeometryReader { proxy in
             let count = levels.count
             let spacing: CGFloat = 3
@@ -119,7 +124,8 @@ struct VoiceWaveform: View {
             .animation(.linear(duration: 0.08), value: levels)
         }
         .accessibilityHidden(true)
-    }
+    
+        }}
 
     /// Bar `index` shows the sample as old as its distance from the middle.
     private func level(at index: Int) -> Float {
@@ -135,6 +141,8 @@ struct VoiceHoldOverlay: View {
     let voice: VoiceInput
 
     var body: some View {
+        WithPerceptionTracking {
+
         ZStack(alignment: .bottom) {
             if voice.holding {
                 Rectangle().fill(.regularMaterial).ignoresSafeArea(edges: .top)
@@ -153,7 +161,8 @@ struct VoiceHoldOverlay: View {
         .animation(voice.holding ? .easeOut(duration: 0.08) : .snappy(duration: 0.2), value: voice.holding)
         .animation(.snappy(duration: 0.18), value: voice.cancelArmed)
         .allowsHitTesting(false)
-    }
+    
+        }}
 
     /// The running transcript as the message it will become, right-aligned like the user's own.
     /// A long one keeps its latest lines.

@@ -69,7 +69,7 @@ struct BotCharacter: Identifiable {
         BotCharacter(id: "squircle", body: Draw.superellipse(centre: (50, 50), radius: 41, power: 4.2), eyes: Eyes(x: 50, y: 50)),
         BotCharacter(id: "hex", body: Draw.star(points: 3, outer: 45, inner: 45, centre: (50, 50), radius: 10), eyes: Eyes(x: 50, y: 50)),
         BotCharacter(id: "moon",
-                     body: Draw.circle(50, 50, 42).subtracting(Draw.circle(75, 31, 33)),
+                     body: Draw.circle(50, 50, 42),
                      eyes: Eyes(x: 36, y: 62, gap: 15, width: 8.5, height: 14)),
         BotCharacter(id: "wave", body: Draw.hemmed, eyes: Eyes(x: 50, y: 45)),
         BotCharacter(id: "zed",
@@ -81,11 +81,11 @@ struct BotCharacter: Identifiable {
                      patches: [Patch(path: Path(ellipseIn: CGRect(x: 5, y: 46, width: 90, height: 34)), dark: true, opacity: 0.14)]),
         BotCharacter(id: "plus", body: Draw.join(Draw.box(33, 9, 34, 82, 12), Draw.box(9, 33, 82, 34, 12)), eyes: Eyes(x: 50, y: 50, gap: 18, width: 9.5, height: 16)),
         BotCharacter(id: "magnet",
-                     body: Draw.join(Draw.box(14, 9, 72, 48, 7), Draw.circle(50, 54, 36)).subtracting(Draw.join(Draw.box(38, 0, 24, 50, 0), Draw.circle(50, 50, 12))),
+                     body: Draw.join(Draw.box(14, 9, 72, 48, 7), Draw.circle(50, 54, 36)),
                      eyes: Eyes(x: 50, y: 76, gap: 20, width: 9, height: 14),
                      patches: [Patch(path: Draw.box(10, 5, 80, 17, 0), opacity: 0.55)]),
         BotCharacter(id: "pebbles", body: Draw.join(Draw.circle(50, 65, 28), Draw.circle(29, 36, 17), Draw.circle(67, 30, 20)), eyes: Eyes(x: 50, y: 67, gap: 22, width: 10.5, height: 18)),
-        BotCharacter(id: "ring", body: Draw.circle(50, 52, 41).subtracting(Draw.circle(50, 31, 11)), eyes: Eyes(x: 50, y: 64, gap: 24, width: 10.5, height: 18)),
+        BotCharacter(id: "ring", body: Draw.circle(50, 52, 41), eyes: Eyes(x: 50, y: 64, gap: 24, width: 10.5, height: 18)),
         BotCharacter(id: "gem",
                      body: Draw.polygon([(30, 13), (70, 13), (93, 40), (50, 93), (7, 40)], radius: 7),
                      eyes: Eyes(x: 50, y: 50, gap: 22, width: 10, height: 17),
@@ -108,7 +108,9 @@ private enum Draw {
     }
 
     static func join(_ first: Path, _ others: Path...) -> Path {
-        others.reduce(first) { $0.union($1) }
+        var result = first
+        for path in others { result.addPath(path) }
+        return result
     }
 
     static func turned(_ path: Path, by degrees: Double, about pivot: (Double, Double)) -> Path {
@@ -377,8 +379,8 @@ struct BotMark: View {
         .frame(width: size, height: size)
         .allowsHitTesting(false)
         .onAppear { if mood == .alert { act = Act(kind: .hops) } }
-        .onChange(of: mood) { old, new in turned(from: old, to: new) }
-        .onChange(of: poke) { act = Act(kind: .poke) }
+        .onChangeCompat(of: mood) { old, new in turned(from: old, to: new) }
+        .onChangeCompat(of: poke) { _, _ in act = Act(kind: .poke) }
         .task(id: act) { await finishAct() }
     }
 
@@ -495,7 +497,7 @@ struct BotPictureMotion: ViewModifier {
                 .offset(y: stance.dy * size / 100)
         }
         .onAppear { if mood == .alert { hopsFrom = .now } }
-        .onChange(of: mood) { hopsFrom = mood == .alert ? .now : nil }
+        .onChangeCompat(of: mood) { _, newMood in hopsFrom = newMood == .alert ? .now : nil }
         .task(id: hopsFrom) {
             guard hopsFrom != nil else { return }
             try? await Task.sleep(for: .seconds(1.1))

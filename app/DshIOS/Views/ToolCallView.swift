@@ -218,7 +218,7 @@ struct ToolDetailSheet: View {
             .navigationTitle(ToolStyle.name(of: call))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { copyButton(row.copies) }
+                ToolbarItem(placement: .navigationBarLeading) { copyButton(row.copies) }
             }
             .closeButton(dismiss)
         }

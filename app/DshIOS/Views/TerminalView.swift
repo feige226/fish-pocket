@@ -1,6 +1,6 @@
 import SwiftTerm
 import SwiftUI
-
+import Perception
 /// Keys the on-screen keyboard lacks or buries, shown under the workbench terminal.
 enum TerminalKey: CaseIterable {
     case escape, tab, control, up, down, left, right, pipe, slash, dash, tilde
@@ -67,7 +67,7 @@ enum TerminalKey: CaseIterable {
 /// a time, and input is sent in order inside the Host's byte windows. A failed
 /// attachment stays on screen with its status until `connect()` runs again.
 @MainActor
-@Observable
+@Perceptible
 final class TerminalConnection {
     enum Phase: Equatable {
         case connecting, connected, disconnected
@@ -87,22 +87,22 @@ final class TerminalConnection {
 
     var exited: Bool { info["state"].string == "exited" }
 
-    @ObservationIgnored private let mux: StreamMux
-    @ObservationIgnored private let client: EngineClient
-    @ObservationIgnored private let sessionId: String
-    @ObservationIgnored private weak var view: SwiftTerm.TerminalView?
+    @PerceptionIgnored private let mux: StreamMux
+    @PerceptionIgnored private let client: EngineClient
+    @PerceptionIgnored private let sessionId: String
+    @PerceptionIgnored private weak var view: SwiftTerm.TerminalView?
     /// Frames that arrived before the view did, oldest first (a snapshot replaces them).
-    @ObservationIgnored private var unrendered: [JSON] = []
-    @ObservationIgnored private var attachTask: Task<Void, Never>?
-    @ObservationIgnored private var retainTask: Task<Void, Never>?
-    @ObservationIgnored private var senderTask: Task<Void, Never>?
-    @ObservationIgnored private var attachment: Attachment?
-    @ObservationIgnored private var maxInputBytes = 65536
-    @ObservationIgnored private var maxBufferedBytes = 2_097_152
-    @ObservationIgnored private var maxCols = 500
-    @ObservationIgnored private var maxRows = 200
-    @ObservationIgnored private var size: (cols: Int, rows: Int)?
-    @ObservationIgnored private var controlReset: NSObjectProtocol?
+    @PerceptionIgnored private var unrendered: [JSON] = []
+    @PerceptionIgnored private var attachTask: Task<Void, Never>?
+    @PerceptionIgnored private var retainTask: Task<Void, Never>?
+    @PerceptionIgnored private var senderTask: Task<Void, Never>?
+    @PerceptionIgnored private var attachment: Attachment?
+    @PerceptionIgnored private var maxInputBytes = 65536
+    @PerceptionIgnored private var maxBufferedBytes = 2_097_152
+    @PerceptionIgnored private var maxCols = 500
+    @PerceptionIgnored private var maxRows = 200
+    @PerceptionIgnored private var size: (cols: Int, rows: Int)?
+    @PerceptionIgnored private var controlReset: NSObjectProtocol?
 
     /// Largest single `write`: long pastes go up in pieces, each waiting for window room.
     private static let chunkBytes = 8192

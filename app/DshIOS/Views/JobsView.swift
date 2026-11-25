@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// One background job as `job/list` reports it (`JobView`).
 struct JobRow: Identifiable, Hashable {
     let id: String
@@ -55,7 +56,7 @@ struct JobRow: Identifiable, Hashable {
 /// The session's job roster: `job/list` frames carry the whole set; the stream stays
 /// open while the conversation is up, so the top bar knows when there is anything to show.
 @MainActor
-@Observable
+@Perceptible
 final class JobsModel {
     private(set) var rows: [JobRow] = []
     /// Settled rows cleared here; 清空 is client-side, as on the web.
@@ -108,6 +109,8 @@ struct JobsSheet: View {
     @State private var settledOpen: Bool?
 
     var body: some View {
+        WithPerceptionTracking {
+
         NavigationStack {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 List {
@@ -124,7 +127,7 @@ struct JobsSheet: View {
                         } header: {
                             HStack {
                                 Button {
-                                    withAnimation(.snappy(duration: 0.2)) { settledOpen = !open }
+                                    withAnimation(.spring(response: 0.2, dampingFraction: 0.82)) { settledOpen = !open }
                                 } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: "chevron.right").font(.caption2.weight(.bold)).rotationEffect(.degrees(open ? 90 : 0))
@@ -151,7 +154,8 @@ struct JobsSheet: View {
         }
         // A job or two does not need the whole screen.
         .presentationDetents([.medium, .large])
-    }
+    
+        }}
 
     @ViewBuilder
     private func row(_ job: JobRow, now: Date) -> some View {
@@ -193,6 +197,8 @@ private struct JobRowLabel: View {
     let now: Date
 
     var body: some View {
+        WithPerceptionTracking {
+
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             mark.frame(width: 14)
             VStack(alignment: .leading, spacing: 2) {
@@ -201,7 +207,8 @@ private struct JobRowLabel: View {
                     .font(.caption).foregroundStyle(Palette.secondary).lineLimit(1)
             }
         }
-    }
+    
+        }}
 
     @ViewBuilder
     private var mark: some View {
@@ -232,6 +239,8 @@ struct JobOutputView: View {
     private var current: JobRow { jobs.rows.first { $0.id == job.id } ?? job }
 
     var body: some View {
+        WithPerceptionTracking {
+
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -250,8 +259,16 @@ struct JobOutputView: View {
                     }
                     Color.clear.frame(height: 1).id("bottom")
                         // iOS 17 has no scroll geometry; this marker's place in the scroll view says the same.
-                        .onGeometryChange(for: OutputEnd.self) { geometry in
-                            OutputEnd(contentHeight: geometry.frame(in: .named("output")).maxY, distance: -(geometry.bounds(of: .scrollView)?.maxY ?? 0))
+                        .onGeometryChangeCompat(for: OutputEnd.self) { geometry in
+                                let distance: CGFloat
+                                if #available(iOS 18.0, *) {
+                                    distance = -(geometry.bounds(of: .scrollView)?.maxY ?? 0)
+                                } else {
+                                    // Older systems cannot read the scroll view's bounds here;
+                                    // keep the user's manual scroll position instead of forcing follow.
+                                    distance = .greatestFiniteMagnitude
+                                }
+                                return OutputEnd(contentHeight: geometry.frame(in: .named("output")).maxY, distance: distance)
                         } action: { new in
                             if new.contentHeight > end.contentHeight, end.distance <= OutputEnd.threshold { proxy.scrollTo("bottom", anchor: .bottom) }
                             end = new
@@ -265,7 +282,7 @@ struct JobOutputView: View {
         .navigationTitle("任务输出")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button { copyToPasteboard(current.label) } label: { Label("复制命令", systemImage: "terminal") }
                     Button { copyToPasteboard(text) } label: { Label("复制输出", systemImage: "doc.on.doc") }.disabled(text.isEmpty)
@@ -273,14 +290,15 @@ struct JobOutputView: View {
                 .accessibilityLabel("复制")
             }
             if current.status == "running" {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("停止", role: .destructive) { stopping = current }.tint(Palette.removed)
                 }
             }
         }
         .stopJobDialog($stopping) { job in Task { await jobs.stop(job, sessionId: sessionId, app: app) } }
         .task { await follow() }
-    }
+    
+        }}
 
     /// The command, where the title used to be cut off, and how the job is doing.
     private var header: some View {

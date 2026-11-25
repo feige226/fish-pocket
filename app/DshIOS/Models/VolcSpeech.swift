@@ -1,6 +1,6 @@
 import AVFoundation
 import Foundation
-import Observation
+import Perception
 import Security
 
 /// Volcengine's speech (豆包语音): streaming recognition for hold-to-talk and calls, synthesis for
@@ -10,7 +10,7 @@ import Security
 /// credits. Volcengine only takes long-lived keys, so the relay holds the service's key and the
 /// app sends the account's runtime key.
 @MainActor
-@Observable
+@Perceptible
 final class VolcSpeech {
     static let shared = VolcSpeech()
 
@@ -300,7 +300,7 @@ final class VolcTranscriber: SpeechTranscriber {
         level: @escaping @MainActor (Float) -> Void,
         failed: @escaping @MainActor (Error) -> Void
     ) async throws {
-        guard AVAudioApplication.shared.recordPermission == .granted else { throw VoiceError.microphoneDenied }
+        guard AVAudioSession.sharedInstance().recordPermission == .granted else { throw VoiceError.microphoneDenied }
         let stream = stream
         mic.onChunk = { stream.send(audio: $0, last: false) }
         mic.onLevel = { value in Task { @MainActor in level(value) } }

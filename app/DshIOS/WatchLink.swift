@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 import WatchConnectivity
 
@@ -66,7 +66,7 @@ final class WatchLink: NSObject {
     /// Re-derive on every change of what the snapshot reads (sessions, approvals, projections, balance).
     private func observe(_ token: Int) {
         guard let app, token == tracking else { return }
-        let next = withObservationTracking { Self.snapshot(of: app) } onChange: { [weak self] in
+        let next = withPerceptionTracking { Self.snapshot(of: app) } onChange: { [weak self] in
             Task { @MainActor in self?.observe(token) }
         }
         apply(next)

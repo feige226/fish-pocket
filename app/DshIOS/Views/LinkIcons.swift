@@ -1,17 +1,18 @@
 import SwiftUI
+import Perception
 import UIKit
 
 /// The small site icon drawn before a web link in a reply, as chat apps do: the site's own
 /// favicon on a white tile, or a globe while there is none. Fetched from the linked site itself,
 /// once per host while the app runs; a local address is never asked.
 @MainActor
-@Observable
+@Perceptible
 final class LinkIcons {
     static let shared = LinkIcons()
 
     /// Tiles drawn, by host.
     private var tiles: [String: UIImage] = [:]
-    @ObservationIgnored private var asked: Set<String> = []
+    @PerceptionIgnored private var asked: Set<String> = []
 
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral

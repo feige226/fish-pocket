@@ -1,4 +1,5 @@
 import SwiftUI
+import Perception
 import WatchConnectivity
 
 /// 「Apple Watch」 under 分享 in 设置: whether the watch app is on the wrist yet, and how to put it
@@ -22,6 +23,7 @@ struct WatchSetupPage: View {
     @State private var pairing = WatchPairing.current
 
     var body: some View {
+        WithPerceptionTracking {
         ScrollView {
             VStack(spacing: 20) {
                 hero
@@ -58,7 +60,8 @@ struct WatchSetupPage: View {
                 try? await Task.sleep(for: .seconds(2))
             }
         }
-    }
+    
+        }}
 
     // MARK: Hero
 
@@ -104,7 +107,7 @@ struct WatchSetupPage: View {
             ForEach(Channel.allCases) { item in
                 Button {
                     if channel != item { Haptics.select() }
-                    withAnimation(.snappy(duration: 0.25)) { channel = item }
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.82)) { channel = item }
                 } label: {
                     Text(item.title)
                         .font(.subheadline.weight(channel == item ? .semibold : .medium))
@@ -301,6 +304,7 @@ private struct StatusCard: View {
     let pairing: WatchPairing
 
     var body: some View {
+        WithPerceptionTracking {
         HStack(spacing: 14) {
             ZStack(alignment: .bottomTrailing) {
                 Image(systemName: icon)
@@ -327,8 +331,9 @@ private struct StatusCard: View {
         .background(Palette.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.stroke) }
         .accessibilityElement(children: .combine)
-        .animation(.snappy, value: pairing)
-    }
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: pairing)
+    
+        }}
 
     private var icon: String {
         switch pairing {
@@ -385,6 +390,7 @@ private struct WatchIllustration: View {
     private let caseHeight: CGFloat = 178
 
     var body: some View {
+        WithPerceptionTracking {
         ZStack {
             // The band, behind the case.
             RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -419,7 +425,8 @@ private struct WatchIllustration: View {
         .frame(width: caseWidth + 20)
         .accessibilityHidden(true)
         .onAppear { if !reduceMotion { breathing = true } }
-    }
+    
+        }}
 
     private var screen: some View {
         VStack(spacing: 6) {
@@ -468,6 +475,7 @@ struct WatchSetupRow: View {
     @State private var pairing = WatchPairing.current
 
     var body: some View {
+        WithPerceptionTracking {
         HStack(spacing: 12) {
             Image(systemName: "applewatch")
                 .font(.system(size: 20, weight: .medium))
@@ -484,7 +492,8 @@ struct WatchSetupRow: View {
         }
         .padding(.vertical, 4)
         .onAppear { pairing = WatchPairing.current }
-    }
+    
+        }}
 
     private var subtitle: LocalizedStringKey {
         pairing == .installed ? "已安装在手表上" : "在手腕上看会话、做确认"

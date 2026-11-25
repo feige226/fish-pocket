@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// What a Bot asks of the user in its own chat beyond a question or a form: a key, a
 /// connector, a mail to approve, a skill it learned. Each ends the Bot's turn until answered.
 struct BotRequestCards: View {
@@ -7,6 +8,8 @@ struct BotRequestCards: View {
     let bot: BotInfo
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         VStack(spacing: 8) {
             ForEach(team.secretRequests(of: bot), id: \.["id"]) { SecretRequestCard(bot: bot, request: $0) }
@@ -14,7 +17,8 @@ struct BotRequestCards: View {
             ForEach(team.mailRequests(of: bot), id: \.["id"]) { MailSendCard(bot: bot, request: $0) }
             ForEach((team.live["learning"]?[bot.id].array ?? []), id: \.["id"]) { LearningCard(bot: bot, proposal: $0) }
         }
-    }
+    
+        }}
 }
 
 /// A key the Bot needs: typed here, kept on the device, never shown to the model.
@@ -28,6 +32,8 @@ private struct SecretRequestCard: View {
     @State private var sending = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let name = request["name"].string ?? ""
         BotCard {
             Text("\(bot.name)需要密钥 \(name)").font(.subheadline.weight(.semibold))
@@ -58,7 +64,8 @@ private struct SecretRequestCard: View {
             }
         }
         .disabled(sending)
-    }
+    
+        }}
 
     private func send(_ endpoint: String, _ payload: [String: JSON]) {
         sending = true
@@ -73,6 +80,8 @@ private struct ConnectorRequestCard: View {
     @State private var open = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let id = request["connectorId"].string ?? ""
         BotCard {
             HStack(spacing: 10) {
@@ -89,7 +98,8 @@ private struct ConnectorRequestCard: View {
         .sheet(isPresented: $open) {
             NavigationStack { BotConnectorPage(id: id).closeButton { open = false } }.settingsStyle()
         }
-    }
+    
+        }}
 }
 
 /// A mail the Bot wrote: checked and sent from here, or cancelled.
@@ -106,6 +116,8 @@ private struct MailSendCard: View {
     @State private var sending = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         BotCard {
             Text("待发送的邮件").font(.subheadline.weight(.semibold))
             field("收件人", text: $to)
@@ -133,7 +145,8 @@ private struct MailSendCard: View {
             subject = request["subject"].string ?? ""
             body_ = request["body"].string ?? ""
         }
-    }
+    
+        }}
 
     private func field(_ label: LocalizedStringKey, text: Binding<String>) -> some View {
         HStack(spacing: 8) {
@@ -164,6 +177,8 @@ private struct LearningCard: View {
     @State private var sending = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let skill = proposal["kind"].string == "skill"
         BotCard {
             Text(skill ? "\(bot.name)学会了一个技能：\(proposal["name"].string ?? "")" : "\(bot.name)想更新工作说明 AGENTS.md")
@@ -184,11 +199,12 @@ private struct LearningCard: View {
                 Button("采纳") { answer(true) }.buttonStyle(.capsule(height: 36, fill: false))
                 Button("不用") { answer(false) }.buttonStyle(.capsule(.outline, height: 36, fill: false))
                 Spacer()
-                Button(expanded ? "收起" : "看内容") { withAnimation(.snappy) { expanded.toggle() } }.font(.footnote)
+                Button(expanded ? "收起" : "看内容") { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { expanded.toggle() } }.font(.footnote)
             }
         }
         .disabled(sending)
-    }
+    
+        }}
 
     private func answer(_ approve: Bool) {
         sending = true
@@ -211,6 +227,8 @@ struct BotSideChatSheet: View {
     @State private var asking = false
 
     var body: some View {
+        WithPerceptionTracking {
+
         let team = app.botTeam
         let chats = team.team["sideChats"][botId].array
         let chat = fresh ? nil : chats.first { $0["id"].string == chatId } ?? chats.last
@@ -244,7 +262,7 @@ struct BotSideChatSheet: View {
                     .padding(20)
                     .modifier(LinkOpening())
                 }
-                .onChange(of: chat?["entries"].array.count) { _, _ in withAnimation { proxy.scrollTo("end") } }
+                .onChangeCompat(of: chat?["entries"].array.count) { _, _ in withAnimation { proxy.scrollTo("end") } }
             }
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 8) {
@@ -266,7 +284,7 @@ struct BotSideChatSheet: View {
             .closeButton(dismiss)
             .toolbar {
                 if !chats.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: .navigationBarLeading) {
                         Menu {
                             Button { fresh = true; chatId = nil } label: { Label("新的提问", systemImage: "plus") }
                             Section("之前问过的") {
@@ -291,7 +309,8 @@ struct BotSideChatSheet: View {
                 }
             }
         }
-    }
+    
+        }}
 
     private func ask(chat: JSON?) {
         let text = question.trimmingCharacters(in: .whitespacesAndNewlines)

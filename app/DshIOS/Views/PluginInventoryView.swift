@@ -1,5 +1,6 @@
 import SwiftUI
 
+import Perception
 /// 设置 → 内置插件 (I-01…I-06): a read-only snapshot of what runs on this engine,
 /// the entry point for finding out why a plugin did not load. Session plugins are
 /// the Agent presets' rosters; global plugins are shared by the system and every
@@ -20,15 +21,18 @@ struct PluginInventoryPage: View {
     private var needle: String { query.trimmingCharacters(in: .whitespaces).lowercased() }
 
     var body: some View {
+        WithPerceptionTracking {
+
         Group {
             if let snapshot {
                 list(snapshot)
             } else if failed {
-                ContentUnavailableView {
-                    Label("暂时无法读取插件。", systemImage: "exclamationmark.triangle")
-                } actions: {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle").font(.largeTitle).foregroundStyle(Palette.secondary)
+                    Text("暂时无法读取插件。").font(.headline)
                     Button("重试") { Task { await load() } }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView()
             }
@@ -38,7 +42,8 @@ struct PluginInventoryPage: View {
         .navigationTitle("内置插件")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
-    }
+    
+        }}
 
     private func load() async {
         failed = false
@@ -150,6 +155,8 @@ private struct InventoryCard: View {
     }
 
     var body: some View {
+        WithPerceptionTracking {
+
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 dot
@@ -164,8 +171,9 @@ private struct InventoryCard: View {
             if expanded { details }
         }
         .contentShape(Rectangle())
-        .onTapGesture { withAnimation(.snappy) { expanded.toggle() } }
-    }
+        .onTapGesture { withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { expanded.toggle() } }
+    
+        }}
 
     @ViewBuilder
     private var dot: some View {

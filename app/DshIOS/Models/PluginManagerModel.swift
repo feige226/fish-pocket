@@ -1,5 +1,5 @@
 import Foundation
-import Observation
+import Perception
 import SwiftUI
 
 // MARK: - Plugin packages
@@ -181,7 +181,7 @@ enum PluginAction {
 /// actions on them. One per connection, shared by the page, its detail pages and the
 /// install task.
 @MainActor
-@Observable
+@Perceptible
 final class PluginManagerModel {
     enum Status { case idle, loading, ready, error, unavailable }
 
@@ -219,7 +219,7 @@ final class PluginManagerModel {
     ]
     static let marketBundle = "@deepseek-ai/dsh-experimental-plugin-market-bundle"
 
-    @ObservationIgnored unowned let app: AppModel
+    @PerceptionIgnored unowned let app: AppModel
 
     private(set) var status: Status = .idle
     private(set) var refreshing = false
@@ -229,9 +229,9 @@ final class PluginManagerModel {
     /// A package an install just enabled, marked in the list for a moment.
     var highlight: String?
 
-    @ObservationIgnored private var inflight: Task<Void, Never>?
-    @ObservationIgnored private var rerun = false
-    @ObservationIgnored private var loadedRevision: Int?
+    @PerceptionIgnored private var inflight: Task<Void, Never>?
+    @PerceptionIgnored private var rerun = false
+    @PerceptionIgnored private var loadedRevision: Int?
 
     init(app: AppModel) {
         self.app = app

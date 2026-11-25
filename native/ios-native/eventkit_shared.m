@@ -42,28 +42,45 @@ static NSString *const kNotEnabledMessage =
 static void settle(EKAuthorizationStatus status, BOOL writeOnlyIsEnough, NSString *deniedMessage,
                    void (^next)(BOOL granted, NSString *error), BOOL *resolved) {
   *resolved = YES;
-  switch (status) {
-    case EKAuthorizationStatusFullAccess:
-      next(YES, nil);
-      return;
-    case EKAuthorizationStatusDenied:
-    case EKAuthorizationStatusRestricted:
-      next(NO, deniedMessage);
-      return;
-    case EKAuthorizationStatusWriteOnly:
-      // Events only; iOS has no add-only tier for reminders. Adding is all this
-      // tier can do — it cannot read back even what it just wrote (§4.0).
-      if (writeOnlyIsEnough) {
+  if (@available(iOS 17.0, *)) {
+    switch (status) {
+      case EKAuthorizationStatusFullAccess:
         next(YES, nil);
-      } else {
-        next(NO, @"this app has add-only access, which cannot read. Reading needs Full Access, "
-                  "which the user can switch on in Settings > Privacy & Security");
-      }
-      return;
-    case EKAuthorizationStatusNotDetermined:
-    default:
-      *resolved = NO;
-      return;
+        return;
+      case EKAuthorizationStatusDenied:
+      case EKAuthorizationStatusRestricted:
+        next(NO, deniedMessage);
+        return;
+      case EKAuthorizationStatusWriteOnly:
+        // Events only; iOS has no add-only tier for reminders. Adding is all this
+        // tier can do — it cannot read back even what it just wrote (§4.0).
+        if (writeOnlyIsEnough) {
+          next(YES, nil);
+        } else {
+          next(NO, @"this app has add-only access, which cannot read. Reading needs Full Access, "
+                    "which the user can switch on in Settings > Privacy & Security");
+        }
+        return;
+      case EKAuthorizationStatusNotDetermined:
+      default:
+        *resolved = NO;
+        return;
+    }
+  } else {
+    // Before iOS 17, Authorized is the full read/write permission.
+    switch (status) {
+      case EKAuthorizationStatusAuthorized:
+        next(YES, nil);
+        return;
+      case EKAuthorizationStatusDenied:
+      case EKAuthorizationStatusRestricted:
+        next(NO, deniedMessage);
+        return;
+      case EKAuthorizationStatusNotDetermined:
+      default:
+        *resolved = NO;
+        return;
+    }
   }
 }
 
@@ -104,10 +121,14 @@ void DshEventKitGrantAccess(EKEntityType type, NSString *deniedMessage,
     }
   };
   dsh_native_on_main(^{
-    if (type == EKEntityTypeReminder) {
-      [DshEventStore() requestFullAccessToRemindersWithCompletion:granted];
+    if (@available(iOS 17.0, *)) {
+      if (type == EKEntityTypeReminder) {
+        [DshEventStore() requestFullAccessToRemindersWithCompletion:granted];
+      } else {
+        [DshEventStore() requestFullAccessToEventsWithCompletion:granted];
+      }
     } else {
-      [DshEventStore() requestFullAccessToEventsWithCompletion:granted];
+      [DshEventStore() requestAccessToEntityType:type completion:granted];
     }
   });
 }
